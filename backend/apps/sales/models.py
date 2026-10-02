@@ -82,6 +82,7 @@ class ImmutableModel(models.Model):
 
     class Meta:
         abstract = True
+        base_manager_name = "objects"
 
     def save(self, *args, **kwargs):
         if not self._state.adding:
@@ -133,6 +134,7 @@ class Invoice(ImmutableModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        base_manager_name = "objects"  # guard _base_manager too (re-review 3)
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(total_cents__gt=0), name="invoice_total_gt_0"
@@ -182,6 +184,7 @@ class InvoiceItem(ImmutableModel):
     line_total_cents = models.BigIntegerField()
 
     class Meta:
+        base_manager_name = "objects"  # guard _base_manager too (re-review 3)
         constraints = [
             models.CheckConstraint(condition=models.Q(qty_packets__gt=0), name="item_qty_gt_0"),
             models.CheckConstraint(
@@ -217,6 +220,7 @@ class Payment(ImmutableModel):
     server_received_at = models.DateTimeField()
 
     class Meta:
+        base_manager_name = "objects"  # guard _base_manager too (re-review 3)
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(amount_cents__gt=0), name="payment_amount_gt_0"
@@ -240,6 +244,7 @@ class PaymentAllocation(ImmutableModel):
     amount_cents = models.BigIntegerField()
 
     class Meta:
+        base_manager_name = "objects"  # guard _base_manager too (re-review 3)
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(amount_cents__gt=0), name="alloc_amount_gt_0"

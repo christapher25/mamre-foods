@@ -239,3 +239,52 @@ def test_void_permit_accepts_the_real_row_and_only_for_that_invoice():
     with void_permit(invoice.pk, audit):
         invoice._apply_void(actor=admin, reason="ok", at=utc(4), sync_version=99)
     assert _status(invoice) == "void"
+
+
+# ---- re-review 3: the base manager is guarded too --------------------------------------------
+
+
+@pytest.mark.parametrize("model", MODELS)
+def test_base_manager_is_the_guarded_manager(model):
+    assert model._meta.base_manager_name == "objects"
+    assert type(model._base_manager.all()).__name__ == "ImmutableQuerySet"
+
+
+@pytest.mark.parametrize("model", MODELS)
+@pytest.mark.parametrize("kwargs", BULK_CREATE_KWARGS, ids=["plain", "ignore", "update"])
+def test_base_manager_refuses_bulk_create(model, kwargs):
+    with pytest.raises(RuntimeError):
+        model._base_manager.bulk_create([model()], **kwargs)
+
+
+@pytest.mark.parametrize("model", MODELS)
+def test_base_manager_refuses_update_delete_and_bulk_update(model):
+    with pytest.raises(RuntimeError):
+        model._base_manager.update(sync_version=1)
+    with pytest.raises(RuntimeError):
+        model._base_manager.filter(pk__isnull=False).update(sync_version=1)
+    with pytest.raises(RuntimeError):
+        model._base_manager.all().delete()
+    with pytest.raises(RuntimeError):
+        model._base_manager.bulk_update([], ["sync_version"])
+
+
+def test_stored_rows_survive_every_base_manager_attack():
+    world = build_world()
+    invoice = _invoice(world)
+    for model in MODELS:
+        for attack in (lambda m: m._base_manager.update(sync_version=999),
+                       lambda m: m._base_manager.all().delete()):
+            with pytest.raises(RuntimeError):
+                attack(model)
+    invoice.refresh_from_db()
+    assert invoice.sync_version != 999 and Invoice.objects.count() == 1
+
+
+def test_normal_inserts_and_the_void_still_work_with_the_guarded_base_manager():
+    world = build_world()
+    invoice = _invoice(world)  # insert through save()
+    admin = make_user("boss", role="admin")
+    services.void_invoice(invoice, actor=admin, reason="ok")  # update through Model.save
+    assert _status(invoice) == "void"
+    assert InvoiceItem.objects.filter(invoice=invoice).count() == 1  # related lookups
