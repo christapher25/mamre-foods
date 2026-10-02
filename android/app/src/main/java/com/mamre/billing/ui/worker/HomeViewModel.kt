@@ -3,7 +3,6 @@ package com.mamre.billing.ui.worker
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.api.ApiException
-import com.mamre.billing.data.api.BackendApi
 import com.mamre.billing.data.auth.SessionExpiredException
 import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.data.demo.DemoStore
@@ -26,13 +25,12 @@ data class HomeState(
 )
 
 /**
- * W1 Home. Loads the worker profile (GET /me) and refreshes the catalog (GET /sync/catalog)
+ * W1 Home. Shows the profile stored at sign-in and refreshes the catalog (GET /sync/catalog)
  * when the app has signal. Failures are silent: offline the worker keeps the last catalog
  * (Doc 2 s6). A dead session is handled by SessionManager.role, which returns the UI to Login.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val api: BackendApi,
     private val session: SessionManager,
     private val catalog: CatalogRepository,
     private val store: DemoStore,
@@ -52,13 +50,11 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
-        viewModelScope.launch {
-            quietly {
-                val me = session.authorized { api.me(it) }
-                _state.update { it.copy(workerName = me.fullName, deviceCode = me.deviceCode) }
-            }
-            quietly { catalog.refresh() }
+        // Name and device code were stored at sign-in, so Home works offline (Doc 2 s2, s6).
+        session.profile?.let { p ->
+            _state.update { it.copy(workerName = p.fullName, deviceCode = p.deviceCode) }
         }
+        viewModelScope.launch { quietly { catalog.refresh() } }
     }
 
     private suspend fun quietly(block: suspend () -> Unit) {

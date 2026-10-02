@@ -12,6 +12,9 @@ import kotlinx.coroutines.sync.withLock
 /** The session is over and the worker must sign in again. */
 class SessionExpiredException(cause: Throwable? = null) : Exception("Session expired", cause)
 
+/** Who is signed in, as last returned by /me. [deviceCode] is null for an admin. */
+data class Profile(val fullName: String, val deviceCode: String?)
+
 /** Signing in was refused because of the role, not the password. [message] is shown on Login. */
 class RoleRejectedException(message: String) : Exception(message)
 
@@ -38,6 +41,10 @@ class SessionManager(
     private val storedRole: Role? =
         if (store.refreshToken != null) Role.parse(store.role) else null
 
+    /** Stored at sign-in, so it is there offline and after a restart. */
+    val profile: Profile?
+        get() = store.fullName?.let { Profile(it, store.deviceCode) }
+
     private val _role = MutableStateFlow(storedRole)
     val role: StateFlow<Role?> = _role.asStateFlow()
 
@@ -52,13 +59,14 @@ class SessionManager(
 
     suspend fun login(username: String, password: String) {
         val tokens = api.login(username, password)
-        val role = Role.parse(api.me(tokens.access).role)
-            ?: throw RoleRejectedException(UNKNOWN_ROLE_MESSAGE)
+        val me = api.me(tokens.access)
+        val role = Role.parse(me.role) ?: throw RoleRejectedException(UNKNOWN_ROLE_MESSAGE)
         if (role == Role.ADMIN && !adminSignInAvailable) {
             throw RoleRejectedException(ADMIN_UNAVAILABLE_MESSAGE)
         }
         store.save(tokens.access, tokens.refresh)
         store.saveRole(role.wire)
+        store.saveProfile(me.fullName, me.deviceCode)
         _role.value = role
         _signedIn.value = true
     }

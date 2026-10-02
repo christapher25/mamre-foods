@@ -30,6 +30,12 @@ class MemoryTokenStore(
     override fun saveRole(role: String) {
         this.role = role
     }
+    override var fullName: String? = null
+    override var deviceCode: String? = null
+    override fun saveProfile(fullName: String, deviceCode: String?) {
+        this.fullName = fullName
+        this.deviceCode = deviceCode
+    }
     override fun save(access: String, refresh: String) {
         accessToken = access
         refreshToken = refresh
@@ -41,6 +47,8 @@ class MemoryTokenStore(
         accessToken = null
         refreshToken = null
         role = null
+        fullName = null
+        deviceCode = null
     }
 }
 
@@ -58,7 +66,7 @@ private class ScriptedApi : BackendApi {
         if (refreshDelayMs > 0) delay(refreshDelayMs)
         return refreshResult()
     }
-    override suspend fun me(accessToken: String) = Me("id", "u", "User", meRole, null)
+    override suspend fun me(accessToken: String) = Me("id", "u", "User", meRole, "W1")
     override suspend fun catalog(accessToken: String, cursor: Long): CatalogPull = error("not used")
 }
 
@@ -100,6 +108,14 @@ class SessionManagerTest {
         session.login("user1", "pw")
         assertEquals(Role.ADMIN, session.role.value)
         assertEquals("admin", store.role)
+    }
+
+    @Test fun profileIsStoredAtSignInForOfflineUseAndClearedAtLogout() = runTest {
+        session.login("w", "pw")
+        assertEquals(Profile("User", "W1"), session.profile)
+        assertEquals(Profile("User", "W1"), SessionManager(api, store).profile) // after a restart
+        session.logout()
+        assertNull(session.profile)
     }
 
     @Test fun unknownRoleIsRefusedAndNothingIsStored() = runTest {
