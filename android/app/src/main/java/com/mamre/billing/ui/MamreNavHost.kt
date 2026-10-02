@@ -9,11 +9,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.auth.Role
@@ -23,15 +23,20 @@ import com.mamre.billing.domain.auth.startDestinationFor
 import com.mamre.billing.ui.admin.AdminHomeScreen
 import com.mamre.billing.ui.login.LoginScreen
 import com.mamre.billing.ui.worker.BuilderScreen
-import com.mamre.billing.ui.worker.ComingSoonScreen
 import com.mamre.billing.ui.worker.ConfirmScreen
 import com.mamre.billing.ui.worker.CustomerScreen
 import com.mamre.billing.ui.worker.InvoiceFlowViewModel
+import com.mamre.billing.ui.worker.PaymentCustomerScreen
+import com.mamre.billing.ui.worker.PaymentFormScreen
 import com.mamre.billing.ui.worker.PaymentScreen
 import com.mamre.billing.ui.worker.ReceiptScreen
+import com.mamre.billing.ui.worker.ReturnCustomerScreen
+import com.mamre.billing.ui.worker.ReturnDoneScreen
+import com.mamre.billing.ui.worker.ReturnFormScreen
 import com.mamre.billing.ui.worker.HomeScreen
 import com.mamre.billing.ui.worker.HomeTile
 import com.mamre.billing.ui.worker.SyncScreen
+import com.mamre.billing.ui.worker.TodayScreen
 import com.mamre.billing.ui.worker.WorkerRoutes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -71,20 +76,26 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
         navigation(route = Routes.WORKER_GRAPH, startDestination = WorkerRoutes.HOME) {
             composable(WorkerRoutes.HOME) {
                 HomeScreen(onTile = { tile ->
-                    when (tile) {
-                        HomeTile.NEW_INVOICE -> navController.navigate(WorkerRoutes.INVOICE_GRAPH)
-                        HomeTile.SYNC_STATUS -> navController.navigate(WorkerRoutes.SYNC)
-                        else -> navController.navigate(WorkerRoutes.soon(tile))
-                    }
+                    navController.navigate(
+                        when (tile) {
+                            HomeTile.NEW_INVOICE -> WorkerRoutes.INVOICE_GRAPH
+                            HomeTile.RECORD_PAYMENT -> WorkerRoutes.PAYMENT_GRAPH
+                            HomeTile.RETURN -> WorkerRoutes.RETURN_GRAPH
+                            HomeTile.TODAYS_INVOICES -> WorkerRoutes.TODAY
+                            HomeTile.SYNC_STATUS -> WorkerRoutes.SYNC
+                        },
+                    )
                 })
             }
             composable(WorkerRoutes.SYNC) { SyncScreen(onBack = { navController.popBackStack() }) }
-            composable(
-                WorkerRoutes.SOON,
-                arguments = listOf(navArgument("tile") { type = NavType.StringType }),
-            ) {
-                val tile = it.arguments?.getString("tile")?.let(HomeTile::valueOf)
-                ComingSoonScreen(title = tile?.title.orEmpty(), onBack = { navController.popBackStack() })
+            composable(WorkerRoutes.TODAY) {
+                TodayScreen(
+                    onBack = { navController.popBackStack() },
+                    // Reprint: the bill opens marked DUPLICATE COPY (Doc 1 s5.4).
+                    onOpen = {
+                        navController.navigate(WorkerRoutes.receipt(WorkerRoutes.KIND_INVOICE, it.id, duplicate = true))
+                    },
+                )
             }
             navigation(route = WorkerRoutes.INVOICE_GRAPH, startDestination = WorkerRoutes.INVOICE_CUSTOMER) {
                 composable(WorkerRoutes.INVOICE_CUSTOMER) { entry ->
@@ -125,6 +136,53 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
                     )
                 }
             }
+            navigation(route = WorkerRoutes.PAYMENT_GRAPH, startDestination = WorkerRoutes.PAYMENT_CUSTOMER) {
+                composable(WorkerRoutes.PAYMENT_CUSTOMER) { entry ->
+                    PaymentCustomerScreen(
+                        vm = navController.graphViewModel(entry, WorkerRoutes.PAYMENT_GRAPH),
+                        onBack = { navController.popBackStack() },
+                        onChosen = { navController.navigate(WorkerRoutes.PAYMENT_FORM) },
+                    )
+                }
+                composable(WorkerRoutes.PAYMENT_FORM) { entry ->
+                    PaymentFormScreen(
+                        vm = navController.graphViewModel(entry, WorkerRoutes.PAYMENT_GRAPH),
+                        onBack = { navController.popBackStack() },
+                        onRecorded = { id ->
+                            navController.navigate(WorkerRoutes.receipt(WorkerRoutes.KIND_PAYMENT, id)) {
+                                popUpTo(WorkerRoutes.HOME)
+                            }
+                        },
+                    )
+                }
+            }
+            navigation(route = WorkerRoutes.RETURN_GRAPH, startDestination = WorkerRoutes.RETURN_CUSTOMER) {
+                composable(WorkerRoutes.RETURN_CUSTOMER) { entry ->
+                    ReturnCustomerScreen(
+                        vm = navController.graphViewModel(entry, WorkerRoutes.RETURN_GRAPH),
+                        onBack = { navController.popBackStack() },
+                        onChosen = { navController.navigate(WorkerRoutes.RETURN_FORM) },
+                    )
+                }
+                composable(WorkerRoutes.RETURN_FORM) { entry ->
+                    ReturnFormScreen(
+                        vm = navController.graphViewModel(entry, WorkerRoutes.RETURN_GRAPH),
+                        onBack = { navController.popBackStack() },
+                        // Stay inside the return graph: popping it would drop the ViewModel that holds the saved return.
+                        onRecorded = {
+                            navController.navigate(WorkerRoutes.RETURN_DONE) {
+                                popUpTo(WorkerRoutes.RETURN_CUSTOMER) { inclusive = true }
+                            }
+                        },
+                    )
+                }
+                composable(WorkerRoutes.RETURN_DONE) { entry ->
+                    ReturnDoneScreen(
+                        vm = navController.graphViewModel(entry, WorkerRoutes.RETURN_GRAPH),
+                        onDone = { navController.popBackStack(WorkerRoutes.HOME, inclusive = false) },
+                    )
+                }
+            }
             composable(
                 WorkerRoutes.RECEIPT,
                 arguments = listOf(
@@ -148,12 +206,16 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
     }
 }
 
-/** The invoice ViewModel lives as long as the invoice graph, so Back between steps keeps the input. */
+/** A flow's ViewModel lives as long as its nested graph, so Back between steps keeps the input. */
 @Composable
-private fun NavController.invoiceFlow(entry: NavBackStackEntry): InvoiceFlowViewModel {
-    val parent = remember(entry) { getBackStackEntry(WorkerRoutes.INVOICE_GRAPH) }
+private inline fun <reified VM : ViewModel> NavController.graphViewModel(entry: NavBackStackEntry, graph: String): VM {
+    val parent = remember(entry) { getBackStackEntry(graph) }
     return hiltViewModel(parent)
 }
+
+@Composable
+private fun NavController.invoiceFlow(entry: NavBackStackEntry): InvoiceFlowViewModel =
+    graphViewModel(entry, WorkerRoutes.INVOICE_GRAPH)
 
 /** Clears the back stack and opens the start of this role, or Login when there is none. */
 private fun NavController.goToStart(role: Role?) {

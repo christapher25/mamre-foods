@@ -95,3 +95,19 @@ fun buildInvoiceLines(products: List<PricedProduct>, quantities: Map<String, Int
 
 /** Continue is allowed only once there is at least one packet (Doc 2 s10 Invoice builder). */
 fun canContinueInvoice(lines: List<InvoiceLine>): Boolean = lines.isNotEmpty()
+
+/** Doc 1 s6.1: Other is accepted with a note. */
+fun noteMissingForOther(method: PaymentMethod, note: String): Boolean =
+    method == PaymentMethod.OTHER && note.isBlank()
+
+/**
+ * A return can be recorded once a product, packets, a reason and a resolution are chosen and the
+ * product has a price: no price means no credit and no record, never a zero (Doc 1 s4.2, s7.1).
+ */
+fun canRecordReturn(
+    hasProduct: Boolean,
+    qtyPackets: Int,
+    unitPriceCents: Long?,
+    reason: ReturnReason?,
+    resolution: ReturnResolution?,
+): Boolean = hasProduct && qtyPackets > 0 && unitPriceCents != null && reason != null && resolution != null

@@ -7,9 +7,6 @@ object WorkerRoutes {
     const val HOME = Routes.WORKER_HOME
     const val SYNC = "worker/sync"
     const val TODAY = "worker/today"
-    const val SOON = "worker/soon/{tile}"
-
-    fun soon(tile: HomeTile) = "worker/soon/${tile.name}"
 
     // New invoice: W2 to W5 share one ViewModel scoped to this nested graph.
     const val INVOICE_GRAPH = "worker/invoice"
