@@ -29,3 +29,8 @@ def test_app_modules_import(name, suffix):
 @pytest.mark.parametrize("name", APP_NAMES)
 def test_app_is_installed(name):
     assert apps.is_installed(f"apps.{name}")
+
+
+def test_django_admin_is_not_installed():
+    # Financial records must never be editable through Django admin (Doc 2 I-4, I-9, AT-10).
+    assert not apps.is_installed("django.contrib.admin")

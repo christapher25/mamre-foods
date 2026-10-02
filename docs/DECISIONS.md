@@ -11,3 +11,4 @@ One line per decision: date - decision - reason.
 2026-10-02 - Django DEFAULT_AUTO_FIELD stays BigAutoField; each app owner sets UUID primary keys explicitly per model (Doc 2 s4.1).
 2026-10-02 - ruff rule set is E, F, W, I, B, DJ with line length 100, migrations excluded - a conservative baseline; owner may tighten.
 2026-10-02 - Removed django.contrib.admin from INSTALLED_APPS (no admin route existed); auth, sessions and messages stay - so financial records can never be edited through Django admin (Doc 2 s12, I-4, I-9, AT-10); owner answer to the QUESTIONS.md item.
+2026-10-02 - dj-database-url (DATABASE_URL to Django DATABASES), python-dotenv (optional local .env loading) and psycopg[binary] (PostgreSQL 16 driver) are needed for env-based configuration and the locked stack (Doc 2 s2, s13); all three were on the owner's P0 dependency list.
