@@ -192,3 +192,52 @@ def test_walk_in_with_a_rejected_neighbour_does_not_block_other_records(world):
                           payment_payload(2000, invoice_id=good_inv["id"])])
     assert statuses(body) == ["rejected", "accepted", "accepted", "rejected", "accepted"]
     assert stored_counts() == (2, 1)
+
+
+# ---- finding 7: the duplicate-payment fast path ---------------------------------------------
+
+
+def test_duplicate_payment_is_answered_from_storage_without_storing_again(world, monkeypatch):
+    """Fails if the fast path in _push_payment is removed: the second send must never reach
+    store_payment (which would take a counter version and try to allocate again)."""
+    from apps.sales import services as sales_services
+    from apps.sales.models import PaymentAllocation
+
+    inv = invoice_payload(world, "MAM-W1-0001", 1000)
+    first_pay = payment_payload(400, invoice_id=inv["id"])
+    first = push(world, invoices=[inv], payments=[first_pay])
+    assert first["results"][1]["status"] == "accepted"
+    original = first["results"][1]["allocated"]
+    assert original == [{"invoice_id": inv["id"], "amount_cents": 400}]
+    # another payment lands, so a fresh allocation of the first would now look different
+    push(world, payments=[payment_payload(300, invoice_id=inv["id"], day=13)])
+    allocations_before = PaymentAllocation.objects.count()
+    cursor_before = selectors.current_sales_cursor()
+
+    def must_not_be_called(**kwargs):
+        raise AssertionError("store_payment was called for a payment that is already stored")
+
+    monkeypatch.setattr(sales_services, "store_payment", must_not_be_called)
+    second = push(world, payments=[first_pay])
+
+    assert second["results"][0]["status"] == "duplicate"
+    assert second["results"][0]["allocated"] == original
+    assert PaymentAllocation.objects.count() == allocations_before == 2
+    assert Payment.objects.count() == 2
+    assert selectors.current_sales_cursor() == cursor_before  # no version was taken
+
+
+def test_duplicate_invoice_is_answered_from_storage_without_storing_again(world, monkeypatch):
+    from apps.sales import services as sales_services
+
+    inv = invoice_payload(world, "MAM-W1-0001", 1000)
+    push(world, invoices=[inv])
+    cursor_before = selectors.current_sales_cursor()
+
+    def must_not_be_called(**kwargs):
+        raise AssertionError("store_invoice was called for an invoice that is already stored")
+
+    monkeypatch.setattr(sales_services, "store_invoice", must_not_be_called)
+    body = push(world, invoices=[inv])
+    assert statuses(body) == ["duplicate"]
+    assert selectors.current_sales_cursor() == cursor_before
