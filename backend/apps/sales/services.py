@@ -27,7 +27,13 @@ def next_sales_version():
     The counter row stays locked until that transaction commits, so versions become visible in
     order (on PostgreSQL) and a reader that reads the counter first never skips a row. Taking it
     first in every write also serialises sales writes, so two pushes cannot allocate the same
-    invoice twice. SQLite (tests only) serialises writers anyway."""
+    invoice twice. SQLite (tests only) serialises writers anyway.
+
+    LOCK ORDER RULE: every sales writer (store_invoice, store_payment, void_invoice and any
+    future one) takes this counter lock FIRST, and only then locks or writes any other sales
+    row. One fixed order means two writers can never wait on each other (no deadlock), and the
+    void path cannot lock an invoice while a payment holds the counter and wants that invoice.
+    tests/test_sales_hardening.py checks the order from the query log."""
     with transaction.atomic():
         counter, _ = SalesCounter.objects.select_for_update().get_or_create(pk=1)
         counter.value += 1
@@ -119,11 +125,11 @@ def void_invoice(invoice, *, actor, reason):
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("A reason is required to void an invoice.")
+    version = next_sales_version()  # lock order: the counter FIRST, then the invoice row
     current = Invoice.objects.select_for_update().get(pk=invoice.pk)
     if current.status != InvoiceStatus.ACTIVE:
         raise ValueError("Only an active invoice can be voided.")
     at = timezone.now()
-    version = next_sales_version()
     audit = record_audit(
         user=actor,
         action="invoice.void",

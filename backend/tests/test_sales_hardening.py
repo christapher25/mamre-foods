@@ -1,8 +1,10 @@
 """Reviewer findings for the sales app (Doc 2 I-3, I-4, I-9, s6.4)."""
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from apps.accounts.models import AuditLog
-from apps.sales import rules, services
+from apps.sales import rules, selectors, services
 from apps.sales.models import Invoice, InvoiceItem, Payment, PaymentAllocation, void_permit
 from tests.core_helpers import make_user
 from tests.test_sales_helpers import build_world, utc
@@ -116,3 +118,59 @@ def test_number_with_whitespace_or_lowercase_is_rejected(number):
 
 def test_exact_number_is_still_accepted():
     assert rules.number_device_code("MAM-W1-0042") == "W1"
+
+
+# ---- finding 6: every sales writer takes the counter lock first ------------------------------
+
+def _first_index(queries, table):
+    needle = f'"{table}"'
+    for index, query in enumerate(queries):
+        if needle in query["sql"]:
+            return index
+    return None
+
+
+def _assert_counter_first(queries):
+    counter = _first_index(queries, "sales_salescounter")
+    assert counter is not None, "the writer never touched the sales counter"
+    for table in ("sales_invoice", "sales_invoiceitem", "sales_payment", "sales_paymentallocation"):
+        touched = _first_index(queries, table)
+        assert touched is None or counter < touched, (
+            f"{table} was read or written before the counter lock was taken"
+        )
+
+
+def test_void_invoice_takes_the_counter_lock_before_the_invoice_row():
+    world = build_world()
+    invoice = _invoice(world)
+    admin = make_user("boss", role="admin")
+    with CaptureQueriesContext(connection) as captured:
+        services.void_invoice(invoice, actor=admin, reason="Mistake")
+    _assert_counter_first(captured.captured_queries)
+    # and the invoice row lock is taken after it, in the same transaction
+    assert _first_index(captured.captured_queries, "sales_invoice") is not None
+
+
+def test_store_invoice_and_store_payment_take_the_counter_lock_first():
+    world = build_world()
+    with CaptureQueriesContext(connection) as captured:
+        invoice = _invoice(world)
+    _assert_counter_first(captured.captured_queries)
+    with CaptureQueriesContext(connection) as captured:
+        services.store_payment(
+            worker=world.worker, device=world.device,
+            data={"id": "33333333-3333-4333-8333-333333333333", "customer": world.customer,
+                  "invoice": invoice, "amount_cents": 400, "method": "cash", "paid_at": utc(4)},
+        )
+    _assert_counter_first(captured.captured_queries)
+
+
+def test_a_refused_void_does_not_leave_a_version_or_a_lock_behind():
+    world = build_world()
+    invoice = _invoice(world)
+    admin = make_user("boss", role="admin")
+    services.void_invoice(invoice, actor=admin, reason="first")
+    before = selectors.current_sales_cursor()
+    with pytest.raises(ValueError):
+        services.void_invoice(invoice, actor=admin, reason="second")
+    assert selectors.current_sales_cursor() == before  # the counter bump rolled back
