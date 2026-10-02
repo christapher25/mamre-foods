@@ -2,7 +2,7 @@
 
 Doc 2 section 3, cross-app rule: other apps call this module, never the tables.
 """
-from .models import Device, Role, User
+from .models import AppSetting, Device, Role, User
 
 
 def get_active_worker_by_id(user_id):
@@ -14,3 +14,10 @@ def current_device_code(user):
     """Code of the user's most recent device, or None (Doc 2 s5 GET /me)."""
     device = Device.objects.filter(user=user).order_by("-created_at").first()
     return device.code if device else None
+
+
+def settings_changed_since(cursor, keys):
+    """AppSetting rows with sync_version above the cursor, limited to the given keys."""
+    return list(
+        AppSetting.objects.filter(sync_version__gt=cursor, key__in=keys).order_by("sync_version")
+    )
