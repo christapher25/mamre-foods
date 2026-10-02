@@ -8,7 +8,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from . import selectors
-from .exceptions import InvalidCredentials
+from .exceptions import AdminRequired, InvalidCredentials
 from .models import AppSetting, AuditLog, Role
 
 
@@ -22,6 +22,13 @@ def record_audit(*, user, action, entity, entity_id, before=None, after=None):
         before_json=before,
         after_json=after,
     )
+
+
+def require_admin(actor):
+    """Raise AdminRequired unless actor is an active admin (the row is re-read, so a stale
+    in-memory user cannot keep an old role). Doc 1 s2: only the Admin sets prices."""
+    if not selectors.is_active_admin(actor):
+        raise AdminRequired("This action needs an active admin.")
 
 
 def login_worker(username, password):

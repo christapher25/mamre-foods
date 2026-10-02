@@ -49,11 +49,11 @@ def populated(admin):
     )
     default = services.create_price_default(
         product=fresh, customer_type=restaurant, unit_price_cents=250,
-        effective_from=date(2026, 1, 1), actor=admin,
+        effective_from=date(2026, 1, 1), actor=admin, today=date(2026, 10, 2),
     )
     override = services.create_price_override(
         customer=customer, product=fresh, unit_price_cents=220,
-        effective_from=date(2026, 1, 1), note="Special", actor=admin,
+        effective_from=date(2026, 1, 1), note="Special", actor=admin, today=date(2026, 10, 2),
     )
     accounts_services.set_setting("address", "5 Dough Lane")
     return {"customer": customer, "default": default, "override": override, "fresh": fresh}
@@ -213,8 +213,18 @@ def test_cursor_returns_only_changes(populated, admin):
 def test_cursor_covers_every_row_kind(populated, admin):
     cursor = pull().json()["cursor"]
     services.update_product(populated["fresh"], name="Fresh Chapathi")
-    services.update_price_default(populated["default"], actor=admin, unit_price_cents=260)
-    services.update_price_override(populated["override"], actor=admin, unit_price_cents=210)
+    # The fixture prices are already in effect, so correct future-dated rows in place instead.
+    today = date(2026, 10, 2)
+    future_default = services.create_price_default(
+        product=populated["fresh"], customer_type=populated["customer"].type,
+        unit_price_cents=255, effective_from=date(2026, 12, 1), actor=admin, today=today,
+    )
+    future_override = services.create_price_override(
+        customer=populated["customer"], product=populated["fresh"], unit_price_cents=205,
+        effective_from=date(2026, 12, 1), actor=admin, today=today,
+    )
+    services.update_price_default(future_default, actor=admin, today=today, unit_price_cents=260)
+    services.update_price_override(future_override, actor=admin, today=today, unit_price_cents=210)
     ctype = services.create_customer_type(name="Caterer")
     accounts_services.set_setting("phone", "555-0123")
     body = pull(cursor).json()
@@ -233,7 +243,9 @@ def test_inactive_rows_are_sent_with_is_active_false(populated, admin):
     cursor = pull().json()["cursor"]
     services.update_customer(populated["customer"], is_active=False)
     services.update_product(populated["fresh"], is_active=False)
-    services.update_price_override(populated["override"], actor=admin, is_active=False)
+    services.update_price_override(
+        populated["override"], actor=admin, today=date(2026, 10, 2), is_active=False
+    )
     ctype = CustomerType.objects.get(name="Shop")
     services.update_customer_type(ctype, is_active=False)
 

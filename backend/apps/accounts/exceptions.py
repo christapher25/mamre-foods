@@ -10,6 +10,10 @@ class InvalidCredentials(exceptions.APIException):
     default_code = "invalid_credentials"
 
 
+class AdminRequired(PermissionError):
+    """A write that only an active Admin may make (Doc 1 s2) was attempted by someone else."""
+
+
 def _code_for(exc):
     if isinstance(exc, InvalidCredentials):
         return "invalid_credentials"

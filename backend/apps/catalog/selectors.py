@@ -20,6 +20,14 @@ def active_override_rows(customer, product):
     )
 
 
+def override_rows(customer, product):
+    """Every override row for the pair, active or not: (effective_from, unit_price_cents)."""
+    return list(
+        PriceOverride.objects.filter(customer=customer, product=product)
+        .values_list("effective_from", "unit_price_cents")
+    )
+
+
 def default_rows(customer_type_id, product):
     """(effective_from, unit_price_cents) for a customer type's default prices on a product."""
     return list(

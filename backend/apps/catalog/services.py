@@ -6,9 +6,12 @@ Every write bumps sync_version (Doc 2 s4.1) inside one transaction.
 from datetime import date, datetime
 
 from django.db import transaction
+from django.utils import timezone
 
-from apps.accounts.services import record_audit
+from apps.accounts.services import record_audit, require_admin
 
+from . import selectors
+from .exceptions import PriceHistoryError
 from .models import (
     Customer,
     CustomerType,
@@ -133,12 +136,49 @@ OVERRIDE_SNAPSHOT = (
 )
 
 
-def create_price_default(*, actor, **fields):
+def _today(today):
+    return today if today is not None else timezone.localdate()
+
+
+def _check_later_than_current(rows, effective_from, today):
+    """Doc 1 s4.3: a new price row must be dated after the row now in effect."""
+    in_effect = [row[0] for row in rows if row[0] <= today]
+    if in_effect and effective_from <= max(in_effect):
+        raise PriceHistoryError(
+            f"A new price needs an effective_from later than {max(in_effect).isoformat()}, "
+            "the date of the price now in effect. To change a price, create a new row with "
+            "a later effective_from."
+        )
+
+
+def _check_editable(price, fields, today):
+    """A price in effect (effective_from today or earlier) keeps its unit_price_cents."""
+    changing = "unit_price_cents" in fields and fields["unit_price_cents"] != price.unit_price_cents
+    if changing and price.effective_from <= today:
+        raise PriceHistoryError(
+            f"The price effective {price.effective_from.isoformat()} is already in effect and "
+            "cannot be changed. Create a new row with a later effective_from."
+        )
+
+
+def _require(fields, names):
+    missing = [name for name in names if name not in fields]
+    if missing:
+        raise ValueError(f"Missing fields: {missing}")
+
+
+def create_price_default(*, actor, today=None, **fields):
+    require_admin(actor)
     allowed = {"product", "customer_type", "unit_price_cents", "effective_from"}
     _check_fields(fields, allowed)
+    _require(fields, allowed)
     _check_price(fields)
     _check_effective_from(fields)
     with transaction.atomic():
+        _check_later_than_current(
+            selectors.default_rows(fields["customer_type"].pk, fields["product"]),
+            fields["effective_from"], _today(today),
+        )
         price = _create(PriceDefault, allowed, fields)
         record_audit(
             user=actor, action="price_default.create", entity="PriceDefault",
@@ -147,10 +187,12 @@ def create_price_default(*, actor, **fields):
     return price
 
 
-def update_price_default(price, *, actor, **fields):
+def update_price_default(price, *, actor, today=None, **fields):
+    require_admin(actor)
     _check_fields(fields, PRICE_DEFAULT_UPDATE_FIELDS)
     _check_price(fields)
     with transaction.atomic():
+        _check_editable(price, fields, _today(today))
         before = _snapshot(price, DEFAULT_SNAPSHOT)
         _update(price, PRICE_DEFAULT_UPDATE_FIELDS, fields)
         record_audit(
@@ -160,12 +202,18 @@ def update_price_default(price, *, actor, **fields):
     return price
 
 
-def create_price_override(*, actor, **fields):
+def create_price_override(*, actor, today=None, **fields):
+    require_admin(actor)
     allowed = {"customer", "product", "unit_price_cents", "effective_from", "note", "is_active"}
     _check_fields(fields, allowed)
+    _require(fields, {"customer", "product", "unit_price_cents", "effective_from"})
     _check_price(fields)
     _check_effective_from(fields)
     with transaction.atomic():
+        _check_later_than_current(
+            selectors.override_rows(fields["customer"], fields["product"]),
+            fields["effective_from"], _today(today),
+        )
         price = _create(PriceOverride, allowed, fields)
         record_audit(
             user=actor, action="price_override.create", entity="PriceOverride",
@@ -174,10 +222,12 @@ def create_price_override(*, actor, **fields):
     return price
 
 
-def update_price_override(price, *, actor, **fields):
+def update_price_override(price, *, actor, today=None, **fields):
+    require_admin(actor)
     _check_fields(fields, PRICE_OVERRIDE_UPDATE_FIELDS)
     _check_price(fields)
     with transaction.atomic():
+        _check_editable(price, fields, _today(today))
         before = _snapshot(price, OVERRIDE_SNAPSHOT)
         _update(price, PRICE_OVERRIDE_UPDATE_FIELDS, fields)
         record_audit(

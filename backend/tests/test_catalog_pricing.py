@@ -16,6 +16,8 @@ from tests.core_helpers import make_user
 pytestmark = pytest.mark.django_db
 
 D = date
+TODAY = D(2026, 10, 2)  # fixed so tests do not depend on the real clock
+FUTURE = D(2026, 12, 1)
 
 
 @pytest.fixture
@@ -46,14 +48,14 @@ def customer(restaurant):
 def set_default(admin, restaurant, product, cents, frm):
     return services.create_price_default(
         product=product, customer_type=restaurant, unit_price_cents=cents,
-        effective_from=frm, actor=admin,
+        effective_from=frm, actor=admin, today=TODAY,
     )
 
 
 def set_override(admin, customer, product, cents, frm, **extra):
     return services.create_price_override(
         customer=customer, product=product, unit_price_cents=cents,
-        effective_from=frm, actor=admin, **extra,
+        effective_from=frm, actor=admin, today=TODAY, **extra,
     )
 
 
@@ -124,7 +126,7 @@ def test_override_is_per_customer_and_per_product(
 def test_inactive_override_is_ignored(admin, customer, restaurant, product):
     set_default(admin, restaurant, product, 250, D(2026, 1, 1))
     override = set_override(admin, customer, product, 220, D(2026, 1, 1))
-    services.update_price_override(override, actor=admin, is_active=False)
+    services.update_price_override(override, actor=admin, today=TODAY, is_active=False)
     assert resolve_price(customer, product, D(2026, 10, 2)) == 250
 
 
@@ -182,15 +184,15 @@ def test_database_rejects_non_positive_price_even_if_service_is_bypassed(restaur
 
 
 def test_default_unique_per_type_product_and_date(admin, restaurant, product):
-    set_default(admin, restaurant, product, 250, D(2026, 1, 1))
+    set_default(admin, restaurant, product, 250, FUTURE)
     with pytest.raises(IntegrityError), transaction.atomic():
-        set_default(admin, restaurant, product, 260, D(2026, 1, 1))
+        set_default(admin, restaurant, product, 260, FUTURE)
 
 
 def test_override_unique_per_customer_product_and_date(admin, customer, product):
-    set_override(admin, customer, product, 200, D(2026, 1, 1))
+    set_override(admin, customer, product, 200, FUTURE)
     with pytest.raises(IntegrityError), transaction.atomic():
-        set_override(admin, customer, product, 210, D(2026, 1, 1))
+        set_override(admin, customer, product, 210, FUTURE)
 
 
 def test_price_default_has_no_deactivate_or_delete_service():
@@ -213,8 +215,8 @@ def test_creating_a_default_writes_audit(admin, restaurant, product):
 
 
 def test_changing_a_default_writes_before_and_after(admin, restaurant, product):
-    price = set_default(admin, restaurant, product, 250, D(2026, 1, 1))
-    services.update_price_default(price, actor=admin, unit_price_cents=260)
+    price = set_default(admin, restaurant, product, 250, FUTURE)
+    services.update_price_default(price, actor=admin, today=TODAY, unit_price_cents=260)
     entry = AuditLog.objects.get(action="price_default.update")
     assert entry.action == "price_default.update"
     assert entry.before_json["unit_price_cents"] == 250
@@ -222,8 +224,10 @@ def test_changing_a_default_writes_before_and_after(admin, restaurant, product):
 
 
 def test_override_create_and_change_write_audit(admin, customer, product):
-    override = set_override(admin, customer, product, 200, D(2026, 1, 1), note="Loyal")
-    services.update_price_override(override, actor=admin, unit_price_cents=190, is_active=False)
+    override = set_override(admin, customer, product, 200, FUTURE, note="Loyal")
+    services.update_price_override(
+        override, actor=admin, today=TODAY, unit_price_cents=190, is_active=False
+    )
     entries = [
         AuditLog.objects.get(action="price_override.create"),
         AuditLog.objects.get(action="price_override.update"),
@@ -236,23 +240,25 @@ def test_override_create_and_change_write_audit(admin, customer, product):
 
 
 def test_failed_price_write_leaves_no_audit_row(admin, restaurant, product):
-    set_default(admin, restaurant, product, 250, D(2026, 1, 1))
+    set_default(admin, restaurant, product, 250, FUTURE)
     before = AuditLog.objects.count()
     with pytest.raises(IntegrityError), transaction.atomic():
-        set_default(admin, restaurant, product, 260, D(2026, 1, 1))
+        set_default(admin, restaurant, product, 260, FUTURE)
     assert AuditLog.objects.count() == before
 
 
 def test_price_changes_bump_sync_version(admin, customer, restaurant, product):
-    price = set_default(admin, restaurant, product, 250, D(2026, 1, 1))
+    price = set_default(admin, restaurant, product, 250, FUTURE)
     first = price.sync_version
-    services.update_price_default(price, actor=admin, unit_price_cents=260)
+    services.update_price_default(price, actor=admin, today=TODAY, unit_price_cents=260)
     assert price.sync_version > first
     override = set_override(admin, customer, product, 200, D(2026, 1, 1))
     assert override.sync_version > price.sync_version
 
 
 def test_update_rejects_unknown_price_fields(admin, restaurant, product):
-    price = set_default(admin, restaurant, product, 250, D(2026, 1, 1))
+    price = set_default(admin, restaurant, product, 250, FUTURE)
     with pytest.raises(ValueError):
-        services.update_price_default(price, actor=admin, effective_from=D(2027, 1, 1))
+        services.update_price_default(
+            price, actor=admin, today=TODAY, effective_from=D(2027, 1, 1)
+        )

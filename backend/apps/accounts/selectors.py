@@ -10,6 +10,13 @@ def get_active_worker_by_id(user_id):
     return User.objects.filter(pk=user_id, is_active=True, role=Role.WORKER).first()
 
 
+def is_active_admin(user):
+    """True only if this user is, in the database right now, an active admin."""
+    if user is None or getattr(user, "pk", None) is None:
+        return False
+    return User.objects.filter(pk=user.pk, is_active=True, role=Role.ADMIN).exists()
+
+
 def current_device_code(user):
     """Code of the user's most recent device, or None (Doc 2 s5 GET /me)."""
     device = Device.objects.filter(user=user).order_by("-created_at").first()
