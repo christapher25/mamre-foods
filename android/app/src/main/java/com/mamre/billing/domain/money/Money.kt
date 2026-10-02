@@ -48,3 +48,20 @@ fun parseCents(text: String): Long? {
     val cents = (whole.ifEmpty { "0" }.toLong() * CENTS_PER_DOLLAR) + frac.padEnd(2, '0').toLong()
     return if (negative) -cents else cents
 }
+
+private const val COMPACT_THRESHOLD_CENTS = 100_000L // $1,000
+private const val CENTS_PER_TENTH_OF_THOUSAND = 10_000L // $100
+
+/**
+ * Short money for chart labels: $865, $1k, $12.3k. Integer arithmetic only, rounding half up
+ * (so a label may differ from the exact figure shown elsewhere on the screen).
+ */
+fun formatCompactCents(cents: Long): String {
+    val sign = if (cents < 0) "-" else ""
+    val abs = Math.abs(cents)
+    if (abs < COMPACT_THRESHOLD_CENTS) return sign + "$" + ((abs + 50) / CENTS_PER_DOLLAR)
+    val tenths = (abs + CENTS_PER_TENTH_OF_THOUSAND / 2) / CENTS_PER_TENTH_OF_THOUSAND // in $100 units
+    val whole = tenths / 10
+    val fraction = tenths % 10
+    return sign + "$" + whole + (if (fraction == 0L) "" else ".$fraction") + "k"
+}
