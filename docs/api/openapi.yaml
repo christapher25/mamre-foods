@@ -1,0 +1,10 @@
+# API contract for the mobile API (Doc 2 section 5).
+# Change the contract first, before code. A1 creates this file, A2 extends it.
+openapi: 3.0.3
+info:
+  title: Mamre Foods Billing API
+  description: Mobile API used by the Android worker app. Base path /api/v1/.
+  version: 0.1.0
+servers:
+  - url: /api/v1
+paths: {}
