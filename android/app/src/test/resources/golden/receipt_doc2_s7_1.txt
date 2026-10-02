@@ -1,0 +1,27 @@
+          MAMRE FOODS
+   (address / phone pending)
+--------------------------------
+Invoice: MAM-W1-0042
+Date:    10/10/2026 14:20
+Worker:  W1
+Customer: Spice Garden
+Type:     Restaurant
+--------------------------------
+Mamre Chapathi
+  10 x $2.50              $25.00
+Mamre Fresh Chapathi
+  20 x $2.80              $56.00
+--------------------------------
+TOTAL                     $81.00
+Paid now (Cash)           $30.00
+Balance after            $121.00
+--------------------------------
+THIS MONTH (Oct 2026)
+Brought forward            $0.00
+Invoiced                 $201.00
+Payments:
+ 10/05 Zelle              $50.00
+ 10/10 Cash               $30.00
+TOTAL DUE                $121.00
+--------------------------------
+           Thank you!
