@@ -270,7 +270,9 @@ def test_device_code_must_be_the_workers_own(world):
 
 
 @pytest.mark.parametrize(
-    "number", ["MAM-W1-42", "mam-w1-0042", "INV-W1-0042", "MAM-W1-", "", None, 7]
+    "number",
+    ["MAM-W1-42", "mam-w1-0042", "INV-W1-0042", "MAM-W1-", "", None, 7,
+     "MAM-W1-0001" + chr(10), " MAM-W1-0001", "MAM-W1-0001 "],
 )
 def test_bad_number_format(world, number):
     inv = invoice_payload(world, "MAM-W1-0001", 1000)

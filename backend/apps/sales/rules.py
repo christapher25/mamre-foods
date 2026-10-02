@@ -4,12 +4,13 @@ Doc 2 I-2, I-3, I-5; Doc 1 s6.2, s6.3.
 """
 import re
 
-NUMBER_RE = re.compile(r"^MAM-([A-Z0-9]+)-([0-9]{4,})$")  # Doc 2 I-3
+# Doc 2 I-3. Used with fullmatch, and \Z (not $) so a trailing newline never slips through.
+NUMBER_RE = re.compile(r"MAM-([A-Z0-9]+)-([0-9]{4,})\Z")
 
 
 def number_device_code(number):
     """The device code inside an invoice number, or None if the format is wrong (I-3)."""
-    match = NUMBER_RE.match(number) if isinstance(number, str) else None
+    match = NUMBER_RE.fullmatch(number) if isinstance(number, str) else None
     return match.group(1) if match else None
 
 

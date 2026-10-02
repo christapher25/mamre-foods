@@ -2,7 +2,7 @@
 import pytest
 
 from apps.accounts.models import AuditLog
-from apps.sales import services
+from apps.sales import rules, services
 from apps.sales.models import Invoice, InvoiceItem, Payment, PaymentAllocation, void_permit
 from tests.core_helpers import make_user
 from tests.test_sales_helpers import build_world, utc
@@ -102,3 +102,17 @@ def test_a_void_always_leaves_exactly_one_audit_row():
     services.void_invoice(invoice, actor=admin, reason="Mistake")
     assert _status(invoice) == "void"
     assert AuditLog.objects.filter(action="invoice.void", entity_id=str(invoice.pk)).count() == 1
+
+
+# ---- finding 3: the invoice number must match in full ----------------------------------------
+
+@pytest.mark.parametrize("number", [
+    "MAM-W1-0042\n", "MAM-W1-0042\r\n", " MAM-W1-0042", "MAM-W1-0042 ", "\tMAM-W1-0042",
+    "mam-w1-0042", "MAM-w1-0042", "MAM-W1-0042\n\n",
+])
+def test_number_with_whitespace_or_lowercase_is_rejected(number):
+    assert rules.number_device_code(number) is None
+
+
+def test_exact_number_is_still_accepted():
+    assert rules.number_device_code("MAM-W1-0042") == "W1"
