@@ -7,3 +7,4 @@ One entry per question: date - agent - question - spec sections involved.
 2026-10-02 - A1 - For A2 (P2): customer balance and opening_balance_cents are not in GET /sync/catalog. They must reach the device through GET /sync/customer-activity in P2. Doc 2 s5, s4.2, I-6.
 2026-10-02 - A1 - Customer.notes is not sent to workers. Should any part of it ever reach the device? Doc 2 s5, I-8.
 2026-10-02 - A1 - Seed product codes FRESH and CHAPATHI are placeholders. Confirm the real codes. Doc 1 s3, s4.1.
+2026-10-02 - A1 - resolve_price needs a customer. Which price list does a Walk-in (null customer) use: the Retail type defaults? Doc 1 s4.1, s4.2; Doc 2 s4.2. Needed by A2/A3 in P2.

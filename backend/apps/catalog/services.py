@@ -3,9 +3,21 @@
 Doc 2 section 3, cross-app rule: other apps call this module, never the tables.
 Every write bumps sync_version (Doc 2 s4.1) inside one transaction.
 """
+from datetime import date, datetime
+
 from django.db import transaction
 
-from .models import Customer, CustomerType, PaymentMode, Product, SyncCounter
+from apps.accounts.services import record_audit
+
+from .models import (
+    Customer,
+    CustomerType,
+    PaymentMode,
+    PriceDefault,
+    PriceOverride,
+    Product,
+    SyncCounter,
+)
 
 PRODUCT_FIELDS = {
     "code", "name", "units_per_packet", "packing_cost_cents", "yield_per_kg", "is_active",
@@ -80,3 +92,96 @@ def create_customer(**fields):
 
 def update_customer(customer, **fields):
     return _update(customer, CUSTOMER_FIELDS, fields)
+
+
+# --- Prices (Doc 1 s4.2, s4.3; Doc 2 s8: every price change is audited) ---------------------
+
+PRICE_DEFAULT_UPDATE_FIELDS = {"unit_price_cents"}
+PRICE_OVERRIDE_UPDATE_FIELDS = {"unit_price_cents", "note", "is_active"}
+
+
+def _check_price(fields):
+    if "unit_price_cents" in fields:
+        cents = fields["unit_price_cents"]
+        if type(cents) is not int or cents <= 0:
+            raise ValueError("unit_price_cents must be an integer greater than 0")
+
+
+def _check_effective_from(fields):
+    if "effective_from" in fields:
+        value = fields["effective_from"]
+        if not isinstance(value, date) or isinstance(value, datetime):
+            raise ValueError("effective_from must be a date")
+
+
+def _snapshot(obj, names):
+    """JSON-safe copy of a price row for the audit log (UUIDs as text, dates as ISO)."""
+    data = {"id": str(obj.pk)}
+    for name in names:
+        value = getattr(obj, name)
+        if isinstance(value, date):
+            value = value.isoformat()
+        elif name.endswith("_id"):
+            value = str(value)
+        data[name] = value
+    return data
+
+
+DEFAULT_SNAPSHOT = ("product_id", "customer_type_id", "unit_price_cents", "effective_from")
+OVERRIDE_SNAPSHOT = (
+    "customer_id", "product_id", "unit_price_cents", "effective_from", "note", "is_active",
+)
+
+
+def create_price_default(*, actor, **fields):
+    allowed = {"product", "customer_type", "unit_price_cents", "effective_from"}
+    _check_fields(fields, allowed)
+    _check_price(fields)
+    _check_effective_from(fields)
+    with transaction.atomic():
+        price = _create(PriceDefault, allowed, fields)
+        record_audit(
+            user=actor, action="price_default.create", entity="PriceDefault",
+            entity_id=price.pk, after=_snapshot(price, DEFAULT_SNAPSHOT),
+        )
+    return price
+
+
+def update_price_default(price, *, actor, **fields):
+    _check_fields(fields, PRICE_DEFAULT_UPDATE_FIELDS)
+    _check_price(fields)
+    with transaction.atomic():
+        before = _snapshot(price, DEFAULT_SNAPSHOT)
+        _update(price, PRICE_DEFAULT_UPDATE_FIELDS, fields)
+        record_audit(
+            user=actor, action="price_default.update", entity="PriceDefault",
+            entity_id=price.pk, before=before, after=_snapshot(price, DEFAULT_SNAPSHOT),
+        )
+    return price
+
+
+def create_price_override(*, actor, **fields):
+    allowed = {"customer", "product", "unit_price_cents", "effective_from", "note", "is_active"}
+    _check_fields(fields, allowed)
+    _check_price(fields)
+    _check_effective_from(fields)
+    with transaction.atomic():
+        price = _create(PriceOverride, allowed, fields)
+        record_audit(
+            user=actor, action="price_override.create", entity="PriceOverride",
+            entity_id=price.pk, after=_snapshot(price, OVERRIDE_SNAPSHOT),
+        )
+    return price
+
+
+def update_price_override(price, *, actor, **fields):
+    _check_fields(fields, PRICE_OVERRIDE_UPDATE_FIELDS)
+    _check_price(fields)
+    with transaction.atomic():
+        before = _snapshot(price, OVERRIDE_SNAPSHOT)
+        _update(price, PRICE_OVERRIDE_UPDATE_FIELDS, fields)
+        record_audit(
+            user=actor, action="price_override.update", entity="PriceOverride",
+            entity_id=price.pk, before=before, after=_snapshot(price, OVERRIDE_SNAPSHOT),
+        )
+    return price

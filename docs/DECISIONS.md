@@ -22,3 +22,6 @@ One line per decision: date - decision - reason.
 2026-10-02 - Worker catalog serializers use explicit field whitelists. Customer excludes notes and opening_balance_cents; Product excludes packing_cost_cents and yield_per_kg (Doc 2 I-8). Balance is not sent in P1 - owner answer.
 2026-10-02 - Login and refresh use DRF ScopedRateThrottle with rates configurable by settings (Doc 2 s8); no new dependency - owner answer.
 2026-10-02 - The data migration seeds the 3 customer types, 2 products and AppSetting business_name="Mamre Foods" only; no prices (P-4), no address, phone or footer (P-6) - owner answer.
+2026-10-02 - Price resolution ignores inactive overrides entirely; within overrides and within defaults the latest effective_from not after "at" wins; pick_price is the pure core, resolve_price reads rows via selectors (Doc 1 s4.2, s4.3).
+2026-10-02 - Price changes are audited in catalog services (create and update, before/after JSON, same transaction). A PriceDefault update may change unit_price_cents only; a new price is a new row with a new effective_from; PriceDefault has no deactivate or delete (owner answer 1).
+2026-10-02 - Catalog models refuse a save that did not bump sync_version (RuntimeError), so a change outside services.py fails loudly (owner answer 7).
