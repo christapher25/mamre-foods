@@ -46,6 +46,7 @@ def populated(admin):
     customer = services.create_customer(
         name="Spice Garden", type=restaurant, phone="555-0100", address="1 Main St",
         payment_mode="credit", opening_balance_cents=12345, notes="Pays late; owes us a favour",
+        actor=admin,
     )
     default = services.create_price_default(
         product=fresh, customer_type=restaurant, unit_price_cents=250,

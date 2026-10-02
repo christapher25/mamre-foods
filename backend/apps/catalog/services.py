@@ -96,9 +96,23 @@ def _check_opening_balance(fields):
             raise ValueError("opening_balance_cents must be an integer number of cents")
 
 
-def create_customer(**fields):
+def create_customer(*, actor=None, **fields):
+    """A nonzero opening balance needs an active admin and is audited (Doc 2 s8, I-6);
+    a zero or omitted one needs no actor."""
+    _check_fields(fields, CUSTOMER_FIELDS)
     _check_opening_balance(fields)
-    return _create(Customer, CUSTOMER_FIELDS, fields)
+    opening = fields.get("opening_balance_cents", 0)
+    if opening != 0:
+        require_admin(actor)
+    with transaction.atomic():
+        customer = _create(Customer, CUSTOMER_FIELDS, fields)
+        if opening != 0:
+            record_audit(
+                user=actor, action="customer.create", entity="Customer",
+                entity_id=customer.pk, before={},
+                after={"opening_balance_cents": customer.opening_balance_cents},
+            )
+    return customer
 
 
 def update_customer(customer, *, actor=None, **fields):

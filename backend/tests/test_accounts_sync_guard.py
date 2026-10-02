@@ -48,6 +48,41 @@ def test_get_or_create_cannot_create_an_unversioned_row(model):
             model.objects.create()
 
 
+@pytest.mark.parametrize("model", GUARDED, ids=IDS)
+def test_queryset_and_manager_delete_are_refused(model):
+    with pytest.raises(RuntimeError):
+        model.objects.all().delete()
+    with pytest.raises(RuntimeError):
+        model.objects.filter(pk__isnull=False).delete()
+
+
+@pytest.mark.parametrize("model", GUARDED, ids=IDS)
+def test_model_instance_delete_is_refused(model):
+    instance = model.objects.first() or model()
+    with pytest.raises(RuntimeError):
+        instance.delete()
+
+
+def test_delete_leaves_seed_rows_in_place():
+    counts = (Product.objects.count(), CustomerType.objects.count(), AppSetting.objects.count())
+    for model in (Product, CustomerType, AppSetting):
+        with pytest.raises(RuntimeError):
+            model.objects.all().delete()
+        with pytest.raises(RuntimeError):
+            model.objects.first().delete()
+    assert counts == (
+        Product.objects.count(), CustomerType.objects.count(), AppSetting.objects.count()
+    )
+
+
+def test_deactivation_is_the_way_to_remove_a_catalog_row():
+    from apps.catalog import services
+
+    ctype = CustomerType.objects.get(name="Shop")
+    services.update_customer_type(ctype, is_active=False)
+    assert CustomerType.objects.get(name="Shop").is_active is False
+
+
 def test_guarded_refusals_leave_data_untouched():
     before = list(Product.objects.values_list("name", "sync_version"))
     with pytest.raises(RuntimeError):

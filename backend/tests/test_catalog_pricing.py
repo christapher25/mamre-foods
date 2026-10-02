@@ -5,7 +5,7 @@ Doc 1 s4.2 (resolution order), s4.3 (price rules); Doc 2 s4.2, s8 (AuditLog); Do
 from datetime import date, datetime
 
 import pytest
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 
 from apps.accounts.models import AuditLog
 from apps.catalog import services
@@ -304,7 +304,9 @@ def test_walk_in_price_not_yet_effective_raises_no_price(admin, retail, product)
 
 
 def test_walk_in_without_a_retail_type_raises_no_price_not_a_crash(product):
-    CustomerType.objects.filter(name="Retail").delete()
+    # Types cannot be deleted, so simulate "no Retail type" by renaming it with raw SQL.
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE catalog_customertype SET name = 'Gone' WHERE name = 'Retail'")
     with pytest.raises(NoPriceError):
         resolve_price(None, product, D(2026, 10, 2))
 
