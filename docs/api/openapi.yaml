@@ -147,7 +147,7 @@ components:
         device_code:
           type: string
           nullable: true
-          description: Code of the user's most recent active device, for example W1.
+          description: Code of the most recently created device of the user, for example W1.
           example: W1
     CatalogPull:
       type: object
