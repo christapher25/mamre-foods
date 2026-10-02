@@ -30,3 +30,10 @@ def settings_changed_since(cursor, keys, ceiling):
             sync_version__gt=cursor, sync_version__lte=ceiling, key__in=keys
         ).order_by("sync_version")
     )
+
+
+def get_device(user, code):
+    """The device with this code if it belongs to this user, else None (Doc 2 s4.2, I-3)."""
+    if user is None or getattr(user, "pk", None) is None or not code:
+        return None
+    return Device.objects.filter(user=user, code=code).first()
