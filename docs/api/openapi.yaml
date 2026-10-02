@@ -3,8 +3,227 @@
 openapi: 3.0.3
 info:
   title: Mamre Foods Billing API
-  description: Mobile API used by the Android worker app. Base path /api/v1/.
-  version: 0.1.0
+  description: >
+    Mobile API used by the Android worker app. Base path /api/v1/.
+    Worker responses never contain cost, profit or expense data (Doc 2 I-8).
+    Money is integer cents (Doc 2 I-1). All times are UTC (Doc 2 I-12).
+  version: 0.2.0
 servers:
   - url: /api/v1
-paths: {}
+paths:
+  /auth/login:
+    post:
+      summary: Worker login (Doc 2 s5, s8)
+      description: >
+        Issues tokens to an active user with role worker only. Admin accounts, unknown
+        users, wrong passwords and deactivated users all get the same 401 invalid_credentials
+        error. Rate limited (429, code throttled).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Tokens. Access token is short lived; refresh token lasts about 30 days.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenPair" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /auth/refresh:
+    post:
+      summary: Get a new access token (Doc 2 s5, s6.8)
+      description: >
+        Refresh tokens are not rotated. A deactivated user, or a user who is no longer a
+        worker, is refused with 401. Rate limited (429, code throttled).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200":
+          description: A new access token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccessToken" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /me:
+    get:
+      summary: Worker profile and device code (Doc 2 s5)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The signed-in worker.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /sync/catalog:
+    get:
+      summary: Catalog pull (Doc 2 s5, s6.4)
+      description: >
+        Returns rows changed after the cursor. cursor=0 (or omitted) returns everything.
+        Inactive rows are included with is_active=false and the device treats them as
+        removed. PriceDefault rows are history and are never removed. Settings are the
+        business header keys only. Store the returned cursor and send it next time.
+        Customer balance and opening balance are NOT included; they arrive through
+        GET /sync/customer-activity (Doc 2 s5, added by A2 in P2). No cost data.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Changes since the cursor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogPull" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: >
+        Error body from Doc 2 s5.2. code is a stable machine string such as
+        invalid_credentials, not_authenticated, permission_denied, validation_error,
+        throttled or not_found.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [code, message, details]
+      properties:
+        code: { type: string, example: invalid_credentials }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    TokenPair:
+      type: object
+      required: [access, refresh]
+      properties:
+        access: { type: string }
+        refresh: { type: string }
+    RefreshRequest:
+      type: object
+      required: [refresh]
+      properties:
+        refresh: { type: string }
+    AccessToken:
+      type: object
+      required: [access]
+      properties:
+        access: { type: string }
+    Me:
+      type: object
+      required: [id, username, full_name, role, device_code]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        full_name: { type: string }
+        role: { type: string, enum: [worker] }
+        device_code:
+          type: string
+          nullable: true
+          description: Code of the most recently created device of the user, for example W1.
+          example: W1
+    CatalogPull:
+      type: object
+      required: [cursor, products, customer_types, customers, price_defaults, price_overrides, settings]
+      properties:
+        cursor:
+          type: integer
+          description: Highest sync_version seen. Equals the request cursor when nothing changed.
+        products:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        customer_types:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerType" }
+        customers:
+          type: array
+          items: { $ref: "#/components/schemas/Customer" }
+        price_defaults:
+          type: array
+          items: { $ref: "#/components/schemas/PriceDefault" }
+        price_overrides:
+          type: array
+          items: { $ref: "#/components/schemas/PriceOverride" }
+        settings:
+          type: array
+          items: { $ref: "#/components/schemas/Setting" }
+    Product:
+      type: object
+      required: [id, code, name, units_per_packet, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        units_per_packet: { type: integer }
+        is_active: { type: boolean }
+    CustomerType:
+      type: object
+      required: [id, name, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        is_active: { type: boolean }
+    Customer:
+      type: object
+      required: [id, name, type_id, phone, address, payment_mode, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type_id: { type: string, format: uuid }
+        phone: { type: string }
+        address: { type: string }
+        payment_mode: { type: string, enum: [cash, credit] }
+        is_active: { type: boolean }
+    PriceDefault:
+      type: object
+      required: [id, product_id, customer_type_id, unit_price_cents, effective_from]
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        customer_type_id: { type: string, format: uuid }
+        unit_price_cents: { type: integer, minimum: 1 }
+        effective_from: { type: string, format: date }
+    PriceOverride:
+      type: object
+      required: [id, customer_id, product_id, unit_price_cents, effective_from, is_active]
+      properties:
+        id: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        unit_price_cents: { type: integer, minimum: 1 }
+        effective_from: { type: string, format: date }
+        is_active: { type: boolean }
+    Setting:
+      type: object
+      required: [key, value]
+      description: Business header keys only (business_name, address, phone, footer_text).
+      properties:
+        key: { type: string }
+        value: { type: string }
