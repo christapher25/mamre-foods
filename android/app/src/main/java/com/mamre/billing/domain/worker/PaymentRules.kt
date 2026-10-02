@@ -1,5 +1,6 @@
 package com.mamre.billing.domain.worker
 
+import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.money.parseCents
 
 /** Who is paying decides what the payment step allows (Doc 1 s4.1, s6.1, Doc 2 s10). */
@@ -58,4 +59,15 @@ fun checkStandalonePayment(previousBalanceCents: Long, amountText: String): Paym
     if (amount < 0) return PaymentCheck.Rejected(PaymentProblem.NEGATIVE)
     if (amount == 0L) return PaymentCheck.Rejected(PaymentProblem.ZERO)
     return PaymentCheck.Ok(amount, previousBalanceCents - amount)
+}
+
+/** What the worker reads when a payment is refused. */
+fun paymentMessage(problem: PaymentProblem, kind: PayerKind, totalCents: Long): String = when (problem) {
+    PaymentProblem.NOT_AN_AMOUNT -> "Enter an amount like 12.50"
+    PaymentProblem.NEGATIVE -> "The amount cannot be negative"
+    PaymentProblem.ZERO -> "The amount must be more than zero"
+    PaymentProblem.MUST_PAY_IN_FULL -> when (kind) {
+        PayerKind.WALK_IN -> "Walk-in sales must be paid in full: ${formatCents(totalCents)}"
+        else -> "Cash customers must pay at least ${formatCents(totalCents)}"
+    }
 }

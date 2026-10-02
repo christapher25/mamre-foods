@@ -11,15 +11,19 @@ private const val MAX_WHOLE_DIGITS = 9
 /** 8100 -> "$81.00", -150 -> "-$1.50", 123456 -> "$1,234.56". Integer arithmetic only. */
 fun formatCents(cents: Long): String = format(cents, CENTS_PER_DOLLAR, 2)
 
+/** 8100 -> "81.00": an amount as plain text for an input field, no symbol or commas. */
+fun centsToPlain(cents: Long): String = format(cents, CENTS_PER_DOLLAR, 2, symbol = "", group = false)
+
 /** 6975 -> "$0.6975". Used for cost per packet, which needs four decimals. */
 fun formatTenThousandths(value: Long): String = format(value, TEN_THOUSANDTHS_PER_DOLLAR, 4)
 
-private fun format(value: Long, perDollar: Long, decimals: Int): String {
+private fun format(value: Long, perDollar: Long, decimals: Int, symbol: String = "$", group: Boolean = true): String {
     // Divide first, then take absolute values, so Long.MIN_VALUE cannot overflow.
     val dollars = Math.abs(value / perDollar)
     val fraction = Math.abs(value % perDollar)
     val sign = if (value < 0) "-" else ""
-    return sign + "$" + groupThousands(dollars) + "." + fraction.toString().padStart(decimals, '0')
+    val whole = if (group) groupThousands(dollars) else dollars.toString()
+    return sign + symbol + whole + "." + fraction.toString().padStart(decimals, '0')
 }
 
 private fun groupThousands(n: Long): String =

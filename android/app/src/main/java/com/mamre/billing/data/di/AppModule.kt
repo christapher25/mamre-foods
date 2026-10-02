@@ -17,6 +17,8 @@ import com.mamre.billing.data.db.TransactionRunner
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.repository.CatalogRemote
 import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.print.MockPrinter
+import com.mamre.billing.print.ReceiptPrinter
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -62,6 +64,10 @@ object AppModule {
     /** In-memory DEMO DATA for the worker screens until Room and the outbox arrive (P2). */
     @Provides @Singleton
     fun demoStore() = DemoStore()
+
+    /** MockPrinter until the Symcode printer SDK arrives (Doc 2 s7, P3). */
+    @Provides @Singleton
+    fun receiptPrinter(): ReceiptPrinter = MockPrinter()
 
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =

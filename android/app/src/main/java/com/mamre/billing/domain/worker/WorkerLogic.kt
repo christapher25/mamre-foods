@@ -78,3 +78,20 @@ data class ReturnRecord(
         }
     }
 }
+
+/** A product with the price it sells for to the chosen customer; null means no price is set. */
+data class PricedProduct(val productId: String, val name: String, val unitPriceCents: Long?)
+
+/**
+ * The invoice lines for the packets entered (Doc 1 s5.1). A product with no price never becomes a
+ * line, whatever quantity is typed: a missing price is not zero (Doc 1 s4.2, Doc 3 N5).
+ */
+fun buildInvoiceLines(products: List<PricedProduct>, quantities: Map<String, Int>): List<InvoiceLine> =
+    products.mapNotNull { p ->
+        val qty = quantities[p.productId] ?: 0
+        val price = p.unitPriceCents
+        if (qty > 0 && price != null) InvoiceLine(p.productId, p.name, qty, price) else null
+    }
+
+/** Continue is allowed only once there is at least one packet (Doc 2 s10 Invoice builder). */
+fun canContinueInvoice(lines: List<InvoiceLine>): Boolean = lines.isNotEmpty()

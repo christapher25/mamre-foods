@@ -106,12 +106,14 @@ fun LabeledTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     placeholder: String? = null,
+    leadingIcon: (@Composable () -> Unit)? = null,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
         placeholder = placeholder?.let { { Text(it) } },
+        leadingIcon = leadingIcon,
         isError = errorText != null,
         supportingText = errorText?.let { { Text(it) } },
         enabled = enabled,
