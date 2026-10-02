@@ -14,6 +14,7 @@ import com.mamre.billing.data.auth.TokenStore
 import com.mamre.billing.data.db.AppDatabase
 import com.mamre.billing.data.db.RoomTransactionRunner
 import com.mamre.billing.data.db.TransactionRunner
+import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.repository.CatalogRemote
 import com.mamre.billing.data.repository.CatalogRepository
 import dagger.Module
@@ -57,6 +58,10 @@ object AppModule {
 
     @Provides @Singleton
     fun sessionManager(api: BackendApi, store: TokenStore) = SessionManager(api, store, adminSignInAvailable = BuildConfig.USE_FAKE_API)
+
+    /** In-memory DEMO DATA for the worker screens until Room and the outbox arrive (P2). */
+    @Provides @Singleton
+    fun demoStore() = DemoStore()
 
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =

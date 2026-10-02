@@ -1,5 +1,7 @@
 package com.mamre.billing.data.api
 
+import com.mamre.billing.data.demo.DemoIds
+
 /**
  * Stand-in for the server while none is hosted, chosen by BuildConfig.USE_FAKE_API.
  *
@@ -55,10 +57,9 @@ class FakeApi : BackendApi {
                 CustomerTypeDto(RETAIL, "Retail", true),
             ),
             customers = listOf(
-                CustomerDto(
-                    "00000000-0000-4000-8000-0000000000c1", "Test Restaurant", RESTAURANT,
-                    "", "", "credit", true,
-                ),
+                CustomerDto(DemoIds.RESTAURANT, "Test Restaurant", RESTAURANT, "", "", "credit", true),
+                CustomerDto(DemoIds.SHOP, "Test Shop", SHOP, "", "", "credit", true),
+                CustomerDto(DemoIds.RETAIL_CUSTOMER, "Test Retail Customer", RETAIL, "", "", "cash", true),
             ),
             priceDefaults = listOf(
                 priceDefault("d1", FRESH, RESTAURANT, 280),
@@ -99,11 +100,11 @@ class FakeApi : BackendApi {
     private companion object {
         const val ACCESS_PREFIX = "fake-access-"
         const val REFRESH_PREFIX = "fake-refresh-"
-        const val CATALOG_CURSOR = 1L
-        const val FRESH = "00000000-0000-4000-8000-0000000000f1"
-        const val CHAPATHI = "00000000-0000-4000-8000-0000000000f2"
-        const val RESTAURANT = "00000000-0000-4000-8000-0000000000e1"
-        const val SHOP = "00000000-0000-4000-8000-0000000000e2"
-        const val RETAIL = "00000000-0000-4000-8000-0000000000e3"
+        const val CATALOG_CURSOR = 2L
+        const val FRESH = DemoIds.FRESH
+        const val CHAPATHI = DemoIds.CHAPATHI
+        const val RESTAURANT = DemoIds.RESTAURANT_TYPE
+        const val SHOP = DemoIds.SHOP_TYPE
+        const val RETAIL = DemoIds.RETAIL_TYPE
     }
 }
