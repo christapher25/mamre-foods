@@ -12,3 +12,6 @@ One entry per question: date - agent - question - spec sections involved.
 2026-10-02 - A3 - PIN or biometric lock after inactivity is NOT in the P1 shell (owner instruction). Which phase adds it? Doc 2 s6.8, s10 (Login row).
 2026-10-02 - A3 - Repository tests in P1 run on the JVM against fake in-memory DAOs (no Robolectric, owner instruction), so real Room queries, converters and migrations are untested. Real Room tests need an instrumented-test phase; which one? Doc 2 s12.
 2026-10-02 - A3 - /sync/catalog also returns settings (business_name, address, phone, footer_text) but P1 lists no Room table for them, so they are ignored for now. They are needed for the receipt header in P3; confirm they should be stored then. Doc 2 s5, s7.
+2026-10-02 - A3 - Which phase handles a 426 (force update) answer and what should the worker see? P1 only sends X-App-Version. Doc 2 s5.2.
+2026-10-02 - A3 - The real BASE_URL is a placeholder (api.example.invalid) until a server is hosted; set USE_FAKE_API=false and BASE_URL per build type then. Is a separate release build type with its own URL wanted? Doc 2 s13.
+2026-10-02 - A3 - The new android workflow could not be run on GitHub (nothing is pushed). Please confirm it is green on the first pull request, since gradlew has no executable bit and the SDK 37 platform must install on the runner. Doc 2 s2 CI.
