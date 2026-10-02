@@ -19,6 +19,11 @@ class ImmutableQuerySet(models.QuerySet):
     def bulk_update(self, objs, fields, *args, **kwargs):
         raise RuntimeError(IMMUTABLE_MESSAGE.format(name=self.model.__name__))
 
+    def bulk_create(self, objs, *args, **kwargs):
+        # Refused outright, including ignore_conflicts and update_conflicts (an upsert would
+        # rewrite a stored row). Rows are inserted one at a time through save().
+        raise RuntimeError(IMMUTABLE_MESSAGE.format(name=self.model.__name__))
+
     def delete(self):
         raise RuntimeError(IMMUTABLE_MESSAGE.format(name=self.model.__name__))
 
