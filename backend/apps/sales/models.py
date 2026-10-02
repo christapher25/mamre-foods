@@ -5,6 +5,8 @@ models refuse update, delete, bulk update and bulk delete. The one change allowe
 going active to void, through services.void_invoice (Doc 1 s5.4).
 """
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from django.conf import settings
 from django.db import models
@@ -26,6 +28,23 @@ class ImmutableQuerySet(models.QuerySet):
 
     def delete(self):
         raise RuntimeError(IMMUTABLE_MESSAGE.format(name=self.model.__name__))
+
+
+_VOID_PERMIT = ContextVar("sales_void_permit", default=None)
+
+
+@contextmanager
+def void_permit(invoice_pk, audit):
+    """Opens the door for Invoice._apply_void on ONE invoice, and only while the AuditLog row
+    that records the void exists. Used by services.void_invoice and nothing else: without an
+    audit row there is no permit, so there is no void (Doc 2 s8, I-4)."""
+    if audit is None or getattr(audit, "pk", None) is None:
+        raise RuntimeError("A void needs its AuditLog row first (Doc 2 s8).")
+    token = _VOID_PERMIT.set(str(invoice_pk))
+    try:
+        yield
+    finally:
+        _VOID_PERMIT.reset(token)
 
 
 class SalesCounter(models.Model):
@@ -115,9 +134,14 @@ class Invoice(ImmutableModel):
     def __str__(self):
         return self.number
 
-    def apply_void(self, *, actor, reason, at, sync_version):
+    def _apply_void(self, *, actor, reason, at, sync_version):
         """The ONLY update an invoice ever gets: active to void (Doc 1 s5.4, I-4).
-        Called by services.void_invoice after it checked the actor and the reason."""
+
+        Private: it refuses to run unless services.void_invoice opened a void_permit for this
+        invoice, which it does only after checking the admin and the reason and writing the
+        AuditLog row."""
+        if _VOID_PERMIT.get() != str(self.pk):
+            raise RuntimeError("An invoice can only be voided through services.void_invoice.")
         if self.status != InvoiceStatus.ACTIVE:
             raise ValueError("Only an active invoice can be voided.")
         self.status = InvoiceStatus.VOID

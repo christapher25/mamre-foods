@@ -10,7 +10,15 @@ from django.utils import timezone
 from apps.accounts.services import record_audit, require_admin
 
 from . import rules, selectors
-from .models import Invoice, InvoiceItem, InvoiceStatus, Payment, PaymentAllocation, SalesCounter
+from .models import (
+    Invoice,
+    InvoiceItem,
+    InvoiceStatus,
+    Payment,
+    PaymentAllocation,
+    SalesCounter,
+    void_permit,
+)
 
 
 def next_sales_version():
@@ -115,8 +123,8 @@ def void_invoice(invoice, *, actor, reason):
     if current.status != InvoiceStatus.ACTIVE:
         raise ValueError("Only an active invoice can be voided.")
     at = timezone.now()
-    invoice.apply_void(actor=actor, reason=reason, at=at, sync_version=next_sales_version())
-    record_audit(
+    version = next_sales_version()
+    audit = record_audit(
         user=actor,
         action="invoice.void",
         entity="invoice",
@@ -129,4 +137,6 @@ def void_invoice(invoice, *, actor, reason):
             "voided_at": at.isoformat(),
         },
     )
+    with void_permit(invoice.pk, audit):  # refuses to open without the audit row
+        invoice._apply_void(actor=actor, reason=reason, at=at, sync_version=version)
     return invoice
