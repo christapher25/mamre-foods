@@ -89,12 +89,37 @@ def update_customer_type(customer_type, **fields):
     return _update(customer_type, CUSTOMER_TYPE_FIELDS, fields)
 
 
+def _check_opening_balance(fields):
+    if "opening_balance_cents" in fields:
+        cents = fields["opening_balance_cents"]
+        if type(cents) is not int:
+            raise ValueError("opening_balance_cents must be an integer number of cents")
+
+
 def create_customer(**fields):
+    _check_opening_balance(fields)
     return _create(Customer, CUSTOMER_FIELDS, fields)
 
 
-def update_customer(customer, **fields):
-    return _update(customer, CUSTOMER_FIELDS, fields)
+def update_customer(customer, *, actor=None, **fields):
+    """Doc 2 s8: a balance correction needs an active admin and is audited (before/after).
+    Changing any other field needs no actor."""
+    _check_fields(fields, CUSTOMER_FIELDS)
+    _check_opening_balance(fields)
+    before = customer.opening_balance_cents
+    changing = "opening_balance_cents" in fields and fields["opening_balance_cents"] != before
+    if changing:
+        require_admin(actor)
+    with transaction.atomic():
+        _update(customer, CUSTOMER_FIELDS, fields)
+        if changing:
+            record_audit(
+                user=actor, action="customer.opening_balance_update", entity="Customer",
+                entity_id=customer.pk,
+                before={"opening_balance_cents": before},
+                after={"opening_balance_cents": customer.opening_balance_cents},
+            )
+    return customer
 
 
 # --- Prices (Doc 1 s4.2, s4.3; Doc 2 s8: every price change is audited) ---------------------
