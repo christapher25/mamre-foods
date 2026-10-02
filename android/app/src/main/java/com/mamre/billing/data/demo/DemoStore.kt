@@ -8,6 +8,12 @@ import com.mamre.billing.domain.worker.LedgerEntry
 import com.mamre.billing.domain.worker.PaymentEntry
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.PaymentRecord
+import com.mamre.billing.domain.worker.ReturnReason
+import com.mamre.billing.domain.worker.ReturnRecord
+import com.mamre.billing.domain.worker.ReturnResolution
+import com.mamre.billing.domain.worker.receiptNumber
+import com.mamre.billing.domain.worker.receiptSequenceOf
+import com.mamre.billing.domain.worker.returnCreditCents
 import com.mamre.billing.domain.worker.invoiceNumber
 import com.mamre.billing.domain.worker.invoiceTotal
 import com.mamre.billing.domain.worker.ledgerBalance
@@ -39,7 +45,7 @@ data class InvoiceDraft(
 data class DemoState(
     val invoices: List<InvoiceRecord> = emptyList(),
     val payments: List<PaymentRecord> = emptyList(),
-    val credits: List<StoredCredit> = emptyList(),
+    val returns: List<ReturnRecord> = emptyList(),
     /** Records made on this device and not yet acknowledged by the (fake) server. */
     val pendingCount: Int = 0,
 ) {
@@ -52,8 +58,9 @@ data class DemoState(
         }
         payments.filter { it.customerId == customerId }
             .forEach { add(PaymentEntry(it.paidAt.toLocalDate(), it.amountCents, it.method)) }
-        credits.filter { it.customerId == customerId }
-            .forEach { add(CreditEntry(it.date, it.creditCents)) }
+        // Only a Credit return reaches the ledger; a Replacement never does (Doc 1 s7.1).
+        returns.filter { it.customerId == customerId && it.resolution == ReturnResolution.CREDIT }
+            .forEach { add(CreditEntry(it.occurredAt.toLocalDate(), it.creditCents)) }
     }
 
     fun balanceOf(customerId: String): Long = ledgerBalance(OPENING_BALANCE_CENTS, ledgerOf(customerId))
@@ -63,8 +70,30 @@ data class DemoState(
     }
 }
 
-/** A return credit stored with the customer it reduces. Replacements never reach the ledger. */
-data class StoredCredit(val customerId: String, val date: LocalDate, val creditCents: Long)
+/** What the worker confirmed on the Record payment screen (Doc 1 A-16). */
+data class PaymentDraft(
+    val id: String,
+    val customerId: String,
+    val customerName: String,
+    val deviceCode: String,
+    val amountCents: Long,
+    val method: PaymentMethod,
+    val note: String,
+)
+
+/** What the worker confirmed on the Return screen (Doc 1 s7.1). */
+data class ReturnDraft(
+    val id: String,
+    val customerId: String,
+    val customerName: String,
+    val productId: String,
+    val productName: String,
+    val qtyPackets: Int,
+    val reason: ReturnReason,
+    val resolution: ReturnResolution,
+    val unitPriceCents: Long,
+    val deviceCode: String,
+)
 
 /**
  * In-memory stand-in for Room, the outbox and the server (P2 and P3 replace it). Seeded as
@@ -111,6 +140,52 @@ class DemoStore(
             balanceAfterCents = previous + total - draft.paidNowCents,
         )
         _state.update { it.copy(invoices = it.invoices + record, pendingCount = it.pendingCount + 1) }
+        return record
+    }
+
+    fun nextReceiptNumber(deviceCode: String): String {
+        val last = _state.value.payments.mapNotNull { receiptSequenceOf(it.receiptNumber, deviceCode) }.maxOrNull() ?: 0
+        return receiptNumber(deviceCode, last + 1)
+    }
+
+    /** Saves a payment with no invoice and queues it. The same draft id stores once (Doc 2 I-11). */
+    @Synchronized
+    fun recordPayment(draft: PaymentDraft): PaymentRecord {
+        _state.value.payments.firstOrNull { it.id == draft.id }?.let { return it }
+        val record = PaymentRecord(
+            id = draft.id,
+            receiptNumber = nextReceiptNumber(draft.deviceCode),
+            customerId = draft.customerId,
+            customerName = draft.customerName,
+            deviceCode = draft.deviceCode,
+            paidAt = LocalDateTime.now(clock),
+            amountCents = draft.amountCents,
+            method = draft.method,
+            note = draft.note.trim(),
+        )
+        _state.update { it.copy(payments = it.payments + record, pendingCount = it.pendingCount + 1) }
+        return record
+    }
+
+    /** Saves a return and queues it. A Credit lowers the balance; a Replacement does not (AT-9). */
+    @Synchronized
+    fun recordReturn(draft: ReturnDraft): ReturnRecord {
+        _state.value.returns.firstOrNull { it.id == draft.id }?.let { return it }
+        val record = ReturnRecord(
+            id = draft.id,
+            customerId = draft.customerId,
+            customerName = draft.customerName,
+            productId = draft.productId,
+            productName = draft.productName,
+            qtyPackets = draft.qtyPackets,
+            reason = draft.reason,
+            resolution = draft.resolution,
+            unitPriceCents = draft.unitPriceCents,
+            creditCents = returnCreditCents(draft.resolution, draft.qtyPackets, draft.unitPriceCents),
+            deviceCode = draft.deviceCode,
+            occurredAt = LocalDateTime.now(clock),
+        )
+        _state.update { it.copy(returns = it.returns + record, pendingCount = it.pendingCount + 1) }
         return record
     }
 
