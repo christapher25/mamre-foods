@@ -173,11 +173,12 @@ def test_effective_from_must_be_a_date(admin, restaurant, product):
 
 
 def test_database_rejects_non_positive_price_even_if_service_is_bypassed(restaurant, product):
+    row = PriceDefault(
+        product=product, customer_type=restaurant, unit_price_cents=0,
+        effective_from=D(2026, 1, 1), sync_version=1,
+    )
     with pytest.raises(IntegrityError), transaction.atomic():
-        PriceDefault.objects.bulk_create(
-            [PriceDefault(product=product, customer_type=restaurant, unit_price_cents=0,
-                          effective_from=D(2026, 1, 1), sync_version=1)]
-        )
+        row.save()
 
 
 def test_default_unique_per_type_product_and_date(admin, restaurant, product):

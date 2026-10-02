@@ -6,6 +6,8 @@ import uuid
 
 from django.db import models
 
+from apps.accounts.sync_guard import SyncGuarded
+
 
 class SyncCounter(models.Model):
     """Single row (pk=1) that hands out the monotonic sync_version values (DECISIONS.md)."""
@@ -17,31 +19,15 @@ class SyncCounter(models.Model):
         return f"SyncCounter({self.value})"
 
 
-class SyncedModel(models.Model):
-    """Base for rows pulled by the device. Refuses a save that did not bump sync_version."""
+class SyncedModel(SyncGuarded):
+    """Base for rows pulled by the device. The sync_version guard comes from accounts."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    sync_version = models.BigIntegerField(default=0, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
-
-    def save(self, *args, **kwargs):
-        saved = getattr(self, "_saved_version", None)
-        if self.sync_version <= 0 or self.sync_version == saved:
-            raise RuntimeError(
-                f"{type(self).__name__} must be saved through catalog services (sync_version)."
-            )
-        super().save(*args, **kwargs)
-        self._saved_version = self.sync_version
-
-    @classmethod
-    def from_db(cls, db, field_names, values):
-        instance = super().from_db(db, field_names, values)
-        instance._saved_version = instance.sync_version
-        return instance
 
 
 class PaymentMode(models.TextChoices):

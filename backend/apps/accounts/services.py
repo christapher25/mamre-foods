@@ -53,7 +53,7 @@ def set_setting(key, value):
     from apps.catalog.services import next_sync_version
 
     with transaction.atomic():
-        setting, _ = AppSetting.objects.get_or_create(key=key)
+        setting = AppSetting.objects.filter(key=key).first() or AppSetting(key=key)
         setting.value = value
         setting.sync_version = next_sync_version()
         setting.save()

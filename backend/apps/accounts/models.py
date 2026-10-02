@@ -4,6 +4,8 @@ import uuid
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
+from .sync_guard import SyncGuarded
+
 
 class Role(models.TextChoices):
     ADMIN = "admin", "Admin"
@@ -48,13 +50,12 @@ class Device(models.Model):
         return self.code
 
 
-class AppSetting(models.Model):
-    """Doc 2 s4.2 system AppSetting: key, value. sync_version is set by catalog services
-    so business header settings reach the device (DECISIONS.md, P1)."""
+class AppSetting(SyncGuarded):
+    """Doc 2 s4.2 system AppSetting: key, value. Guarded like the catalog models: sync_version
+    is bumped by set_setting so business header settings reach the device (DECISIONS.md)."""
 
     key = models.CharField(max_length=100, primary_key=True)
     value = models.TextField(blank=True)
-    sync_version = models.BigIntegerField(default=0, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
