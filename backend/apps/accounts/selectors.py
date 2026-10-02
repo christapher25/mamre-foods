@@ -16,8 +16,10 @@ def current_device_code(user):
     return device.code if device else None
 
 
-def settings_changed_since(cursor, keys):
-    """AppSetting rows with sync_version above the cursor, limited to the given keys."""
+def settings_changed_since(cursor, keys, ceiling):
+    """AppSetting rows with cursor < sync_version <= ceiling, limited to the given keys."""
     return list(
-        AppSetting.objects.filter(sync_version__gt=cursor, key__in=keys).order_by("sync_version")
+        AppSetting.objects.filter(
+            sync_version__gt=cursor, sync_version__lte=ceiling, key__in=keys
+        ).order_by("sync_version")
     )

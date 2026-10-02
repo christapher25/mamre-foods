@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import connection
 from rest_framework.test import APIClient
 
 from apps.accounts import services as accounts_services
@@ -243,10 +244,59 @@ def test_inactive_rows_are_sent_with_is_active_false(populated, admin):
     assert [(t["name"], t["is_active"]) for t in body["customer_types"]] == [("Shop", False)]
 
 
-def test_a_cursor_from_the_future_returns_nothing_and_keeps_the_cursor(populated):
+def _force_version(table, code_column, code, version):
+    """Set a row's sync_version with raw SQL, simulating a write the pull must not see yet."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"UPDATE {table} SET sync_version = %s WHERE {code_column} = %s", [version, code]
+        )
+
+
+def test_rows_above_the_counter_are_not_returned_and_cursor_stays_at_the_counter(populated):
+    counter = SyncCounter.objects.get().value
+    cursor = pull().json()["cursor"]
+    assert cursor == counter
+    # A row whose version is above the counter was not published by a committed write yet.
+    _force_version("catalog_product", "code", "CHAPATHI", counter + 5)
+    body = pull(cursor).json()
+    assert body["products"] == []
+    assert body["cursor"] == counter
+    # A full pull must not return it either.
+    assert [p["code"] for p in pull(0).json()["products"]] == ["FRESH"]
+    assert pull(0).json()["cursor"] == counter
+
+
+def test_the_row_arrives_once_the_counter_catches_up(populated):
+    counter = SyncCounter.objects.get().value
+    _force_version("catalog_product", "code", "CHAPATHI", counter + 1)
+    assert pull(counter).json()["products"] == []
+    SyncCounter.objects.filter(pk=1).update(value=counter + 1)
+    body = pull(counter).json()
+    assert [p["code"] for p in body["products"]] == ["CHAPATHI"]
+    assert body["cursor"] == counter + 1
+
+
+def test_unchanged_cursor_returns_nothing_and_the_same_cursor(populated):
+    counter = SyncCounter.objects.get().value
+    body = pull(counter).json()
+    assert body["cursor"] == counter
+    for key in ("products", "customer_types", "customers", "price_defaults",
+                "price_overrides", "settings"):
+        assert body[key] == []
+
+
+def test_setting_rows_above_the_counter_are_not_returned(populated):
+    counter = SyncCounter.objects.get().value
+    _force_version("accounts_appsetting", "key", "address", counter + 3)
+    assert "address" not in {s["key"] for s in pull(0).json()["settings"]}
+
+
+def test_a_cursor_from_the_future_gets_the_server_counter_back(populated):
+    # A device ahead of the server (for example after a restore) is reset to the counter.
+    counter = SyncCounter.objects.get().value
     body = pull(10_000_000).json()
     assert body["customers"] == [] and body["products"] == []
-    assert body["cursor"] == 10_000_000
+    assert body["cursor"] == counter
 
 
 def test_workers_cannot_change_prices_through_the_api(populated):

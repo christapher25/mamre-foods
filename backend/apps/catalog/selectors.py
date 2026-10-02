@@ -2,7 +2,14 @@
 
 Doc 2 section 3, cross-app rule: other apps call this module, never the tables.
 """
-from .models import Customer, CustomerType, PriceDefault, PriceOverride, Product
+from .models import (
+    Customer,
+    CustomerType,
+    PriceDefault,
+    PriceOverride,
+    Product,
+    SyncCounter,
+)
 
 
 def active_override_rows(customer, product):
@@ -26,24 +33,29 @@ HEADER_SETTING_KEYS = ("business_name", "address", "phone", "footer_text")
 
 
 def changes_since(cursor):
-    """Every catalog row with sync_version above the cursor, inactive rows included.
+    """Every catalog row with cursor < sync_version <= counter, inactive rows included.
 
-    Returns the rows by kind and the new cursor: the highest version seen, or the incoming
-    cursor when nothing changed (Doc 2 s6.4).
+    The SyncCounter is read once, first. A version at or below it belongs to a transaction
+    that has already committed (the counter row is locked until commit, see
+    services.next_sync_version), so nothing at or below it can appear later. Rows above it
+    are left for the next pull. The new cursor is that counter value (Doc 2 s6.4).
     """
     from apps.accounts.selectors import settings_changed_since
 
-    def changed(model):
-        return list(model.objects.filter(sync_version__gt=cursor).order_by("sync_version"))
+    ceiling = SyncCounter.objects.values_list("value", flat=True).first() or 0
 
-    result = {
+    def changed(model):
+        return list(
+            model.objects.filter(sync_version__gt=cursor, sync_version__lte=ceiling)
+            .order_by("sync_version")
+        )
+
+    return {
         "products": changed(Product),
         "customer_types": changed(CustomerType),
         "customers": changed(Customer),
         "price_defaults": changed(PriceDefault),
         "price_overrides": changed(PriceOverride),
-        "settings": settings_changed_since(cursor, HEADER_SETTING_KEYS),
+        "settings": settings_changed_since(cursor, HEADER_SETTING_KEYS, ceiling),
+        "cursor": ceiling,
     }
-    versions = [row.sync_version for rows in result.values() for row in rows]
-    result["cursor"] = max(versions, default=cursor)
-    return result
