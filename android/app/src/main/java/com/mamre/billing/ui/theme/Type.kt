@@ -6,29 +6,31 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Set of Material typography styles to start with
+private fun style(size: Int, weight: FontWeight, line: Int) = TextStyle(
+    fontFamily = FontFamily.Default,
+    fontWeight = weight,
+    fontSize = size.sp,
+    lineHeight = line.sp,
+    letterSpacing = 0.sp,
+)
+
+/**
+ * Default font. Roles: titleLarge is the screen title (22 bold), titleMedium the section
+ * heading (16 semibold), bodyLarge and bodyMedium the body (16), bodySmall and the label
+ * styles the label (14), headlineSmall, headlineMedium and headlineLarge the amounts
+ * (20, 24 and 28 bold).
+ */
 val Typography = Typography(
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    )
-    /* Other default text styles to override
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-        letterSpacing = 0.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    )
-    */
+    headlineLarge = style(28, FontWeight.Bold, 34),
+    headlineMedium = style(24, FontWeight.Bold, 30),
+    headlineSmall = style(20, FontWeight.Bold, 26),
+    titleLarge = style(22, FontWeight.Bold, 28),
+    titleMedium = style(16, FontWeight.SemiBold, 22),
+    titleSmall = style(14, FontWeight.SemiBold, 20),
+    bodyLarge = style(16, FontWeight.Normal, 24),
+    bodyMedium = style(16, FontWeight.Normal, 24),
+    bodySmall = style(14, FontWeight.Normal, 20),
+    labelLarge = style(14, FontWeight.Medium, 20),
+    labelMedium = style(14, FontWeight.Medium, 20),
+    labelSmall = style(14, FontWeight.Medium, 20),
 )

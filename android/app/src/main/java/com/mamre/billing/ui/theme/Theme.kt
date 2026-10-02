@@ -1,58 +1,87 @@
 package com.mamre.billing.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+/** Spacing scale: 4, 8, 12, 16, 24 dp. */
+object Spacing {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 24.dp
+}
+
+/** Sizes: touch targets are at least 48 dp, primary buttons 56 dp (Doc 2 s10 UX rules). */
+object Sizes {
+    val touchTarget: Dp = 48.dp
+    val primaryButton: Dp = 56.dp
+    val cornerRadius: Dp = 12.dp
+}
+
+/** Colours the Material scheme has no slot for. */
+@Immutable
+class ExtraColors(
+    val success: Color,
+    val successContainer: Color,
+    val onSurfaceMuted: Color,
 )
+
+private val LocalExtraColors = staticCompositionLocalOf {
+    ExtraColors(BrandSuccess, BrandSuccessContainer, BrandOnSurfaceMuted)
+}
+
+/** Read the extra colours as `MamreTheme.extra.success`. */
+object MamreTheme {
+    val extra: ExtraColors
+        @Composable @ReadOnlyComposable get() = LocalExtraColors.current
+}
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = BrandPrimary,
+    onPrimary = BrandOnPrimary,
+    primaryContainer = BrandPrimaryContainer,
+    onPrimaryContainer = BrandOnPrimaryContainer,
+    secondary = BrandSecondary,
+    onSecondary = BrandOnPrimary,
+    background = BrandBackground,
+    onBackground = BrandOnSurface,
+    surface = BrandSurface,
+    onSurface = BrandOnSurface,
+    surfaceVariant = BrandBackground,
+    onSurfaceVariant = BrandOnSurfaceMuted,
+    outline = BrandOutline,
+    outlineVariant = BrandOutline,
+    error = BrandError,
+    onError = BrandOnPrimary,
+    errorContainer = BrandErrorContainer,
+    onErrorContainer = BrandError,
 )
 
+private val MamreShapes = Shapes(
+    extraSmall = RoundedCornerShape(Sizes.cornerRadius),
+    small = RoundedCornerShape(Sizes.cornerRadius),
+    medium = RoundedCornerShape(Sizes.cornerRadius),
+    large = RoundedCornerShape(Sizes.cornerRadius),
+    extraLarge = RoundedCornerShape(Sizes.cornerRadius),
+)
+
+/** Material 3, light theme only, no dynamic colour (the brand palette must always show). */
 @Composable
-fun MamreBillingTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
+fun MamreBillingTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = LightColorScheme,
         typography = Typography,
-        content = content
+        shapes = MamreShapes,
+        content = content,
     )
 }
