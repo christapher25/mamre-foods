@@ -1,0 +1,10 @@
+# Dependencies authorized for P0 only (owner approval, 2026-10-02). Doc 2 section 2.
+Django>=5.0,<6.0
+djangorestframework>=3.15,<4.0
+djangorestframework-simplejwt>=5.3,<6.0
+psycopg[binary]>=3.2,<4.0
+dj-database-url>=2.2,<3.0
+python-dotenv>=1.0,<2.0
+pytest>=8.0,<9.0
+pytest-django>=4.8,<5.0
+ruff>=0.6
