@@ -3,12 +3,13 @@
 Doc 2 section 3, cross-app rule: other apps call this module, never the tables.
 """
 from django.contrib.auth import authenticate
+from django.db import transaction
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from . import selectors
 from .exceptions import InvalidCredentials
-from .models import AuditLog, Role
+from .models import AppSetting, AuditLog, Role
 
 
 def record_audit(*, user, action, entity, entity_id, before=None, after=None):
@@ -42,3 +43,18 @@ def refresh_access_token(refresh_token):
     if selectors.get_active_worker_by_id(refresh.get("user_id")) is None:
         raise InvalidCredentials()
     return {"access": str(refresh.access_token)}
+
+
+def set_setting(key, value):
+    """Create or change an AppSetting and bump its sync_version (Doc 2 s4.2, DECISIONS.md).
+
+    The cursor counter lives in catalog, so it is imported here to avoid a module cycle.
+    """
+    from apps.catalog.services import next_sync_version
+
+    with transaction.atomic():
+        setting, _ = AppSetting.objects.get_or_create(key=key)
+        setting.value = value
+        setting.sync_version = next_sync_version()
+        setting.save()
+    return setting
