@@ -214,7 +214,7 @@ def test_creating_a_default_writes_audit(admin, restaurant, product):
 def test_changing_a_default_writes_before_and_after(admin, restaurant, product):
     price = set_default(admin, restaurant, product, 250, D(2026, 1, 1))
     services.update_price_default(price, actor=admin, unit_price_cents=260)
-    entry = AuditLog.objects.filter(entity="PriceDefault").latest("at")
+    entry = AuditLog.objects.get(action="price_default.update")
     assert entry.action == "price_default.update"
     assert entry.before_json["unit_price_cents"] == 250
     assert entry.after_json["unit_price_cents"] == 260
@@ -223,8 +223,10 @@ def test_changing_a_default_writes_before_and_after(admin, restaurant, product):
 def test_override_create_and_change_write_audit(admin, customer, product):
     override = set_override(admin, customer, product, 200, D(2026, 1, 1), note="Loyal")
     services.update_price_override(override, actor=admin, unit_price_cents=190, is_active=False)
-    entries = list(AuditLog.objects.filter(entity="PriceOverride").order_by("at"))
-    assert [e.action for e in entries] == ["price_override.create", "price_override.update"]
+    entries = [
+        AuditLog.objects.get(action="price_override.create"),
+        AuditLog.objects.get(action="price_override.update"),
+    ]
     assert entries[0].after_json["note"] == "Loyal"
     assert entries[1].before_json["unit_price_cents"] == 200
     assert entries[1].before_json["is_active"] is True
