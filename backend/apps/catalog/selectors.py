@@ -20,6 +20,11 @@ def active_override_rows(customer, product):
     )
 
 
+def customer_type_id_by_name(name):
+    """Id of the customer type with this name, or None."""
+    return CustomerType.objects.filter(name=name).values_list("id", flat=True).first()
+
+
 def override_rows(customer, product):
     """Every override row for the pair, active or not: (effective_from, unit_price_cents)."""
     return list(

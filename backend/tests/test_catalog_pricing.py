@@ -262,3 +262,60 @@ def test_update_rejects_unknown_price_fields(admin, restaurant, product):
         services.update_price_default(
             price, actor=admin, today=TODAY, effective_from=D(2027, 1, 1)
         )
+
+
+# --- walk-in: customer=None uses the Retail defaults (review item 7) ---------------------------
+
+
+@pytest.fixture
+def retail():
+    return CustomerType.objects.get(name="Retail")
+
+
+def test_walk_in_uses_the_retail_default(admin, retail, restaurant, product):
+    set_default(admin, retail, product, 300, D(2026, 1, 1))
+    set_default(admin, restaurant, product, 250, D(2026, 1, 1))
+    assert resolve_price(None, product, D(2026, 10, 2)) == 300
+
+
+def test_walk_in_follows_retail_price_history(admin, retail, product):
+    set_default(admin, retail, product, 300, D(2026, 1, 1))
+    set_default(admin, retail, product, 320, D(2026, 9, 1))
+    assert resolve_price(None, product, D(2026, 8, 31)) == 300
+    assert resolve_price(None, product, D(2026, 9, 1)) == 320
+
+
+def test_walk_in_skips_every_override(admin, customer, retail, product):
+    set_default(admin, retail, product, 300, D(2026, 1, 1))
+    set_override(admin, customer, product, 100, D(2026, 1, 1))
+    assert resolve_price(None, product, D(2026, 10, 2)) == 300
+
+
+def test_walk_in_without_a_retail_price_raises_no_price(admin, restaurant, product):
+    set_default(admin, restaurant, product, 250, D(2026, 1, 1))  # other types do not count
+    with pytest.raises(NoPriceError):
+        resolve_price(None, product, D(2026, 10, 2))
+
+
+def test_walk_in_price_not_yet_effective_raises_no_price(admin, retail, product):
+    set_default(admin, retail, product, 300, FUTURE)
+    with pytest.raises(NoPriceError):
+        resolve_price(None, product, D(2026, 10, 2))
+
+
+def test_walk_in_without_a_retail_type_raises_no_price_not_a_crash(product):
+    CustomerType.objects.filter(name="Retail").delete()
+    with pytest.raises(NoPriceError):
+        resolve_price(None, product, D(2026, 10, 2))
+
+
+def test_walk_in_is_per_product(admin, retail, product, other_product):
+    set_default(admin, retail, product, 300, D(2026, 1, 1))
+    with pytest.raises(NoPriceError):
+        resolve_price(None, other_product, D(2026, 10, 2))
+
+
+def test_walk_in_price_is_integer_cents_never_zero(admin, retail, product):
+    set_default(admin, retail, product, 300, D(2026, 1, 1))
+    price = resolve_price(None, product, D(2026, 10, 2))
+    assert type(price) is int and price > 0
