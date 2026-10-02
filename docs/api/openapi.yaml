@@ -101,7 +101,8 @@ paths:
         are processed first, then payments, in the order sent. At most 200 records in total
         (invoices + payments + returns) per push; more is a 400 validation_error with the
         Doc 2 s5.2 error body. device_code must be the code of one of the pushing worker's
-        devices and every invoice number must carry that code (Doc 2 I-3). The unit price on
+        devices (otherwise 400 validation_error for the whole push) and every invoice number
+        must carry that code (Doc 2 I-3; otherwise that invoice is rejected, wrong_device). The unit price on
         each item is the device snapshot and is stored as sent, never repriced (I-7).
         A walk-in invoice (customer_id null) must be fully paid: the payments in the same push
         that reference it must add up to exactly its total. Walk-in payments are stored but
@@ -133,8 +134,9 @@ paths:
         its sales counter first and returns only rows at or below it, so a row committed later
         can never be skipped (same rule as /sync/catalog, Doc 2 s6.4). A credit customer is
         included when any of its invoices, payments or allocations changed after the cursor
-        (a void counts as a change). Records are those of every worker for the customer, because
-        the balance is per customer. balance_cents is computed at the returned cursor as
+        (a void counts as a change). Only the changed records are returned (upsert them by id),
+        but balance_cents is always the whole balance. Records are those of every worker for
+        the customer, because the balance is per customer. balance_cents is computed at the returned cursor as
         opening balance + non-void invoices - payments (credits from returns arrive in P4);
         it is never stored (Doc 2 I-6). Void invoices are included with status void. No cost data.
       security: [{ bearerAuth: [] }]
@@ -382,8 +384,8 @@ components:
           description: >
             Stable machine string, for example validation_error, invalid_number, wrong_device,
             total_mismatch, duplicate_number, unknown_customer, unknown_product,
-            walkin_not_fully_paid, customer_mismatch, missing_target, invoice_not_found,
-            returns_not_supported.
+            walkin_not_fully_paid, walkin_overpaid, customer_mismatch, missing_target,
+            invoice_not_found, invoice_rejected, returns_not_supported.
         message: { type: string }
         retryable:
           type: boolean
@@ -403,7 +405,9 @@ components:
       properties:
         cursor:
           type: integer
-          description: Sales counter value read first. Equals the request cursor if nothing changed.
+          description: >
+            Sales counter value read first; send it back next time. It can be above the request
+            cursor even when customers is empty (for example after a walk-in sale).
         customers:
           type: array
           items: { $ref: "#/components/schemas/CustomerActivity" }
