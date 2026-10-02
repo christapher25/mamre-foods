@@ -72,7 +72,11 @@ def _push_invoice(raw, *, worker, device, payments_raw):
         if item["product"] is None:
             raise Reject("unknown_product", "product_id does not match any product.")
     if customer is None:  # walk-in: must be paid in full at the time of sale (Doc 1 s4.1)
-        paid = records.walk_in_paid_cents(record_id, payments_raw)
+        paid = records.walk_in_paid_cents(
+            record_id,
+            payments_raw,
+            is_stored=lambda payment_id: sales_selectors.get_payment(payment_id) is not None,
+        )
         if paid != data["total_cents"]:
             raise Reject(
                 "walkin_not_fully_paid",

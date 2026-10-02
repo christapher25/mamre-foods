@@ -139,13 +139,15 @@ def parse_payment(raw):
     }
 
 
-def walk_in_paid_cents(invoice_id, payments_raw):
+def walk_in_paid_cents(invoice_id, payments_raw, is_stored=lambda payment_id: False):
     """Cents of the pushed payments that count toward a walk-in invoice (Doc 1 s4.1).
 
     Only a payment that passes full validation counts: parse_payment (amount, method, a note
     for other, bounds) and no customer_id at all, because a walk-in has no customer, so any
     customer_id is a customer_mismatch or an unknown_customer in services. Each payment id
-    counts once. The caller validates before it stores anything."""
+    counts once. A payment id that is already stored does not count (is_stored(id) is true):
+    it will be answered "duplicate" for its original invoice, so it can never pay this one.
+    The caller validates before it stores anything."""
     seen, total = set(), 0
     for raw in payments_raw:
         if not isinstance(raw, dict):
@@ -157,7 +159,7 @@ def walk_in_paid_cents(invoice_id, payments_raw):
             continue
         if data["invoice_id"] != invoice_id or data["customer_id"] is not None:
             continue
-        if payment_id in seen:
+        if payment_id in seen or is_stored(payment_id):
             continue
         seen.add(payment_id)
         total += data["amount_cents"]

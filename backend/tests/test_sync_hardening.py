@@ -241,3 +241,38 @@ def test_duplicate_invoice_is_answered_from_storage_without_storing_again(world,
     body = push(world, invoices=[inv])
     assert statuses(body) == ["duplicate"]
     assert selectors.current_sales_cursor() == cursor_before
+
+
+# ---- re-review 1: a stored payment never counts toward a walk-in ----------------------------
+
+
+def test_walk_in_does_not_count_a_payment_id_that_is_already_stored(world):
+    credit = invoice_payload(world, "MAM-W1-0001", 1000)
+    pay = payment_payload(400, invoice_id=credit["id"])
+    first = push(world, invoices=[credit], payments=[pay])
+    assert statuses(first) == ["accepted", "accepted"]
+    # a walk-in whose only "payment" re-points the stored payment id at it, for the full total
+    sneaky = walk_in(world, total=400, number="MAM-W1-0002")
+    repointed = payment_payload(400, invoice_id=sneaky["id"], pay_id=pay["id"])
+    body = push(world, invoices=[sneaky], payments=[repointed])
+    assert body["results"][0]["status"] == "rejected"
+    assert body["results"][0]["reason"]["code"] == "walkin_not_fully_paid"
+    # the stored payment is still answered from storage, for its ORIGINAL invoice
+    assert body["results"][1]["status"] == "duplicate"
+    assert body["results"][1]["allocated"] == [{"invoice_id": credit["id"], "amount_cents": 400}]
+    assert stored_counts() == (1, 1)
+    assert Payment.objects.get().invoice_id.__str__() == credit["id"]
+    assert not Invoice.objects.filter(number="MAM-W1-0002").exists()
+
+
+def test_walk_in_accepts_new_payments_next_to_a_stored_payment_id(world):
+    """Only NEW valid payments count: a new one for the full total is still accepted."""
+    credit = invoice_payload(world, "MAM-W1-0001", 1000)
+    pay = payment_payload(400, invoice_id=credit["id"])
+    push(world, invoices=[credit], payments=[pay])
+    sneaky = walk_in(world, total=400, number="MAM-W1-0002")
+    repointed = payment_payload(400, invoice_id=sneaky["id"], pay_id=pay["id"])
+    fresh = payment_payload(400, invoice_id=sneaky["id"])
+    body = push(world, invoices=[sneaky], payments=[repointed, fresh])
+    assert statuses(body) == ["accepted", "duplicate", "accepted"]
+    assert stored_counts() == (2, 2)
