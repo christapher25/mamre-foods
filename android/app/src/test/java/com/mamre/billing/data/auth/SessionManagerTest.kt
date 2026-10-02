@@ -5,6 +5,7 @@ import com.mamre.billing.data.api.BackendApi
 import com.mamre.billing.data.api.CatalogPull
 import com.mamre.billing.data.api.Me
 import com.mamre.billing.data.api.TokenPair
+import com.mamre.billing.domain.auth.Role
 import java.io.IOException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -24,7 +25,11 @@ private fun apiError(status: Int, code: String = "x") =
 class MemoryTokenStore(
     override var accessToken: String? = null,
     override var refreshToken: String? = null,
+    override var role: String? = null,
 ) : TokenStore {
+    override fun saveRole(role: String) {
+        this.role = role
+    }
     override fun save(access: String, refresh: String) {
         accessToken = access
         refreshToken = refresh
@@ -35,12 +40,14 @@ class MemoryTokenStore(
     override fun clear() {
         accessToken = null
         refreshToken = null
+        role = null
     }
 }
 
 /** Only login and refresh matter to SessionManager. */
 private class ScriptedApi : BackendApi {
     var loginResult: () -> TokenPair = { TokenPair("a1", "r1") }
+    var meRole = "worker"
     var refreshResult: () -> String = { "a2" }
     var refreshCalls = 0
     var refreshDelayMs = 0L
@@ -51,7 +58,7 @@ private class ScriptedApi : BackendApi {
         if (refreshDelayMs > 0) delay(refreshDelayMs)
         return refreshResult()
     }
-    override suspend fun me(accessToken: String): Me = error("not used")
+    override suspend fun me(accessToken: String) = Me("id", "u", "User", meRole, null)
     override suspend fun catalog(accessToken: String, cursor: Long): CatalogPull = error("not used")
 }
 
@@ -64,12 +71,67 @@ class SessionManagerTest {
     /** Tokens already on the device when the app starts. */
     private fun startWith(access: String, refresh: String) {
         store.save(access, refresh)
+        store.saveRole("worker")
         session = SessionManager(api, store)
     }
 
     @Test fun signedInStartsFromStoredRefreshToken() {
         assertFalse(SessionManager(api, MemoryTokenStore()).signedIn.value)
-        assertTrue(SessionManager(api, MemoryTokenStore("a", "r")).signedIn.value)
+        assertTrue(SessionManager(api, MemoryTokenStore("a", "r", "worker")).signedIn.value)
+    }
+
+    @Test fun storedRoleDecidesTheHomeAfterARestart() {
+        assertEquals(Role.ADMIN, SessionManager(api, MemoryTokenStore("a", "r", "admin")).role.value)
+        assertEquals(Role.WORKER, SessionManager(api, MemoryTokenStore("a", "r", "worker")).role.value)
+    }
+
+    @Test fun storedTokensWithoutAValidRoleAreNotASession() {
+        for (role in listOf(null, "owner", "")) {
+            val s = MemoryTokenStore("a", "r", role)
+            val m = SessionManager(api, s)
+            assertFalse(m.signedIn.value)
+            assertNull(m.role.value)
+            assertNull(s.refreshToken)
+        }
+    }
+
+    @Test fun roleComesFromMeNotFromTheUsername() = runTest {
+        api.meRole = "admin"
+        session.login("user1", "pw")
+        assertEquals(Role.ADMIN, session.role.value)
+        assertEquals("admin", store.role)
+    }
+
+    @Test fun unknownRoleIsRefusedAndNothingIsStored() = runTest {
+        api.meRole = "superuser"
+        try {
+            session.login("w", "pw")
+            fail("expected RoleRejectedException")
+        } catch (e: RoleRejectedException) {
+            assertEquals(UNKNOWN_ROLE_MESSAGE, e.message)
+        }
+        assertNull(store.accessToken)
+        assertNull(store.role)
+        assertFalse(session.signedIn.value)
+    }
+
+    @Test fun adminIsRefusedWhenTheServerCannotSignAdminsInYet() = runTest {
+        api.meRole = "admin"
+        val noAdmin = SessionManager(api, store, adminSignInAvailable = false)
+        try {
+            noAdmin.login("admin", "pw")
+            fail("expected RoleRejectedException")
+        } catch (e: RoleRejectedException) {
+            assertEquals("Admin sign-in is not available on the server yet.", e.message)
+        }
+        assertNull(store.accessToken)
+        assertFalse(noAdmin.signedIn.value)
+    }
+
+    @Test fun workerStillSignsInWhenAdminSignInIsUnavailable() = runTest {
+        val noAdmin = SessionManager(api, store, adminSignInAvailable = false)
+        noAdmin.login("w", "pw")
+        assertEquals(Role.WORKER, noAdmin.role.value)
     }
 
     @Test fun loginStoresBothTokens() = runTest {
@@ -202,11 +264,13 @@ class SessionManagerTest {
         assertEquals(1, api.refreshCalls)
     }
 
-    @Test fun logoutClearsTokens() = runTest {
+    @Test fun logoutClearsTokensAndTheStoredRole() = runTest {
         session.login("w", "pw")
         session.logout()
         assertNull(store.accessToken)
         assertNull(store.refreshToken)
+        assertNull(store.role)
+        assertNull(session.role.value)
         assertFalse(session.signedIn.value)
     }
 }

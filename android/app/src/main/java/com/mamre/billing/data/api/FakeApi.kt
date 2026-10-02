@@ -4,17 +4,20 @@ package com.mamre.billing.data.api
  * Stand-in for the server while none is hosted, chosen by BuildConfig.USE_FAKE_API.
  *
  * TEST DATA ONLY. Doc 1 P-4 (selling prices) is pending: the prices below are invented
- * placeholders so the app can be exercised, never real prices. The fake accepts any
- * non-blank username and password. It issues tokens that look like the real ones in
- * behaviour (an access token and a refresh token) so the 401 then refresh path can run.
+ * placeholders so the app can be exercised, never real prices. The fake accepts only the
+ * accounts in [FakeCredentials] and answers 401 invalid_credentials for anything else. It
+ * issues tokens that look like the real ones in behaviour (an access token and a refresh
+ * token) so the 401 then refresh path can run. The role is carried inside the token and
+ * comes back from /me.
  */
 class FakeApi : BackendApi {
     private var counter = 0
 
     override suspend fun login(username: String, password: String): TokenPair {
-        if (username.isBlank() || password.isBlank()) throw invalidCredentials()
+        val account = FakeCredentials.find(username, password) ?: throw invalidCredentials()
         counter++
-        return TokenPair("$ACCESS_PREFIX$counter", "$REFRESH_PREFIX$counter")
+        val role = account.role.wire
+        return TokenPair("$ACCESS_PREFIX$role-$counter", "$REFRESH_PREFIX$role-$counter")
     }
 
     override suspend fun refresh(refreshToken: String): String {
@@ -22,17 +25,18 @@ class FakeApi : BackendApi {
             throw ApiException(401, "token_not_valid", "Token is invalid or expired.")
         }
         counter++
-        return "$ACCESS_PREFIX$counter"
+        val role = refreshToken.removePrefix(REFRESH_PREFIX).substringBefore('-')
+        return "$ACCESS_PREFIX$role-$counter"
     }
 
     override suspend fun me(accessToken: String): Me {
-        requireAccess(accessToken)
+        val account = accountFor(accessToken)
         return Me(
-            id = "00000000-0000-4000-8000-0000000000a1",
-            username = "worker",
-            fullName = "Test Worker",
-            role = "worker",
-            deviceCode = "W1",
+            id = "00000000-0000-4000-8000-0000000000a${account.role.ordinal + 1}",
+            username = account.username,
+            fullName = account.fullName,
+            role = account.role.wire,
+            deviceCode = account.deviceCode,
         )
     }
 
@@ -76,9 +80,17 @@ class FakeApi : BackendApi {
     )
 
     private fun requireAccess(token: String) {
-        if (!token.startsWith(ACCESS_PREFIX)) {
-            throw ApiException(401, "not_authenticated", "Authentication credentials were not provided.")
+        accountFor(token)
+    }
+
+    private fun accountFor(token: String): FakeCredentials.Account {
+        val role = if (token.startsWith(ACCESS_PREFIX)) {
+            token.removePrefix(ACCESS_PREFIX).substringBefore('-')
+        } else {
+            null
         }
+        return FakeCredentials.accounts.firstOrNull { it.role.wire == role }
+            ?: throw ApiException(401, "not_authenticated", "Authentication credentials were not provided.")
     }
 
     private fun invalidCredentials() =

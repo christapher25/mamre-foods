@@ -29,6 +29,8 @@ android {
 
     buildTypes {
         release {
+            // TEST CREDENTIALS and FakeApi must never ship (DECISIONS 2026-10-02).
+            buildConfigField("boolean", "USE_FAKE_API", "false")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")

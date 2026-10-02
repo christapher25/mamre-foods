@@ -2,6 +2,7 @@ package com.mamre.billing.data.auth
 
 import com.mamre.billing.data.api.ApiException
 import com.mamre.billing.data.api.BackendApi
+import com.mamre.billing.domain.auth.Role
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,30 +12,60 @@ import kotlinx.coroutines.sync.withLock
 /** The session is over and the worker must sign in again. */
 class SessionExpiredException(cause: Throwable? = null) : Exception("Session expired", cause)
 
+/** Signing in was refused because of the role, not the password. [message] is shown on Login. */
+class RoleRejectedException(message: String) : Exception(message)
+
+const val UNKNOWN_ROLE_MESSAGE = "This account type is not supported by this app."
+const val ADMIN_UNAVAILABLE_MESSAGE = "Admin sign-in is not available on the server yet."
+
 /**
  * Login, logout and the 401 rule (Doc 2 s5, s6.8): the access token lasts about 15 minutes
  * and the refresh token about 30 days without rotation. On a 401 the call refreshes once and
  * is retried once; if the refresh is refused, the tokens are cleared and [signedIn] turns
  * false so the UI returns to Login. A network error never ends the session (offline use
  * must survive, Doc 2 s2), and neither do 429 or 5xx answers.
+ *
+ * The role comes from /me at sign-in, never from the typed username. It is stored with the
+ * tokens so a restart lands on the right home. A stored session with no valid role is not a
+ * session. When [adminSignInAvailable] is false (a real server that cannot yet sign admins in
+ * on mobile) an admin account is refused.
  */
 class SessionManager(
     private val api: BackendApi,
     private val store: TokenStore,
+    private val adminSignInAvailable: Boolean = true,
 ) {
-    private val _signedIn = MutableStateFlow(store.refreshToken != null)
+    private val storedRole: Role? =
+        if (store.refreshToken != null) Role.parse(store.role) else null
+
+    private val _role = MutableStateFlow(storedRole)
+    val role: StateFlow<Role?> = _role.asStateFlow()
+
+    private val _signedIn = MutableStateFlow(storedRole != null)
     val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
+
+    init {
+        if (storedRole == null && store.refreshToken != null) store.clear()
+    }
 
     private val refreshLock = Mutex()
 
     suspend fun login(username: String, password: String) {
         val tokens = api.login(username, password)
+        val role = Role.parse(api.me(tokens.access).role)
+            ?: throw RoleRejectedException(UNKNOWN_ROLE_MESSAGE)
+        if (role == Role.ADMIN && !adminSignInAvailable) {
+            throw RoleRejectedException(ADMIN_UNAVAILABLE_MESSAGE)
+        }
         store.save(tokens.access, tokens.refresh)
+        store.saveRole(role.wire)
+        _role.value = role
         _signedIn.value = true
     }
 
     fun logout() {
         store.clear()
+        _role.value = null
         _signedIn.value = false
     }
 
@@ -69,6 +100,7 @@ class SessionManager(
 
     private fun expire(cause: Throwable? = null): SessionExpiredException {
         store.clear()
+        _role.value = null
         _signedIn.value = false
         return SessionExpiredException(cause)
     }

@@ -56,7 +56,7 @@ object AppModule {
     fun tokenStore(@ApplicationContext context: Context): TokenStore = EncryptedTokenStore(context)
 
     @Provides @Singleton
-    fun sessionManager(api: BackendApi, store: TokenStore) = SessionManager(api, store)
+    fun sessionManager(api: BackendApi, store: TokenStore) = SessionManager(api, store, adminSignInAvailable = BuildConfig.USE_FAKE_API)
 
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =

@@ -3,6 +3,7 @@ package com.mamre.billing.ui.login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.api.ApiException
+import com.mamre.billing.data.auth.RoleRejectedException
 import com.mamre.billing.data.auth.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.IOException
@@ -44,6 +45,8 @@ class LoginViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, password = "") }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: RoleRejectedException) {
+                _state.update { it.copy(loading = false, password = "", error = e.message) }
             } catch (e: ApiException) {
                 _state.update { it.copy(loading = false, error = e.message) }
             } catch (e: IOException) {

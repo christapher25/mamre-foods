@@ -20,16 +20,27 @@ class FakeApiTest {
         }
     }
 
-    @Test fun loginWithBlankFieldsIsInvalidCredentials() = runTest {
+    private suspend fun workerToken() = api.login("user1", "user1").access
+
+    @Test fun loginWithAnythingButTheTwoTestAccountsIsInvalidCredentials() = runTest {
         expectError(401, "invalid_credentials") { api.login("", "x") }
-        expectError(401, "invalid_credentials") { api.login("worker", "") }
+        expectError(401, "invalid_credentials") { api.login("user1", "") }
+        expectError(401, "invalid_credentials") { api.login("worker", "pw") }
+        expectError(401, "invalid_credentials") { api.login("user1", "admin5") }
+        expectError(401, "invalid_credentials") { api.login("admin", "user1") }
+        expectError(401, "invalid_credentials") { api.login("ADMIN", "admin5") }
     }
 
     @Test fun loginReturnsTokensAndMeIsAWorker() = runTest {
-        val t = api.login("worker", "pw")
-        val me = api.me(t.access)
+        val me = api.me(workerToken())
         assertEquals("worker", me.role)
         assertEquals("W1", me.deviceCode)
+    }
+
+    @Test fun adminLoginReturnsRoleAdminFromMeNotFromTheUsername() = runTest {
+        val me = api.me(api.login("admin", "admin5").access)
+        assertEquals("admin", me.role)
+        assertEquals(null, me.deviceCode)
     }
 
     @Test fun badAccessTokenIs401SoTheRefreshPathCanBeExercised() = runTest {
@@ -38,24 +49,23 @@ class FakeApiTest {
     }
 
     @Test fun refreshIssuesAnAccessTokenOnlyForAFakeRefreshToken() = runTest {
-        val t = api.login("worker", "pw")
+        val t = api.login("user1", "user1")
         val fresh = api.refresh(t.refresh)
         assertEquals("worker", api.me(fresh).role)
         expectError(401, "token_not_valid") { api.refresh("garbage") }
     }
 
     @Test fun catalogHasNoCostKeysAndNoZeroPrices() = runTest {
-        val t = api.login("worker", "pw")
-        val c = api.catalog(t.access, 0)
+        val c = api.catalog(workerToken(), 0)
         assertTrue(c.products.isNotEmpty())
         assertTrue(c.priceDefaults.all { it.unitPriceCents > 0 })
         assertTrue(c.customerTypes.any { it.name == "Retail" })
     }
 
     @Test fun catalogWithCurrentCursorIsEmptyAndKeepsTheCursor() = runTest {
-        val t = api.login("worker", "pw")
-        val first = api.catalog(t.access, 0)
-        val again = api.catalog(t.access, first.cursor)
+        val token = workerToken()
+        val first = api.catalog(token, 0)
+        val again = api.catalog(token, first.cursor)
         assertEquals(first.cursor, again.cursor)
         assertTrue(again.products.isEmpty() && again.priceDefaults.isEmpty())
     }

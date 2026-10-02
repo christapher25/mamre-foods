@@ -9,6 +9,10 @@ import androidx.security.crypto.MasterKey
 interface TokenStore {
     val accessToken: String?
     val refreshToken: String?
+
+    /** The role from /me, kept so a restart lands on the right home (Doc 2 s10). */
+    val role: String?
+    fun saveRole(role: String)
     fun save(access: String, refresh: String)
     fun saveAccess(access: String)
     fun clear()
@@ -28,6 +32,11 @@ class EncryptedTokenStore(context: Context) : TokenStore {
 
     override val accessToken: String? get() = prefs.getString(ACCESS, null)
     override val refreshToken: String? get() = prefs.getString(REFRESH, null)
+    override val role: String? get() = prefs.getString(ROLE, null)
+
+    override fun saveRole(role: String) {
+        prefs.edit().putString(ROLE, role).apply()
+    }
 
     override fun save(access: String, refresh: String) {
         prefs.edit().putString(ACCESS, access).putString(REFRESH, refresh).apply()
@@ -45,5 +54,6 @@ class EncryptedTokenStore(context: Context) : TokenStore {
         const val FILE_NAME = "mamre_tokens"
         const val ACCESS = "access"
         const val REFRESH = "refresh"
+        const val ROLE = "role"
     }
 }
