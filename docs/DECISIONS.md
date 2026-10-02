@@ -10,3 +10,4 @@ One line per decision: date - decision - reason.
 2026-10-02 - Dependencies are pinned as compatible ranges (e.g. Django>=5.0,<6.0) rather than exact versions - keeps patch updates possible; revisit if the owner wants exact pins.
 2026-10-02 - Django DEFAULT_AUTO_FIELD stays BigAutoField; each app owner sets UUID primary keys explicitly per model (Doc 2 s4.1).
 2026-10-02 - ruff rule set is E, F, W, I, B, DJ with line length 100, migrations excluded - a conservative baseline; owner may tighten.
+2026-10-02 - Removed django.contrib.admin from INSTALLED_APPS (no admin route existed); auth, sessions and messages stay - so financial records can never be edited through Django admin (Doc 2 s12, I-4, I-9, AT-10); owner answer to the QUESTIONS.md item.
