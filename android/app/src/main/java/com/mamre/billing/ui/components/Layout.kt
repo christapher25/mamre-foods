@@ -82,6 +82,8 @@ fun AppCard(
     onClick: (() -> Unit)? = null,
     containerColor: Color = MaterialTheme.colorScheme.surface,
     contentPadding: Dp = Spacing.lg,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    minContentHeight: Dp = Dp.Unspecified,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = CardDefaults.cardColors(containerColor = containerColor)
@@ -96,7 +98,11 @@ fun AppCard(
             colors = colors,
             border = border,
             elevation = elevation,
-        ) { Column(Modifier.padding(contentPadding), content = content) }
+        ) { Column(
+            Modifier.fillMaxWidth().heightIn(min = minContentHeight).padding(contentPadding),
+            verticalArrangement = verticalArrangement,
+            content = content,
+        ) }
     } else {
         Card(
             modifier = modifier.fillMaxWidth(),
@@ -104,7 +110,11 @@ fun AppCard(
             colors = colors,
             border = border,
             elevation = elevation,
-        ) { Column(Modifier.padding(contentPadding), content = content) }
+        ) { Column(
+            Modifier.fillMaxWidth().heightIn(min = minContentHeight).padding(contentPadding),
+            verticalArrangement = verticalArrangement,
+            content = content,
+        ) }
     }
 }
 

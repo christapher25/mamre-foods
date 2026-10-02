@@ -7,64 +7,84 @@ import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.ui.home.ComingSoonScreen
-import com.mamre.billing.ui.home.HomeScreen
-import com.mamre.billing.ui.home.HomeTile
-import com.mamre.billing.ui.home.SyncStatusScreen
+import com.mamre.billing.domain.auth.Role
+import com.mamre.billing.domain.auth.Routes
+import com.mamre.billing.domain.auth.routeAllowed
+import com.mamre.billing.domain.auth.startDestinationFor
+import com.mamre.billing.ui.admin.AdminHomeScreen
 import com.mamre.billing.ui.login.LoginScreen
+import com.mamre.billing.ui.worker.ComingSoonScreen
+import com.mamre.billing.ui.worker.HomeScreen
+import com.mamre.billing.ui.worker.HomeTile
+import com.mamre.billing.ui.worker.SyncScreen
+import com.mamre.billing.ui.worker.WorkerRoutes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 @HiltViewModel
 class AppViewModel @Inject constructor(session: SessionManager) : ViewModel() {
-    val signedIn = session.signedIn
+    val role = session.role
 }
 
-private const val LOGIN = "login"
-private const val HOME = "home"
-private const val SYNC = "sync"
-private const val SOON = "soon/{tile}"
-
 /**
- * Login when there is no session, Home otherwise. When the session ends (logout, or a
- * refresh that fails after a 401) the stack is cleared back to Login (task 4d).
+ * Login when there is no session, otherwise the home of the stored role, so a restart lands on
+ * the right experience (Doc 2 s10). The worker and the admin each have their own graph, and
+ * the guard sends anyone who ends up on a route of the other graph (or on Login while signed
+ * in) back to their own start. When the session ends (logout, or a refresh refused after a
+ * 401) the whole back stack is cleared to Login.
  */
 @Composable
 fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
-    val signedIn by appViewModel.signedIn.collectAsStateWithLifecycle()
+    val role by appViewModel.role.collectAsStateWithLifecycle()
     val navController = rememberNavController()
-    val start = remember { if (appViewModel.signedIn.value) HOME else LOGIN }
+    val start = remember {
+        when (appViewModel.role.value) {
+            Role.WORKER -> Routes.WORKER_GRAPH
+            Role.ADMIN -> Routes.ADMIN_GRAPH
+            null -> Routes.LOGIN
+        }
+    }
 
-    LaunchedEffect(signedIn) {
-        val route = navController.currentDestination?.route ?: return@LaunchedEffect
-        if (signedIn && route == LOGIN) {
-            navController.navigate(HOME) { popUpTo(LOGIN) { inclusive = true } }
-        } else if (!signedIn && route != LOGIN) {
-            navController.navigate(LOGIN) { popUpTo(0) { inclusive = true } }
+    LaunchedEffect(role) {
+        navController.currentBackStackEntryFlow.collect { entry ->
+            if (!routeAllowed(role, entry.destination.route)) navController.goToStart(role)
         }
     }
 
     NavHost(navController, startDestination = start) {
-        composable(LOGIN) { LoginScreen() }
-        composable(HOME) {
-            HomeScreen(onTile = { tile ->
-                if (tile == HomeTile.SYNC_STATUS) navController.navigate(SYNC)
-                else navController.navigate("soon/${tile.name}")
-            })
+        composable(Routes.LOGIN) { LoginScreen() }
+        navigation(route = Routes.WORKER_GRAPH, startDestination = WorkerRoutes.HOME) {
+            composable(WorkerRoutes.HOME) {
+                HomeScreen(onTile = { tile ->
+                    if (tile == HomeTile.SYNC_STATUS) navController.navigate(WorkerRoutes.SYNC)
+                    else navController.navigate(WorkerRoutes.soon(tile))
+                })
+            }
+            composable(WorkerRoutes.SYNC) { SyncScreen(onBack = { navController.popBackStack() }) }
+            composable(
+                WorkerRoutes.SOON,
+                arguments = listOf(navArgument("tile") { type = NavType.StringType }),
+            ) {
+                val tile = it.arguments?.getString("tile")?.let(HomeTile::valueOf)
+                ComingSoonScreen(title = tile?.title.orEmpty(), onBack = { navController.popBackStack() })
+            }
         }
-        composable(SYNC) { SyncStatusScreen(onBack = { navController.popBackStack() }) }
-        composable(SOON, arguments = listOf(navArgument("tile") { type = NavType.StringType })) {
-            val tile = it.arguments?.getString("tile")?.let(HomeTile::valueOf)
-            ComingSoonScreen(
-                title = tile?.title.orEmpty(),
-                onBack = { navController.popBackStack() },
-            )
+        navigation(route = Routes.ADMIN_GRAPH, startDestination = Routes.ADMIN_HOME) {
+            composable(Routes.ADMIN_HOME) { AdminHomeScreen() }
         }
     }
+}
+
+/** Clears the back stack and opens the start of this role, or Login when there is none. */
+private fun NavController.goToStart(role: Role?) {
+    val target = role?.let(::startDestinationFor) ?: Routes.LOGIN
+    navigate(target) { popUpTo(0) { inclusive = true } }
 }
