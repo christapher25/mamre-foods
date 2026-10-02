@@ -35,11 +35,24 @@ _VOID_PERMIT = ContextVar("sales_void_permit", default=None)
 
 @contextmanager
 def void_permit(invoice_pk, audit):
-    """Opens the door for Invoice._apply_void on ONE invoice, and only while the AuditLog row
-    that records the void exists. Used by services.void_invoice and nothing else: without an
-    audit row there is no permit, so there is no void (Doc 2 s8, I-4)."""
-    if audit is None or getattr(audit, "pk", None) is None:
-        raise RuntimeError("A void needs its AuditLog row first (Doc 2 s8).")
+    """Opens the door for Invoice._apply_void on ONE invoice, and only for the real AuditLog row
+    that records this void: an AuditLog instance, action "invoice.void", entity "invoice",
+    entity_id equal to str(invoice_pk), and present in the database (checked by pk). Anything
+    else (a stand-in object, another action or invoice, an unsaved row) is refused. Used by
+    services.void_invoice and nothing else: no audit row, no void (Doc 2 s8, I-4)."""
+    from apps.accounts.models import AuditLog  # lazy: accounts is a lower layer
+
+    real = (
+        isinstance(audit, AuditLog)
+        and audit.action == "invoice.void"
+        and audit.entity == "invoice"
+        and audit.entity_id == str(invoice_pk)
+        and AuditLog.objects.filter(
+            pk=audit.pk, action="invoice.void", entity="invoice", entity_id=str(invoice_pk)
+        ).exists()
+    )
+    if not real:
+        raise RuntimeError("A void needs its own AuditLog row first (Doc 2 s8).")
     token = _VOID_PERMIT.set(str(invoice_pk))
     try:
         yield
