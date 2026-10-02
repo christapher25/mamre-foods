@@ -1,3 +1,6 @@
-"""Root URL configuration. Empty in P0: endpoints arrive in later phases (Doc 2 section 5)."""
+"""Root URL configuration (Doc 2 section 5). Base path /api/v1/."""
+from django.urls import include, path
 
-urlpatterns: list = []
+urlpatterns = [
+    path("api/v1/", include("apps.accounts.urls")),
+]
