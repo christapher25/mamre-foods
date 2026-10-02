@@ -1,0 +1,373 @@
+MAMRE FOODS BILLING SYSTEM - DOCUMENT 2 OF 3
+# Technical Architecture and Data Model
+How the system is built: stack, data, API, sync, printing, security and testing
+
+Version: 1.0 (baseline)
+Date: 1 October 2026
+Implements: Doc 1: Product Specification. This document may never change business behaviour.
+Status: Locked decisions. Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
+Companion documents: Doc 3: Agent Operating Guide and Build Plan.
+
+>> [HOW TO USE THIS DOCUMENT]
+> When Doc 1 and this document disagree, Doc 1 wins. If something is missing here, do not guess: add the question to docs/QUESTIONS.md.
+
+==============================================================================
+## 1. Architecture Overview
+==============================================================================
+
+```
+WORKER APP (Android)  <-- HTTPS / JSON sync -->  SERVER  <-- HTTPS web pages -->  ADMIN (laptop browser)
+
+WORKER APP: Kotlin + Jetpack Compose, Room local database, outbox + WorkManager sync,
+            pricing + ledger on device, receipt printer (58 mm), fully offline, no cost/profit data.
+SERVER:     Django 5 + DRF API, PostgreSQL (source of truth), sync push/pull endpoints,
+            allocation + ledger, costing engine + reports, audit log, daily backups, Railway or Render.
+ADMIN:      server-rendered pages (Django templates, HTMX, Tailwind), Odoo-style lists and forms,
+            monthly reports, PDF and Excel export, prices, costs, expenses.
+```
+
+### 1.1 Principles
+
+- Server is the source of truth for catalog, prices, costing and reports. The device is the source for new invoices, payments and returns, because they are created offline.
+- Offline first. Everything a worker does on the handheld works with no signal.
+- Money is integer cents. Never floating point. Ingredient quantities use Decimal.
+- Append-only financial records. Nothing is edited or deleted; use void or credit.
+- UUIDs created on the device make every sync safe to repeat (idempotent).
+- Workers never receive cost data. It is excluded at the API layer, not just hidden in the UI.
+- One backend codebase serves both the mobile API and the Admin dashboard.
+
+==============================================================================
+## 2. Technology Decisions (Locked)
+==============================================================================
+
+| Layer | Choice | Notes |
+|---|---|---|
+| Backend | Python 3.12, Django 5, Django REST Framework | One project, several apps (section 3) |
+| Database | PostgreSQL 16 | SQLite allowed for quick local tests only |
+| Admin UI | Django templates, HTMX, Tailwind CSS | Server-rendered. No separate SPA. |
+| Reports | reportlab (PDF), openpyxl (Excel) | Pure Python, easy to host |
+| Mobile app | Kotlin, Jetpack Compose, Room, WorkManager, Retrofit with kotlinx.serialization, Hilt | Native, because printing needs the device SDK |
+| Android versions | minSdk 26 by default | Confirm from the real device (P-1) |
+| Auth | SimpleJWT for workers, Django sessions for Admin | Long-lived refresh token so offline use survives |
+| Hosting | Railway or Render with managed PostgreSQL | Roughly $5 to $10 a month |
+| CI | GitHub Actions: pytest, ruff, Gradle unit tests | Required green before merge |
+| Tests | pytest-django, JUnit, Room tests | Money logic needs tests first |
+| Monitoring | Sentry free tier plus provider logs | Errors only, no personal data in events |
+
+>> [RULE]
+> No new dependency may be added without a note in the pull request explaining why. Prefer the standard library and what is already listed above.
+
+==============================================================================
+## 3. Repository Layout
+==============================================================================
+
+```
+mamre/
+  CLAUDE.md                  rules every agent reads first
+  docs/
+    01-product-spec.txt  02-architecture.txt  03-agent-guide.txt
+    api/openapi.yaml         the API contract
+    DECISIONS.md             every decision, one line each
+    QUESTIONS.md             open questions for the owner
+  backend/
+    manage.py
+    config/                  settings, urls, wsgi
+    apps/
+      accounts/              users, roles, devices
+      catalog/               products, customer types, customers, prices
+      sales/                 invoices, payments, allocations, returns, ledger
+      sync/                  mobile sync endpoints
+      production/            batches, ingredients, recipes
+      expenses/              categories, entries
+      costing/               pure costing engine (no database access)
+      reports/               monthly report queries and exports
+      dashboard/             Admin UI views, templates, static
+    tests/
+  android/
+    app/src/main/java/com/mamre/billing/
+      data/    room, api, repositories
+      domain/  models, pricing, ledger, use cases
+      print/   ReceiptPrinter, SymcodePrinter, MockPrinter, ReceiptLayout
+      sync/    outbox, workers
+      ui/      screens, theme
+```
+
+>> [CROSS-APP RULE]
+> Each backend app exposes services.py (all writes) and selectors.py (all reads). Other apps call these functions and never edit another app's tables directly. This is what stops parallel agents colliding.
+
+==============================================================================
+## 4. Data Model
+==============================================================================
+
+### 4.1 Conventions
+
+- Primary key: UUID v4 on every table. Device-created rows get their UUID on the device.
+- Money columns end in _cents (BigInteger). Quantities of ingredients: Decimal(12,4).
+- Times are stored in UTC. Month boundaries use the business time zone from settings.
+- Every row has created_at and updated_at. Device-created rows also have device_id, client_created_at, server_received_at.
+- Catalog rows have a monotonic sync_version for pull cursors.
+- No hard deletes of financial rows. Use status or is_active.
+
+### 4.2 Tables
+
+| Table | Key fields | Rules |
+|---|---|---|
+| accounts User | id, username, full_name, role (admin or worker), is_active | Role enforced on every endpoint. |
+| Device | id, code (W1), name, user_id, last_sync_at, app_version | One code per device. Code appears in invoice numbers. |
+| catalog Product | id, code, name, units_per_packet, packing_cost_cents, yield_per_kg, is_active | Adding a product needs no code change. |
+| CustomerType | id, name | Restaurant, Shop, Retail at launch. |
+| Customer | id, name, type_id, phone, address, payment_mode (cash or credit), opening_balance_cents, notes, is_active | Walk-in is not a row; it is a null customer. |
+| PriceDefault | id, product_id, customer_type_id, unit_price_cents, effective_from | History kept. Latest effective row wins. |
+| PriceOverride | id, customer_id, product_id, unit_price_cents, effective_from, note | Beats PriceDefault. Admin only. |
+| sales Invoice | id, number (unique), customer_id (null for walk-in), customer_name, customer_type, worker_id, device_id, issued_at, total_cents, status (active or void), void_reason, voided_by, voided_at | Immutable except active to void by Admin. |
+| InvoiceItem | id, invoice_id, product_id, product_name, qty_packets, unit_price_cents, line_total_cents | Price is a snapshot. |
+| Payment | id, receipt_number, customer_id (null for walk-in), invoice_id (optional), amount_cents, method (cash, zelle, check, card, other), paid_at, worker_id, device_id, note, status | Append-only. |
+| PaymentAllocation | id, payment_id, invoice_id, amount_cents | Created by the server (oldest first). Sum per payment must not exceed the payment. |
+| ReturnRecord | id, customer_id, invoice_id (optional), product_id, qty_packets, reason, resolution (credit or replacement), unit_price_cents, credit_cents, occurred_at, recorded_by, device_id, note | Credit reduces balance. Replacement does not. |
+| production Ingredient | id, name, base_unit (g or ml), purchase_unit, base_per_purchase_unit | For example: kg = 1000 g. |
+| IngredientPrice | id, ingredient_id, price_cents (per purchase unit), effective_from | History kept. |
+| RecipeItem | id, product_id, ingredient_id, qty_base_per_kg_wheat | Wheat is an ingredient with 1000 g as the basis. |
+| ProductionBatch | id, product_id, produced_on, wheat_kg, yield_per_kg_used, packets_packed, packets_damaged, ingredient_cost_cents (stored), entered_by, notes | good = packed - damaged. Cost recomputable. |
+| expenses ExpenseCategory | id, name, kind (direct or indirect), is_active | Indirect categories at launch: see Doc 1 section 10. |
+| Expense | id, category_id, expense_date, amount_cents, description, entered_by | Admin only in v1. |
+| system AppSetting | key, value | Business name, address, phone, time zone, footer text. |
+| MonthLock | id, month (YYYY-MM), locked_by, locked_at | Blocks back-dated entries. |
+| AuditLog | id, user_id, action, entity, entity_id, before_json, after_json, at | Written for price changes, voids, locks, balance corrections. |
+| SyncBatchLog | id, device_id, received_at, counts_json, status | One row per push. |
+
+### 4.3 Invariants (must always hold)
+
+| ID | Invariant |
+|---|---|
+| I-1 | No floating point for money anywhere (database, backend, Android, reports). |
+| I-2 | invoice.total_cents = sum of line_total_cents. line_total = qty x unit_price. Round half-up at line level. |
+| I-3 | Invoice number is unique and matches ^MAM-[A-Z0-9]+-[0-9]{4,}$. |
+| I-4 | Invoices and their items never change after saving, except status active to void by an Admin. |
+| I-5 | Sum of allocations for a payment is at most the payment. Unallocated remainder is credit on account. |
+| I-6 | Balance = opening + non-void invoices - credits - payments. Always computed, never stored as editable. |
+| I-7 | The price used is the one the device held when the invoice was made, stored on the line. |
+| I-8 | Worker-facing responses contain sell prices only. No keys containing cost, profit, expense. |
+| I-9 | No hard deletes of invoices, payments, allocations, returns, expenses or batches. |
+| I-10 | A locked month accepts no new entries dated inside it. |
+| I-11 | Sync push is idempotent: sending the same UUID twice creates one record. |
+| I-12 | All stored times are UTC. Month grouping uses the business time zone. |
+
+==============================================================================
+## 5. API Contract (Mobile)
+==============================================================================
+
+Base path /api/v1/. JSON only. HTTPS only. The full contract lives in docs/api/openapi.yaml and is changed first, before code. Admin pages are server-rendered and are not part of this API.
+
+| Method and path | Role | Purpose |
+|---|---|---|
+| POST /auth/login | Worker | Username and password. Returns access and refresh tokens. |
+| POST /auth/refresh | Worker | New access token. Refresh lifetime about 30 days. |
+| GET /me | Worker | Worker profile and device code. |
+| GET /sync/catalog?cursor=N | Worker | Products, customer types, customers with last known balance, price defaults and overrides, business header settings. No cost data. |
+| GET /sync/customer-activity?cursor=N | Worker | Invoices, payments and credits per customer so the device can print a month summary. |
+| POST /sync/push | Worker | Invoices with items, payments, returns. Idempotent. Returns a status per record. |
+
+### 5.1 Push request and response
+
+Comments below are for illustration and are not valid JSON.
+
+```
+POST /api/v1/sync/push
+{
+  "device_code": "W1",
+  "invoices": [{
+    "id": "7f1c...e2",                    // UUID made on the device
+    "number": "MAM-W1-0042",
+    "customer_id": "a93b...10",           // null for walk-in
+    "issued_at": "2026-10-10T14:20:11-05:00",
+    "items": [
+      {"id": "...", "product_id": "...", "qty_packets": 10, "unit_price_cents": 250},
+      {"id": "...", "product_id": "...", "qty_packets": 20, "unit_price_cents": 280}
+    ],
+    "total_cents": 8100
+  }],
+  "payments": [{
+    "id": "...", "invoice_id": "7f1c...e2", "amount_cents": 3000,
+    "method": "cash", "paid_at": "2026-10-10T14:21:02-05:00"
+  }],
+  "returns": []
+}
+
+200 OK
+{ "results": [
+    {"type": "invoice", "id": "7f1c...e2", "status": "accepted"},
+    {"type": "payment", "id": "...", "status": "accepted",
+     "allocated": [{"invoice_id": "7f1c...e2", "amount_cents": 3000}]} ],
+  "server_time": "2026-10-10T19:25:00Z", "catalog_cursor": 18402 }
+```
+
+### 5.2 Errors and versioning
+
+- Error body: {"code": "...", "message": "...", "details": {}}.
+- Per-record push status: accepted, duplicate (already stored, treated as success) or rejected with a reason. One bad record never blocks the others.
+- The app sends X-App-Version. A server may answer 426 to force an update.
+- Allocation of payments to invoices is done by the server. The device shows a provisional balance (last synced balance plus unsynced records).
+
+==============================================================================
+## 6. Offline Sync Design
+==============================================================================
+
+1. Outbox pattern. Creating an invoice, payment or return writes the record and an outbox row in one local transaction. Nothing is lost if the app is killed.
+2. Triggers. WorkManager runs about every 15 minutes, when the network returns, and on a manual Sync now button, with exponential backoff.
+3. Push order. Invoices first, then payments and returns that refer to them.
+4. Pull. Cursor-based using sync_version. The device applies upserts and treats is_active=false as removal.
+5. Conflicts. Catalog: server wins. Device-created records are append-only, so they cannot conflict. A duplicate invoice number from different device codes is impossible by design; if it happens the record is rejected and the Admin is alerted.
+6. Outbox cleanup. An outbox row is deleted only after the server acknowledges it. The app shows the number of unsynced records. Logout is blocked while records are unsynced.
+7. Clock. The device time is stored as client_created_at. The server records its own receive time. A difference over 24 hours is flagged for the Admin.
+8. Lost device. The Admin deactivates the user, which revokes tokens. The app locks after inactivity with a PIN or biometric.
+
+==============================================================================
+## 7. Printing Design
+==============================================================================
+
+- Interface ReceiptPrinter { suspend fun print(doc): PrintResult } with three implementations: MockPrinter (on-screen preview and log, used until P-1 is solved), SymcodePrinter (vendor SDK), and an optional Bluetooth ESC/POS fallback.
+- ReceiptLayout is a pure function: invoice data in, a list of text lines out, 32 characters wide for a 58 mm printer (verify on the real device). It is tested with golden-file tests.
+- Order of operations: save invoice, then print. A print failure shows Retry and Reprint and never loses the invoice.
+- A reprint carries the line DUPLICATE COPY.
+
+### 7.1 Reference layout (32 columns)
+
+Prices below are invented for illustration. This receipt matches the numbers in the API example.
+
+```
+          MAMRE FOODS
+   (address / phone pending)
+--------------------------------
+Invoice: MAM-W1-0042
+Date:    10/10/2026 14:20
+Worker:  W1
+Customer: Spice Garden
+Type:     Restaurant
+--------------------------------
+Mamre Chapathi
+  10 x $2.50              $25.00
+Mamre Fresh Chapathi
+  20 x $2.80              $56.00
+--------------------------------
+TOTAL                     $81.00
+Paid now (Cash)           $30.00
+Balance after            $121.00
+--------------------------------
+THIS MONTH (Oct 2026)
+Brought forward            $0.00
+Invoiced                 $201.00
+Payments:
+ 10/05 Zelle              $50.00
+ 10/10 Cash               $30.00
+TOTAL DUE                $121.00
+--------------------------------
+           Thank you!
+```
+
+==============================================================================
+## 8. Security and Privacy
+==============================================================================
+
+- Roles are enforced server-side with DRF permissions on every endpoint, never only in the UI.
+- Worker serializers are separate from Admin serializers. A test fails the build if any worker response contains a key matching cost, profit or expense.
+- HTTPS only, HSTS on, secrets in environment variables, .env never committed, .env.example provided.
+- Passwords use Django's hashers. Login is rate limited. Admin uses a separate login from workers.
+- On the device, tokens are kept in EncryptedSharedPreferences and the app locks after inactivity.
+- AuditLog records price changes, voids, month locks and balance corrections.
+- Daily database backup kept at least 14 days. A restore drill must be done before go-live.
+- Only the personal data needed is stored: customer name, phone and address.
+
+==============================================================================
+## 9. Admin Dashboard Specification
+==============================================================================
+
+Look and feel: clean and dense, in the style of Odoo's business lists and forms: left sidebar menu, breadcrumb bar, searchable and filterable list views, form views, status chips, pagination. Do not copy Odoo's branding. The Admin already knows that layout, so keep it familiar.
+
+| Menu | Screens | Main actions |
+|---|---|---|
+| Dashboard | This month at a glance: net sales, cash collected, outstanding, expenses, profit | Open report, jump to overdue customers |
+| Sales | Invoices, Payments, Returns and damage | Search, view, void invoice, record payment |
+| Customers | Customer list, ledger per customer with month summary | Add, edit, set override prices, print statement |
+| Products and prices | Products, default price matrix, override prices | Add product, change price with effective date |
+| Production | Batches, Ingredients and prices, Recipes | Add batch, update ingredient price |
+| Expenses | Expense list, categories | Add expense, add category |
+| Reports | Monthly report, cost per packet, balances ageing | Export PDF and Excel |
+| Settings | Workers and devices, business info, month lock, time zone | Add worker, lock month |
+
+==============================================================================
+## 10. Worker App Screens
+==============================================================================
+
+| Screen | Contents | Rules |
+|---|---|---|
+| Login | Username, password | Remembers session. PIN lock after inactivity. |
+| Home | New invoice, Record payment, Return or damage, Today's invoices, Sync status | Shows count of unsynced records. |
+| Select customer | Search, recent customers, Walk-in. Shows balance for the selected customer | Cannot add customers (A-13). |
+| Invoice builder | Product tiles with packet stepper, running total | No price editing. Blocks any product with no price. |
+| Payment step | Amount received now, method | Walk-in must pay in full. Credit customers may pay $0. |
+| Confirm and print | Summary, Confirm button | Confirm saves, queues sync, prints. Back never loses data. |
+| Record payment | Customer, amount, method, note | Prints a receipt on confirm. |
+| Return or damage | Customer, product, packets, reason, credit or replacement | Logged with the worker. |
+| Today's invoices | List with totals | Reprint marked DUPLICATE COPY. |
+| Sync and settings | Pending count, Sync now, app version, logout | Logout blocked while records are unsynced. |
+
+UX rules: touch targets at least 48 dp, one-handed use, large totals, no cost or profit anywhere, a confirmation before the final submit, and no lost input on rotation or back.
+
+==============================================================================
+## 11. Costing Engine Specification
+==============================================================================
+
+The module costing/engine.py is pure: it takes plain data in and returns plain data out, with no database access. That makes it easy to test and impossible for a view to bend the formula. The formulas are in Doc 1 section 9.
+
+```
+batch_ingredient_cost(batch, recipe, price_on_date):
+    total = 0
+    for item in recipe:                      # qty_base_per_kg_wheat
+        qty_base = item.qty_base * batch.wheat_kg
+        price_per_base = price_on_date(item.ingredient) / item.base_per_purchase_unit
+        total += qty_base * price_per_base   # Decimal, never float
+    return total
+
+direct_cost_per_packet(product, month):
+    batches = batches_in(product, month) or [latest_batch_before(product, month)]
+    good = sum(b.packed - b.damaged for b in batches)
+    if good == 0: return INCOMPLETE
+    return sum(b.ingredient_cost for b in batches) / good + product.packing_cost
+
+indirect_cost_per_packet(month):
+    net = packets_invoiced(month) - packets_credited(month)
+    if net == 0: return NOT_ALLOCATED    # report shows the unallocated total
+    return total_indirect_expenses(month) / net
+```
+
+- Missing ingredient price, missing recipe item or missing sorbate quantity: result is INCOMPLETE with a list of what is missing. Never treat as zero.
+- Compute with Decimal. Round to cents only when displaying or totalling a report line.
+- Golden test: the Doc 1 section 9.5 example must return $0.5475, $0.6975 and $0.8475.
+
+==============================================================================
+## 12. Testing and Acceptance
+==============================================================================
+
+| Area | Required tests |
+|---|---|
+| Pricing | Override beats default. Missing price blocks the invoice. Snapshot survives a later price change. |
+| Ledger | Doc 1 section 6.5 example: Invoice 1 paid, Invoice 2 has $60 left, closing $120. Void invoices are excluded. Return credit reduces balance. Overpayment becomes credit. |
+| Sync | Push the same batch twice: one record. Kill the app between save and sync: nothing lost. Mixed good and bad records: good ones accepted. |
+| Security | Worker responses contain no cost, profit or expense keys. Worker token cannot reach Admin pages. |
+| Costing | Golden vector from Doc 1. Zero good packets and zero sales handled. Missing inputs show INCOMPLETE. |
+| Printing | ReceiptLayout golden file at 32 columns. Print failure keeps the invoice. |
+| Month lock | Back-dated entry into a locked month is refused. |
+| Immutability | Edit or delete of an invoice, payment or expense is impossible through the API and Admin. |
+
+Manual end-to-end check: turn on airplane mode, make an invoice and print it, turn the network on, confirm the invoice appears once in the Admin dashboard and the customer's balance matches the receipt.
+
+==============================================================================
+## 13. Deployment and Operations
+==============================================================================
+
+- Environments: local, and production (staging optional). Settings come from environment variables.
+- Required variables: SECRET_KEY, DATABASE_URL, ALLOWED_HOSTS, SENTRY_DSN, TIME_ZONE.
+- Migrations run on each deploy. CI runs makemigrations --check.
+- Backups: provider snapshot or scheduled pg_dump, daily, 14 days retained, restore tested.
+- Android release: signed APK installed directly on the handheld (the device may not have a store). Keep the keystore out of git and backed up safely by the owner.
+- Versioning: tag a release at the end of every phase gate (v0.1, v0.2 and so on).

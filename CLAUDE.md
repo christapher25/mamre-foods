@@ -1,7 +1,8 @@
 # Mamre Foods billing system - rules for every agent
 
-Read docs/01-product-spec.pdf, docs/02-architecture.pdf and
-docs/03-agent-guide.pdf. Doc 1 wins on behaviour, Doc 2 on technology.
+Read docs/01-product-spec.txt, docs/02-architecture.txt and
+docs/03-agent-guide.txt before writing any code.
+Doc 1 wins on behaviour, Doc 2 on technology, Doc 3 on process.
 
 ## Always
 - Stay inside the folders you own (Doc 3 section 3.1).
@@ -20,3 +21,9 @@ docs/03-agent-guide.pdf. Doc 1 wins on behaviour, Doc 2 on technology.
 
 ## If unsure
 Stop. Write the question in docs/QUESTIONS.md. Do not guess.
+
+## Commands (once the projects exist)
+- Backend tests:  cd backend && pytest
+- Lint:           cd backend && ruff check .
+- Migrations:     cd backend && python manage.py makemigrations --check
+- Android tests:  cd android && ./gradlew test

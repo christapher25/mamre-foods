@@ -1,0 +1,348 @@
+MAMRE FOODS BILLING SYSTEM - DOCUMENT 1 OF 3
+# Product Specification
+What the Mamre Foods billing and accounting system must do
+
+Version: 1.0 (baseline)
+Date: 1 October 2026
+Owner / approver: Christapher (builder). Business owner and Admin user: his father.
+Status: Approved baseline. Any change needs owner approval and a new version number.
+Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent Operating Guide and Build Plan.
+
+>> [HOW TO USE THIS DOCUMENT]
+> This document is the single source of truth for business behaviour. If code, an agent, or another document disagrees with it, this document wins unless the owner approves a change. Items marked A-n are ASSUMPTIONS: defaults chosen to keep the build moving, valid until the owner changes them. Items marked P-n are PENDING: data the business must still supply. Never invent a value for a pending item.
+
+==============================================================================
+## 1. Purpose and Scope
+==============================================================================
+
+### 1.1 Business context
+
+Mamre Foods is a small US-based food business. It makes half-cooked chapathi, packs it in packets of 12, and sells to restaurants, shops and retail customers. Some customers pay once a month, some pay in parts. The business owner (the Admin) reviews everything on a laptop. A field Worker creates invoices on an Android handheld device that has a built-in thermal printer. All money is in US dollars. Tax handling is out of scope.
+
+### 1.2 Goals
+
+1. Create an invoice in the field in under a minute, with or without internet, and print it.
+2. Keep every customer's balance correct to the cent, including monthly credit and part-payments.
+3. Record customer returns and production damage.
+4. Calculate the cost per packet from the recipe, ingredient prices and expenses, so nobody has to guess it.
+5. Give the Admin a detailed monthly report of sales, expenses and profit.
+
+### 1.3 Non-goals for version 1
+
+Tax or VAT, payroll, multiple currencies, online payment gateways, a customer portal, multi-warehouse inventory, loyalty or discount schemes, route planning, multi-business tenancy, and any feature not written in this document.
+
+### 1.4 Success criteria
+
+- A worker with no signal creates and prints an invoice; it later reaches the Admin exactly once.
+- A customer's balance on the printed invoice equals the balance in the Admin ledger.
+- The Admin can open any month and see sales, direct cost, indirect expenses and profit.
+- A worker can never see cost, profit, expense or report data, on screen or in the API.
+
+==============================================================================
+## 2. Users and Permissions
+==============================================================================
+
+| Capability | Worker (Android handheld) | Admin (laptop browser) |
+|---|---|---|
+| Login | Own username and password (one worker now, more later) | Separate admin login |
+| Create invoice | Yes | No (corrects via void or credit) |
+| Choose or change prices | No. Prices come from the price list. | Sets all prices and overrides |
+| Record a payment | Yes (receipt prints on confirm) | Yes |
+| Record a customer return | Yes | Yes (can edit) |
+| See a customer's balance and payments | Yes, for the selected customer | Yes, all customers |
+| Void an invoice | No | Yes, with a reason |
+| Products, customers, price lists | No (A-13) | Full control |
+| Production batches, recipes, ingredient prices | No | Yes |
+| Expenses | No in v1 (A-14) | Yes |
+| Cost, profit, reports, exports | Never | Yes |
+| Manage workers and devices | No | Yes |
+| Lock a month | No | Yes |
+
+==============================================================================
+## 3. Products
+==============================================================================
+
+Two products at launch, both sold half-cooked. Adding a new product must be a simple Admin form with no code change.
+
+| Product | Description | Packet size | Packing cost |
+|---|---|---|---|
+| Mamre Fresh Chapathi | Half-cooked chapathi, no preservative | 12 (editable) | $0.15 approx (editable) |
+| Mamre Chapathi | Half-cooked chapathi with potassium sorbate as preservative | 12 (editable) | $0.15 approx (editable) |
+
+- Product fields: name, code, units per packet, packing cost, active flag.
+- The sales unit is the packet. Quantity on an invoice is a whole number of packets (A-1).
+- A new product can be sold as soon as it has prices. Its cost shows as incomplete until a recipe exists.
+
+==============================================================================
+## 4. Customers and Pricing
+==============================================================================
+
+### 4.1 Customer types and customers
+
+Customer types at launch: Restaurant, Shop, Retail. The Admin may add types. A saved customer has: name, type, phone, address, payment mode (Cash or Credit), optional opening balance, notes, active flag. A walk-in sale is an anonymous retail sale with no ledger; it must be paid in full at the time of sale. Only the Admin creates saved customers (A-13).
+
+### 4.2 Price resolution order
+
+1. An active override price for that customer and product (set by Admin, used for special or discounted prices).
+2. Otherwise the default price for that customer type and product.
+3. Otherwise no price: the product cannot be invoiced. The app shows "No price set - contact admin". Never default to zero.
+
+### 4.3 Price rules
+
+- Prices carry an effective-from date. History is kept.
+- Each invoice line stores a snapshot of the unit price used. Later price changes never alter existing invoices.
+- Workers cannot edit a price or give a discount. A discount exists only as an Admin-set override price for a specific customer (A-2).
+
+==============================================================================
+## 5. Invoicing
+==============================================================================
+
+### 5.1 Worker flow
+
+1. Choose a customer (search) or Walk-in.
+2. Add products and packet quantities. Prices and the total appear automatically.
+3. Payment step: amount received now (may be $0 for credit customers) and method.
+4. Worker confirms. The invoice is saved on the device, printed, and queued for sync.
+
+### 5.2 Invoice number
+
+Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code (W1, W2...) belongs to one worker and device. The sequence is assigned on the device, increases by one, and is never reused. This prevents number clashes when several devices sync after being offline.
+
+### 5.3 What an invoice shows
+
+- Business name (and address and phone once supplied, P-6), invoice number, date and time, worker, customer name and type.
+- Line items: product, packets, unit price, line total. Invoice total.
+- Payment received at this visit (amount and method) and balance after this invoice.
+- For credit customers, a month summary: balance brought forward, invoiced this month, credits from returns, each payment this month (date, amount, method), and total due.
+
+### 5.4 Rules
+
+- A confirmed invoice cannot be edited. Mistakes are fixed by an Admin void (reason required; the number stays and shows VOID) or by a return credit.
+- Reprinting is allowed from Today's invoices and is marked DUPLICATE COPY.
+- A failed print never loses the invoice. It is saved first, then printed, and can be reprinted.
+- Receipts: when a worker confirms a payment, a receipt prints. A payment with no new invoice (customer pays old balance) also prints a receipt (A-16).
+
+==============================================================================
+## 6. Payments and Customer Ledger
+==============================================================================
+
+### 6.1 Payment methods and customer modes
+
+- Methods accepted: Cash, Zelle, Check, Card, Other (with a note) (A-3).
+- Cash customers pay at the time of sale. Credit customers may leave a balance and are billed per calendar month in the business time zone (P-7).
+- This applies equally to restaurants, shops and named retail customers.
+
+### 6.2 Partial payments and allocation
+
+- A customer may pay any amount. Several part-payments in a month are normal.
+- Each payment is applied to the oldest unpaid invoice first, spilling into the next as needed. Allocation rows are stored. The server performs allocation when records sync.
+- An overpayment becomes credit on account (negative balance), shown as such (A-4).
+
+### 6.3 Balance
+
+>> [RULE]
+> Customer balance = opening balance + non-void invoices - credits from returns - payments. It is always calculated from records. It is never a typed or editable number.
+
+### 6.4 Month summary and month lock
+
+For any customer and month the system can show: opening balance, invoiced, credits, each payment (date, amount, method), and closing balance. The Admin can lock a month after review. A locked month accepts no back-dated entries; corrections go into the current month (A-5).
+
+### 6.5 Worked example (used as a test case)
+
+A credit restaurant starts October with a $0.00 balance.
+
+| Date | Event | Amount | Balance after |
+|---|---|---|---|
+| Oct 3 | Invoice 1 | $120.00 | $120.00 |
+| Oct 10 | Invoice 2 | $90.00 | $210.00 |
+| Oct 12 | Payment, cash | -$150.00 | $60.00 |
+| Oct 20 | Invoice 3 | $60.00 | $120.00 |
+
+Allocation of the $150 payment: $120.00 clears Invoice 1 completely; $30.00 goes to Invoice 2, leaving $60.00 owing on it. Closing balance $120.00 = $60.00 (Invoice 2) + $60.00 (Invoice 3).
+
+==============================================================================
+## 7. Returns and Damage
+==============================================================================
+
+### 7.1 Customer returns (recorded by worker or Admin)
+
+Fields: customer, product, packets, reason (Damaged, Quality complaint, Wrong item, Expired, Other), optional linked invoice, and a resolution:
+
+- Credit: reduces the customer's balance at the unit price on the linked invoice, or the customer's current price if no invoice is linked.
+- Replacement: free replacement packets are handed over. The balance does not change. The cost of replacement packets is reported as a loss.
+
+### 7.2 Production damage
+
+Chapathi damaged during production is recorded by the Admin on the production batch as damaged packets (A-7). Damage raises the cost per good packet (section 9).
+
+### 7.3 Handling of returned goods
+
+Returned product is half-cooked and perishable, so it is not restocked; it is a write-off (A-6). Reports show returns and damage on their own lines.
+
+==============================================================================
+## 8. Production and Stock
+==============================================================================
+
+- A production batch records: date, product, kg of wheat flour used, packets packed, packets damaged, notes. Good packets = packed - damaged.
+- Expected yield = kg wheat x 32 chapathis / 12 per packet (editable per batch). The Admin sees the variance between expected and actual.
+- Stock on hand per product = good packets produced - packets invoiced - replacement packets. It is informational, Admin only. A negative figure shows a warning but never blocks a sale, because production entries may lag (A-8).
+
+==============================================================================
+## 9. Costing
+==============================================================================
+
+### 9.1 Principles
+
+- Cost price is calculated by the system from revenue, recipe, ingredient prices and expenses. It is never typed in by hand.
+- Workers never see cost.
+- Missing inputs are flagged as incomplete. A missing value is never silently treated as zero.
+
+### 9.2 Recipe basis: per 1 kg of whole wheat flour
+
+| Ingredient | Quantity per 1 kg wheat | Mamre Fresh Chapathi | Mamre Chapathi |
+|---|---|---|---|
+| Whole wheat flour | 1 kg | Yes | Yes |
+| Oil | 80 ml | Yes | Yes |
+| Sugar | 20 g | Yes | Yes |
+| Salt | 15 g | Yes | Yes |
+| Baking powder | 2 g | Yes | Yes |
+| Potassium sorbate | PENDING (P-2) | No | Yes |
+| Yield | 32 chapathis per kg (can vary per batch) | Yes | Yes |
+| Packing | About $0.15 per packet (editable) | Yes | Yes |
+
+### 9.3 Quantities per packet of 12
+
+A packet of 12 uses 12 / 32 = 0.375 kg of wheat. Other ingredients scale the same way.
+
+| Ingredient | Per packet | Working |
+|---|---|---|
+| Whole wheat flour | 375 g | 1000 g x 0.375 |
+| Oil | 30 ml | 80 ml x 0.375 |
+| Sugar | 7.5 g | 20 g x 0.375 |
+| Salt | 5.625 g | 15 g x 0.375 |
+| Baking powder | 0.75 g | 2 g x 0.375 |
+| Potassium sorbate (Mamre Chapathi only) | PENDING (P-2) | quantity per kg x 0.375 |
+| Packing | $0.15 | fixed per packet |
+
+### 9.4 Calculation rules
+
+1. Ingredient prices are entered by the Admin per purchase unit (for example $ per kg or per litre) with an effective date. A batch uses the price effective on the batch date.
+2. Direct cost per good packet = (batch ingredient cost / good packets in batch) + packing cost.
+3. Monthly direct cost per packet, per product = total ingredient cost of that month's batches / total good packets of those batches + packing cost. If a product has no batch in the month, use its most recent batch (A-10, average cost method).
+4. Indirect cost per packet for a month = total indirect expenses of the month / net packets sold in the month, both products together, equal per packet (A-9). Net packets sold = packets invoiced - packets credited through returns.
+5. Full cost per packet = direct cost per packet + indirect cost per packet.
+
+### 9.5 Worked example (illustrative prices, NOT real)
+
+Invented prices, used only to show the arithmetic and as a test vector: wheat $1.10/kg, oil $4.00/L, sugar $1.00/kg, salt $0.80/kg, baking powder $4.00/kg; monthly indirect expenses $900 over 6,000 net packets. Mamre Fresh Chapathi, before damage:
+
+| Item | Quantity | Price | Cost |
+|---|---|---|---|
+| Wheat flour | 0.375 kg | $1.10 / kg | $0.4125 |
+| Oil | 0.030 L | $4.00 / L | $0.1200 |
+| Sugar | 0.0075 kg | $1.00 / kg | $0.0075 |
+| Salt | 0.005625 kg | $0.80 / kg | $0.0045 |
+| Baking powder | 0.00075 kg | $4.00 / kg | $0.0030 |
+| Ingredients subtotal |  |  | $0.5475 |
+| Packing | 1 packet | $0.15 | $0.1500 |
+| Direct cost per packet |  |  | $0.6975 |
+| Indirect share ($900 / 6,000) |  |  | $0.1500 |
+| Full cost per packet |  |  | $0.8475 |
+
+==============================================================================
+## 10. Expenses
+==============================================================================
+
+### 10.1 Direct expenses
+
+Ingredients (wheat flour, oil, sugar, salt, baking powder, potassium sorbate) and packing. In v1 these are computed from recipe x price x batch, not typed from purchase invoices (A-11).
+
+### 10.2 Indirect expenses
+
+Categories at launch: Electricity, Water, Machine, Labour, Maintenance, Delivery charge, Fuel, Other. An entry has: date, category, amount, description. The Admin logs expenses at first; worker logging of fuel and delivery is a later version. Machine cost is entered as a monthly amount (rent, lease or an amortised share) (A-12).
+
+Categories carry a direct or indirect flag and the Admin can add more.
+
+==============================================================================
+## 11. Reports (Admin Only)
+==============================================================================
+
+The monthly report is available on screen and as PDF and Excel. It contains:
+
+1. Sales summary: packets and revenue by product and by customer type; invoiced total, credits, net sales.
+2. Collections: cash received in the month by method; outstanding balance at month end.
+3. Direct cost and gross profit.
+4. Indirect expenses by category, with the total.
+5. Net profit.
+6. Customer balances with ageing (current, 30+ days, 60+ days).
+7. Returns and damage detail, including replacement cost and production damage.
+8. Cost per packet table per product: direct, indirect share, full cost.
+9. Activity per worker: invoices and totals.
+
+>> [PROFIT DEFINITIONS]
+> Net sales = non-void invoices - return credits.
+> Gross profit = net sales - direct cost of packets sold.
+> Net profit = gross profit - indirect expenses - replacement cost.
+> Cash collected = payments received in the month (a separate cash view; it never replaces the sales view).
+> Production damage is already inside cost per good packet, so it is shown for information and is not subtracted a second time.
+
+==============================================================================
+## 12. Assumptions Register
+==============================================================================
+
+Each assumption stands until the owner changes it. An agent must not silently change one.
+
+| ID | Assumption |
+|---|---|
+| A-1 | Sales are in whole packets only. Loose chapathis are not sold. |
+| A-2 | Workers give no ad-hoc discounts. Discounts exist only as Admin override prices. |
+| A-3 | Accepted methods: Cash, Zelle, Check, Card, Other. |
+| A-4 | Overpayment is allowed and shown as credit on account. |
+| A-5 | The Admin can lock a month; corrections then go in the current month. |
+| A-6 | Returned goods are not restocked. They are a write-off. |
+| A-7 | Production damage is measured in packets. |
+| A-8 | Stock is informational and Admin-only. Negative stock warns but never blocks a sale. |
+| A-9 | Indirect expenses are shared equally per net packet sold, across both products. |
+| A-10 | Average cost method. No FIFO inventory valuation. |
+| A-11 | Direct cost is computed from recipe x ingredient price x batch, not from purchase invoices. |
+| A-12 | Machine cost is a monthly amount entered by the Admin. |
+| A-13 | Workers cannot create saved customers or edit products. Admin only. |
+| A-14 | One worker now, with a unique login per worker. Worker expense entry comes later. |
+| A-15 | Device: Android handheld with a built-in 58 mm thermal printer (to confirm, P-1). |
+| A-16 | A receipt prints when the worker confirms a payment. |
+| A-17 | Confirmed invoices are immutable. Void or credit is the only correction. |
+
+==============================================================================
+## 13. Pending Inputs
+==============================================================================
+
+The business must supply these. Until then the build uses clearly marked placeholders and never fake numbers.
+
+| ID | Needed | What it blocks / interim approach |
+|---|---|---|
+| P-1 | Exact handheld model, printer SDK, paper width | Real printing. Build with a mock printer. |
+| P-2 | Potassium sorbate quantity per kg of wheat | Mamre Chapathi cost shows "incomplete". |
+| P-3 | Current ingredient prices | Cost per packet. Use test data only. |
+| P-4 | Selling price per product per customer type | Invoicing. Use test data only. |
+| P-5 | Typical packets sold per day or month | Sizing only. Not blocking. |
+| P-6 | Business address, phone, logo, thank-you text | Invoice header. Placeholder text. |
+| P-7 | Business time zone | Month boundaries. Default to a setting the Admin edits. |
+| P-8 | Existing customers and opening balances | Optional import. Start empty otherwise. |
+| P-9 | Confirm both products share the same base recipe and yield | Recipe screen defaults. |
+
+==============================================================================
+## 14. Glossary
+==============================================================================
+
+| Term | Meaning |
+|---|---|
+| Packet | The sales unit: 12 half-cooked chapathis (editable per product). |
+| Credit customer | A customer billed monthly who may carry a balance. |
+| Walk-in | An anonymous retail sale paid in full at once, with no ledger. |
+| Override price | An Admin-set price for one customer and product, taking priority over the default. |
+| Void | Admin cancellation of an invoice. The number stays and shows VOID. |
+| Credit (return) | A reduction of a customer's balance because of returned goods. |
+| Net sales | Invoiced total less return credits. |
+| Direct cost | Ingredients and packing for the packets sold. |
+| Indirect expense | Electricity, water, machine, labour, maintenance, delivery, fuel and similar. |
+| Ledger | The chronological record of a customer's invoices, credits and payments. |

@@ -1,0 +1,360 @@
+MAMRE FOODS BILLING SYSTEM - DOCUMENT 3 OF 3
+# Agent Operating Guide and Build Plan
+Roles, git workflow, rules, drift control and ready-to-paste prompts for working with multiple Claude Code agents
+
+Version: 1.0 (baseline)
+Date: 1 October 2026
+Audience: Every Claude Code agent on this project, and the owner who supervises them.
+Companion documents: Doc 1: Product Specification (what).  Doc 2: Technical Architecture and Data Model (how).
+Status: Process rules. They change only with owner approval.
+
+>> [HOW TO USE THIS DOCUMENT]
+> Give an agent this document, Doc 1 and Doc 2 at the start of a session. If an agent starts drifting, paste the Drift Reset prompt from section 9.2. If an agent cannot open a PDF, paste the relevant text or ask for the Markdown copy.
+
+==============================================================================
+## 1. Source of Truth and Conflict Rule
+==============================================================================
+
+| Rank | Source | Decides |
+|---|---|---|
+| 1 | Doc 1: Product Specification | What the system does. Business rules, money, assumptions. |
+| 2 | Doc 2: Technical Architecture | How it is built. Stack, tables, API, sync, security. |
+| 3 | Doc 3: this guide | How agents work. Ownership, git, rules, drift control. |
+| 4 | CLAUDE.md in the repository | A short summary of the rules above. |
+| 5 | Code comments, your own judgment | Only where ranks 1 to 4 are silent. |
+
+>> [RULE]
+> If two sources conflict, or a rule is missing: STOP. Write the question in docs/QUESTIONS.md with the section numbers involved, and carry on with unrelated work. Do not decide silently, do not invent a rule, and do not fill a gap with a plausible guess.
+
+==============================================================================
+## 2. The Project on One Page
+==============================================================================
+
+- What: billing and accounting for Mamre Foods, a US half-cooked chapathi business. Products: Mamre Chapathi and Mamre Fresh Chapathi, sold in packets of 12. Currency USD. No tax.
+- Who: one Worker on an Android handheld with a 58 mm printer (invoices, payments, returns), and an Admin on a laptop (prices, customers, production, expenses, reports).
+- Customers: Restaurant, Shop, Retail (including anonymous walk-in). Credit customers are billed per calendar month with part-payments. Payments clear the oldest invoice first.
+- Prices: default per customer type and product, plus Admin-only override per customer. The worker can never change a price.
+- Money: integer cents everywhere. Balance = opening + invoices - credits - payments, always computed.
+- Invoices: immutable once confirmed. Corrections are Admin void or a return credit.
+- Offline first: the app works with no signal and syncs later. UUIDs make sync idempotent. Invoice numbers look like MAM-W1-0042.
+- Cost: calculated by the system from recipe, ingredient prices and expenses. The worker never sees cost, profit or reports.
+- Stack: Django 5 + DRF + PostgreSQL + HTMX/Tailwind; Kotlin + Compose + Room on Android.
+- Not here: tax, payroll, customer portal, online payments, loyalty, anything not in Doc 1.
+
+==============================================================================
+## 3. Agent Roster
+==============================================================================
+
+Roles are fixed by folder ownership. An agent edits only the folders it owns. Run at most 2 to 3 agents at the same time; the owner is the reviewer and the bottleneck.
+
+| Agent | Branch prefix | Owns (may edit) | Depends on |
+|---|---|---|---|
+| A1 Core accounts, catalog, auth, settings, audit | feat/core-* | backend/config, backend/apps/accounts, backend/apps/catalog, docs/api/openapi.yaml (core part) | Nothing. Starts first. |
+| A2 Sales and Ledger invoices, payments, allocation, returns, sync API | feat/sales-* | backend/apps/sales, backend/apps/sync | A1 catalog and accounts |
+| A3 Android worker app | feat/android-* | android/ only | openapi.yaml; mocks until the API exists |
+| A4 Costing and Reports production, expenses, costing, reports | feat/costing-* | backend/apps/production, expenses, costing, reports | A1; sales selectors for reports |
+| A5 Admin UI dashboard screens | feat/admin-* | backend/apps/dashboard | Services and selectors of the other apps |
+| R Reviewer read-only | none | Nothing. Reports findings only. | The branch under review |
+
+Owner (Christapher) approves every merge into main and every change to Doc 1, Doc 2 or Doc 3.
+
+### 3.1 File ownership matrix
+
+| Path | Owner | Others |
+|---|---|---|
+| backend/config/ (settings, urls) | A1 | Append-only: register your app, one small commit, mention it in the PR |
+| backend/apps/accounts, catalog | A1 | Read through selectors.py only |
+| backend/apps/sales, sync | A2 | Read through selectors.py only |
+| backend/apps/production, expenses, costing, reports | A4 | Read through selectors.py only |
+| backend/apps/dashboard | A5 | None |
+| android/ | A3 | None |
+| docs/api/openapi.yaml | A1 creates, A2 extends | Change the contract before the code |
+| docs/DECISIONS.md, docs/QUESTIONS.md | Everyone | Append-only, one line per entry |
+| docs/*.txt, CLAUDE.md, .github/, requirements, build.gradle | Owner | Propose in a PR; do not edit silently |
+
+==============================================================================
+## 4. Build Phases and Gates
+==============================================================================
+
+A phase starts only when the previous gate has passed and its work is merged into main. Parallel tracks are listed explicitly.
+
+| Phase | Goal | Agents | Gate to pass |
+|---|---|---|---|
+| P0 Foundation | Repo scaffold, CI, docs in repo, empty Django apps, Android skeleton, openapi.yaml skeleton, CLAUDE.md | A1 alone (or owner) | CI green. The three docs are in docs/. Empty apps import cleanly. |
+| P1 Catalog and auth | Products, types, customers, prices, login, catalog sync, settings | A1 backend; A3 app shell with login and Room on mocks | Login works end to end. Catalog sync has no cost keys. Price resolution tests pass. |
+| P2 Invoicing and ledger | Invoices, payments, allocation, balances, push sync; Admin screens for catalog and customers | A2; A3 invoice builder; A5 catalog screens | Doc 1 section 6.5 example passes. Offline invoice syncs exactly once. |
+| P3 Printing | ReceiptLayout, MockPrinter, then SymcodePrinter once P-1 arrives | A3 only | 32-column golden test passes. A real print works on the device. |
+| P4 Returns and damage | Return records, credits, replacements | A2; A3 screens; A5 screens | Credit reduces balance. Replacement does not. |
+| P5 Production and costing | Batches, ingredients, recipes, expenses, costing engine | A4; A5 screens | Costing golden vector returns $0.5475, $0.6975, $0.8475. |
+| P6 Reports | Monthly report, ageing, PDF and Excel export | A4; A5 | Report totals reconcile with the ledger and expenses. |
+| P7 Hardening and release | Security tests, backup restore drill, real-world trial, business details, signed APK | R plus all agents, owner testing | All acceptance tests pass. Restore drill done. Owner signs off. |
+
+==============================================================================
+## 5. Git and Worktree Workflow
+==============================================================================
+
+### 5.1 One agent, one worktree, one branch
+
+```
+git switch main && git pull
+git worktree add ../mamre-sales -b feat/sales-fifo-allocation
+cd ../mamre-sales
+claude                      # start the agent here, never in the main folder
+```
+
+- Branch names: feat/<area>-<short-name>, fix/..., docs/....
+- Commit messages: feat(sales): allocate payments oldest-first. Small commits, one logical change each.
+- Never commit .env, keystores, build output, or large binaries.
+- Run the tests before every commit. Do not commit with failing tests.
+
+### 5.2 Stay current
+
+At least daily, and always before opening a pull request: git fetch origin && git rebase origin/main. Resolve conflicts only in files you own. A conflict in a file you do not own means stop and ask the owner.
+
+### 5.3 Pull request and merge
+
+1. Push the branch and open a pull request. Name the Doc 1 or Doc 2 sections it implements.
+2. CI must be green (tests, lint, makemigrations --check).
+3. Run the Reviewer agent (section 9.3). It must report PASS or list findings to fix.
+4. The owner approves. Squash merge into main. Main is protected: nobody pushes to it directly and nobody force-pushes shared branches.
+5. Delete the branch and remove the worktree: git worktree remove ../mamre-sales.
+6. Every other agent rebases onto main before continuing.
+
+### 5.4 Django migrations
+
+- Each app's migrations belong to its owner. Never edit or delete a migration that has been merged.
+- If two branches both create migration 0003, the branch that merges second rebases and regenerates its own migration. Never hand-merge another agent's migration.
+
+### 5.5 Shared files
+
+Settings, URLs, requirements and Gradle files are shared. Change them with the smallest possible diff, add lines rather than rearranging, pull main immediately before editing, and mention the change in the pull request.
+
+### 5.6 Parallel running (each worktree)
+
+- Own virtual environment per worktree. Own database name (mamre_core, mamre_sales...) and own dev port (8001, 8002, 8003).
+- Settings come from a per-worktree .env file that is never committed.
+
+==============================================================================
+## 6. Session Discipline
+==============================================================================
+
+- One task per session. Give it a clear brief with section numbers. Start a fresh session (new terminal or /clear) for the next task.
+- Small steps. Plan, then tests, then code, then run tests, then commit.
+- Tests first for money logic: pricing, allocation, balances, costing, rounding.
+- Write it down. Decisions go to docs/DECISIONS.md. Questions go to docs/QUESTIONS.md. Nothing important lives only in a chat.
+- End every session with a handoff note (section 8.3) so a fresh session can continue exactly.
+- Restart after drift. If an agent drifts twice, end the session, make sure the branch is clean, and start again with the kickoff prompt and the last handoff note.
+
+==============================================================================
+## 7. Hard Rules
+==============================================================================
+
+### 7.1 Never
+
+| # | Never |
+|---|---|
+| N1 | Use floating point for money, or round anywhere except where Doc 2 says. |
+| N2 | Put cost, profit, expense or report data in anything a worker can see or receive. |
+| N3 | Edit or delete an invoice, payment, allocation, return, expense or batch. Use void or credit. |
+| N4 | Let a worker change a price or give a discount. |
+| N5 | Treat a missing price, cost or quantity as zero. Show INCOMPLETE or block the action. |
+| N6 | Invent a feature, rule, field, price or ingredient quantity that is not in Doc 1 or Doc 2. |
+| N7 | Edit files outside the folders you own, or refactor code unrelated to your task. |
+| N8 | Add a dependency, change the stack, or change an API shape without owner approval. |
+| N9 | Delete, skip or weaken a test to make it pass. Fix the code. |
+| N10 | Commit secrets, push to main, or force-push a shared branch. |
+| N11 | Change a table, migration or serializer of another agent's app. |
+| N12 | Leave a TODO in merged code without an entry in docs/QUESTIONS.md. |
+
+### 7.2 Always
+
+- Name the Doc 1 or Doc 2 section for every behaviour you implement.
+- Keep business logic in pure functions that can be tested without a database or a screen.
+- Handle the offline case, the empty case, and the zero case.
+- Make writes idempotent where sync can repeat them.
+- Ask through docs/QUESTIONS.md when unsure, then continue with something unrelated.
+
+==============================================================================
+## 8. Detecting and Fixing Drift
+==============================================================================
+
+### 8.1 Warning signs
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Edits files outside owned folders | Scope creep, fixing "one more thing" | Drift Reset (9.2). git restore the extra files. |
+| Adds features nobody asked for (discounts, loyalty, tax) | Filling gaps with assumptions | Remove them. Point to Doc 1 section 1.3 (non-goals). |
+| Uses float, changes rounding or the formula | Convenience over spec | Revert. Quote I-1, I-2 and Doc 1 section 9. |
+| Large rewrite or refactor of working code | Over-eagerness | Revert. Restate the narrow task. |
+| New library or framework appears | Easier path chosen silently | Remove it, or ask the owner. |
+| Tests deleted, skipped or loosened | Making the build pass | Restore tests. Fix the code instead. |
+| Repeats questions or contradicts earlier decisions | Context overload in a long session | Handoff note, then restart the session. |
+| Guesses prices, costs or quantities | Missing pending data (P-n) | Use clearly named test data or INCOMPLETE. |
+| Worker screen shows cost or margin | Shared serializer or model reuse | Stop. Use the worker serializer. |
+| Ignores offline mode | Assumed always-online | Rework through the local database and outbox. |
+
+### 8.2 Self-check before every commit
+
+1. Is every changed file inside my owned folders?
+2. Can I name the Doc 1 or Doc 2 section behind every change?
+3. Is all money in integer cents, with no floats?
+4. Could a worker see cost, profit or expense data through this change?
+5. Did I avoid editing or deleting any financial record?
+6. Does the code work offline and when run twice (idempotent)?
+7. Do tests exist for the new logic, and do all tests pass?
+8. Did I add any dependency or change an API shape without approval?
+9. Did I invent anything? If yes, it belongs in docs/QUESTIONS.md, not in code.
+10. Is my commit small and its message accurate?
+
+### 8.3 Handoff note (end of every session)
+
+```
+HANDOFF  agent: A_  branch: ________  date: ________
+Done:          (what is finished, with commit hashes)
+In progress:   (what is half-done and where the code stands)
+Next step:     (the single next action)
+Decisions:     (added to docs/DECISIONS.md: yes/no, which)
+Questions:     (added to docs/QUESTIONS.md: yes/no, which)
+Files touched: (list)
+Tests:         (command run, result)
+```
+
+==============================================================================
+## 9. Ready-to-Paste Prompts
+==============================================================================
+
+### 9.1 Kickoff prompt (start of a session)
+
+```
+You are agent [A#, ROLE] on the Mamre Foods billing system.
+
+1. Read CLAUDE.md, then docs/01-product-spec.txt (Doc 1),
+   docs/02-architecture.txt (Doc 2) and docs/03-agent-guide.txt (Doc 3)
+   before writing any code.
+2. Phase: [PHASE].  Branch: [BRANCH].  Worktree: [PATH].
+3. You may edit ONLY: [OWNED PATHS]. Everything else is read-only for you.
+4. Task: [ONE PARAGRAPH, with the Doc 1 / Doc 2 section numbers].
+5. Rules: Doc 3 sections 7 and 8 apply. Money is integer cents. Workers never
+   see cost data. Confirmed invoices are never edited. Name the spec section
+   for every behaviour you implement.
+6. If anything is unclear, missing or conflicting, STOP. Add it to
+   docs/QUESTIONS.md. Do not guess and do not invent.
+7. Plan first and show me the plan. Then write tests, then code. Small
+   commits. Run all tests before each commit. Never push to main.
+8. When finished, output a handoff note in the Doc 3 section 8.3 format.
+```
+
+### 9.2 Drift Reset prompt (paste when an agent wanders)
+
+```
+STOP. You may be drifting from the plan. Do not write or edit any code yet.
+
+1. Re-read CLAUDE.md and Doc 3 sections 2, 3, 7 and 8.
+2. Run: git status   and   git diff --stat main
+   List every file you have changed.
+3. For each file say (a) whether it is inside your owned paths and
+   (b) which Doc 1 or Doc 2 section justifies the change.
+4. Revert (git restore) everything that is outside your scope or not
+   justified by the spec.
+5. In five lines state: your phase, your task, what is done, what is left,
+   and what you were about to do next.
+6. Continue only with that task. Anything new goes into docs/QUESTIONS.md,
+   not into code.
+```
+
+### 9.3 Reviewer prompt (read-only agent)
+
+```
+You are the REVIEWER. You are read-only: do not edit any file.
+
+Review branch [BRANCH] against main:
+1. git diff main...[BRANCH] --stat, then read the full diff.
+2. Check it against Doc 3 section 7 (rules) and section 10 (done criteria).
+3. For every behaviour in the diff, find the Doc 1 / Doc 2 section it
+   implements. List any behaviour with no matching section (invention).
+4. Check: integer cents, no cost data reachable by workers, invoices and
+   other financial records never edited or deleted, meaningful tests,
+   no deleted or weakened tests, migrations only in owned apps, no new
+   dependency without a note, changes only inside owned folders.
+5. Run the test suite and report the result.
+6. Output PASS or CHANGES REQUIRED, then a numbered list of findings. Each
+   finding gives file, line, and the rule it breaks.
+```
+
+==============================================================================
+## 10. Definition of Done
+==============================================================================
+
+### 10.1 For every change
+
+1. Implements a named section of Doc 1 or Doc 2, and nothing more.
+2. Tests written and passing, including offline, empty and zero cases where relevant.
+3. CI green: tests, lint, makemigrations --check.
+4. No rule in section 7.1 broken. Reviewer reports PASS.
+5. docs/DECISIONS.md updated if a decision was made. docs/QUESTIONS.md updated if anything is open.
+6. Pull request description lists the sections implemented and how to test.
+
+### 10.2 Acceptance tests (must exist and pass before the release)
+
+| ID | Test | Source |
+|---|---|---|
+| AT-1 | Ledger example: invoices 120, 90, 60 and a 150 payment give closing balance $120.00; Invoice 1 paid; Invoice 2 owes $60.00 | Doc 1 s6.5 |
+| AT-2 | An override price beats the default price. A missing price blocks invoicing. | Doc 1 s4.2 |
+| AT-3 | Pushing the same invoice batch twice stores exactly one invoice. | Doc 2 I-11 |
+| AT-4 | No worker API response contains a key with cost, profit or expense. | Doc 2 I-8 |
+| AT-5 | Receipt layout matches the 32-column golden file. | Doc 2 s7 |
+| AT-6 | Costing example returns $0.5475, $0.6975 and $0.8475 per packet. | Doc 1 s9.5 |
+| AT-7 | A voided invoice is excluded from the balance and keeps its number. | Doc 1 s5.4 |
+| AT-8 | A back-dated entry into a locked month is refused. | Doc 1 s6.4 |
+| AT-9 | A return credit reduces the balance; a replacement does not. | Doc 1 s7.1 |
+| AT-10 | No invoice, payment or expense can be deleted or edited through the API or Admin. | Doc 2 I-4, I-9 |
+| AT-11 | A print failure does not lose the invoice, and Reprint works. | Doc 1 s5.4 |
+| AT-12 | Airplane mode invoice later appears once in Admin; balances match the receipt. | Doc 2 s12 |
+
+==============================================================================
+## 11. Environment Notes (Windows laptop)
+==============================================================================
+
+- Install: Git for Windows, Python 3.12, JDK 17, Android Studio (for the android/ folder), PostgreSQL or a Docker container for it.
+- Run once: git config --global core.longpaths true to avoid long-path errors with worktrees.
+- Add a .gitattributes with * text=auto to avoid line-ending noise in diffs.
+- Keep worktrees as siblings of the main folder with short names, for example C:\dev\mamre-sales.
+- Use Android Studio for the Android module. PyCharm for the backend. Agents run in terminals either way.
+- Provide .env.example in the repo. Real .env files stay local.
+
+==============================================================================
+## Appendix A. CLAUDE.md Template
+==============================================================================
+
+Paste this into CLAUDE.md at the repository root. Agents read it automatically.
+
+```
+# Mamre Foods billing system - rules for every agent
+
+Read docs/01-product-spec.txt, docs/02-architecture.txt and
+docs/03-agent-guide.txt. Doc 1 wins on behaviour, Doc 2 on technology.
+
+## Always
+- Stay inside the folders you own (Doc 3 section 3.1).
+- Name the spec section for every behaviour you add.
+- Money is integer cents. Use Decimal for ingredient quantities.
+- Tests first for pricing, allocation, balances and costing.
+- Work offline-first and make writes idempotent.
+- Put decisions in docs/DECISIONS.md, questions in docs/QUESTIONS.md.
+
+## Never
+- Show cost, profit or expense data to a worker (API or UI).
+- Edit or delete invoices, payments, returns, expenses or batches.
+- Let a worker change a price. Treat a missing price or cost as zero.
+- Invent features, prices or quantities. Add dependencies silently.
+- Weaken tests. Push to main. Edit another agent's folders.
+
+## If unsure
+Stop. Write the question in docs/QUESTIONS.md. Do not guess.
+
+## Commands
+- Backend tests:  cd backend && pytest
+- Lint:           cd backend && ruff check .
+- Migrations:     cd backend && python manage.py makemigrations --check
+- Android tests:  cd android && ./gradlew test
+```
