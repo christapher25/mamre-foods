@@ -8,3 +8,4 @@ One entry per question: date - agent - question - spec sections involved.
 2026-10-02 - A1 - Customer.notes is not sent to workers. Should any part of it ever reach the device? Doc 2 s5, I-8.
 2026-10-02 - A1 - Seed product codes FRESH and CHAPATHI are placeholders. Confirm the real codes. Doc 1 s3, s4.1.
 2026-10-02 - A1 - [ANSWERED 2026-10-02: Retail type defaults, see DECISIONS.md] resolve_price needs a customer. Which price list does a Walk-in (null customer) use: the Retail type defaults? Doc 1 s4.1, s4.2; Doc 2 s4.2. Needed by A2/A3 in P2.
+2026-10-02 - A1 - For P7 hardening: login and refresh throttling uses Django's default per-process cache, so with several worker processes the limit is per process. It needs a shared cache (for example the database or Redis) when more than one process runs. Which cache backend, and does it count as a new dependency? Doc 2 s8, s13.

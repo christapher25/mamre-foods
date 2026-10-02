@@ -3,6 +3,7 @@
 Doc 2 section 2 (stack) and section 13 (required variables).
 """
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
@@ -113,8 +114,6 @@ REST_FRAMEWORK = {
     # Login and refresh rate limit; configurable, for example AUTH_THROTTLE_RATE=5/min.
     "DEFAULT_THROTTLE_RATES": {"auth": os.environ.get("AUTH_THROTTLE_RATE", "10/min")},
 }
-
-from datetime import timedelta  # noqa: E402
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
