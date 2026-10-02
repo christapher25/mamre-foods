@@ -140,15 +140,25 @@ def parse_payment(raw):
 
 
 def walk_in_paid_cents(invoice_id, payments_raw):
-    """Cents the pushed payments put against this invoice, counting each payment id once."""
+    """Cents of the pushed payments that count toward a walk-in invoice (Doc 1 s4.1).
+
+    Only a payment that passes full validation counts: parse_payment (amount, method, a note
+    for other, bounds) and no customer_id at all, because a walk-in has no customer, so any
+    customer_id is a customer_mismatch or an unknown_customer in services. Each payment id
+    counts once. The caller validates before it stores anything."""
     seen, total = set(), 0
     for raw in payments_raw:
-        if not isinstance(raw, dict) or str(raw.get("invoice_id")).lower() != invoice_id:
+        if not isinstance(raw, dict):
             continue
-        amount = raw.get("amount_cents")
-        pid = raw.get("id")
-        if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0 or pid in seen:
+        try:
+            payment_id = parse_uuid(raw.get("id"), "id")
+            data = parse_payment(raw)
+        except Reject:
             continue
-        seen.add(pid)
-        total += amount
+        if data["invoice_id"] != invoice_id or data["customer_id"] is not None:
+            continue
+        if payment_id in seen:
+            continue
+        seen.add(payment_id)
+        total += data["amount_cents"]
     return total

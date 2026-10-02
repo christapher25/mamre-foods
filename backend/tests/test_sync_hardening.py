@@ -111,3 +111,84 @@ def test_database_and_overflow_errors_reject_only_that_record(world, monkeypatch
     assert_validation_reject(body["results"][1])
     assert_validation_reject(body["results"][2])
     assert selectors.get_invoice(good["id"]) is not None
+
+
+# ---- finding 5: a walk-in is validated with ALL its payments before anything is stored -------
+
+
+def stored_counts():
+    return Invoice.objects.count(), Payment.objects.count()
+
+
+def walk_in(world, total=2000, number="MAM-W1-0001"):
+    return invoice_payload(world, number, total, customer=None)
+
+
+def test_walk_in_payment_that_fails_validation_does_not_count(world):
+    """method other without a note is invalid, so only 1000 of 2000 counts."""
+    inv = walk_in(world)
+    ok = payment_payload(1000, invoice_id=inv["id"])
+    no_note = payment_payload(1000, invoice_id=inv["id"], method="other")
+    body = push(world, invoices=[inv], payments=[ok, no_note])
+    assert statuses(body) == ["rejected"] * 3
+    assert body["results"][0]["reason"]["code"] == "walkin_not_fully_paid"
+    assert body["results"][1]["reason"]["code"] == "invoice_rejected"
+    assert body["results"][1]["reason"]["retryable"] is False
+    assert body["results"][2]["reason"]["code"] == "validation_error"
+    assert stored_counts() == (0, 0)
+
+
+def test_walk_in_payment_naming_a_customer_does_not_count(world):
+    inv = walk_in(world)
+    ok = payment_payload(1000, invoice_id=inv["id"])
+    mismatch = payment_payload(1000, invoice_id=inv["id"], customer=world.customer)
+    body = push(world, invoices=[inv], payments=[ok, mismatch])
+    assert body["results"][0]["reason"]["code"] == "walkin_not_fully_paid"
+    assert body["results"][1]["reason"]["code"] == "invoice_rejected"
+    # the invoice was rejected, so its payments are too: invoice_rejected names the root cause
+    assert body["results"][2]["reason"]["code"] == "invoice_rejected"
+    assert body["results"][2]["reason"]["retryable"] is False
+    assert stored_counts() == (0, 0)
+
+
+def test_walk_in_payment_naming_an_unknown_customer_does_not_count(world):
+    import uuid
+
+    inv = walk_in(world)
+    ghost = payment_payload(2000, invoice_id=inv["id"])
+    ghost["customer_id"] = str(uuid.uuid4())
+    body = push(world, invoices=[inv], payments=[ghost])
+    assert body["results"][0]["reason"]["code"] == "walkin_not_fully_paid"
+    assert body["results"][1]["reason"]["code"] == "invoice_rejected"
+    assert stored_counts() == (0, 0)
+
+
+@pytest.mark.parametrize("amounts", [[1999], [500, 1000], [2001], [1500, 1000]])
+def test_walk_in_under_and_over_payment_store_nothing(world, amounts):
+    inv = walk_in(world)
+    payments = [payment_payload(a, invoice_id=inv["id"]) for a in amounts]
+    body = push(world, invoices=[inv], payments=payments)
+    assert statuses(body) == ["rejected"] * (1 + len(amounts))
+    assert body["results"][0]["reason"]["code"] == "walkin_not_fully_paid"
+    assert all(r["reason"]["code"] == "invoice_rejected" for r in body["results"][1:])
+    assert stored_counts() == (0, 0)
+
+
+def test_walk_in_with_an_invalid_payment_that_still_adds_up_is_accepted_without_it(world):
+    inv = walk_in(world)
+    good = payment_payload(2000, invoice_id=inv["id"])
+    junk = payment_payload(50, invoice_id=inv["id"], method="other")  # invalid, ignored
+    body = push(world, invoices=[inv], payments=[good, junk])
+    assert statuses(body) == ["accepted", "accepted", "rejected"]
+    assert stored_counts() == (1, 1)
+
+
+def test_walk_in_with_a_rejected_neighbour_does_not_block_other_records(world):
+    bad = walk_in(world, number="MAM-W1-0001")
+    good_inv = walk_in(world, number="MAM-W1-0002")
+    credit = invoice_payload(world, "MAM-W1-0003", 1000)
+    body = push(world, invoices=[bad, good_inv, credit],
+                payments=[payment_payload(1, invoice_id=bad["id"]),
+                          payment_payload(2000, invoice_id=good_inv["id"])])
+    assert statuses(body) == ["rejected", "accepted", "accepted", "rejected", "accepted"]
+    assert stored_counts() == (2, 1)
