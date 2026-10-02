@@ -6,7 +6,7 @@ push_batch (Doc 2 s5.1, s5.2, s6, I-11): every record is processed on its own. E
 record commits in its own transaction inside apps.sales.services, so one bad record never
 blocks the others, and sending the same UUID twice stores one record.
 """
-from django.db import IntegrityError
+from django.db import DataError, IntegrityError
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -186,8 +186,15 @@ def push_batch(user, body):
             result = function(raw, worker=user, device=device, **kwargs)
         except Reject as reject:
             result = _rejected(kind, _id_of(raw), reject)
-            if kind == "invoice" and not reject.retryable:
-                dead_invoices.add(result["id"])
+        except (DataError, OverflowError):
+            # A value the database cannot hold: this record fails, the others carry on.
+            result = _rejected(
+                kind,
+                _id_of(raw),
+                Reject("validation_error", "A value in this record is out of range."),
+            )
+        if kind == "invoice" and result["status"] == "rejected":
+            dead_invoices.add(result["id"])  # no invoice rejection is retryable
         results.append(result)
 
     for raw in lists["invoices"]:

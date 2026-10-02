@@ -12,6 +12,9 @@ from django.utils.dateparse import parse_datetime
 from apps.sales import rules
 
 METHODS = ("cash", "zelle", "check", "card", "other")
+# Upper bounds (openapi.yaml). Anything above is a rejected record, never a database overflow.
+MAX_CENTS = 1_000_000_000  # unit_price_cents, amount_cents and total_cents: $10,000,000.00
+MAX_QTY = 100_000  # qty_packets
 
 
 @dataclass
@@ -32,12 +35,14 @@ def parse_uuid(value, name):
         raise Reject("validation_error", f"{name} is not a valid UUID.") from None
 
 
-def parse_int(value, name):
-    """A strict positive integer: no bool, no float, no numeric string (Doc 2 I-1)."""
+def parse_int(value, name, maximum):
+    """A strict integer from 1 to maximum: no bool, no float, no numeric string (Doc 2 I-1)."""
     if isinstance(value, bool) or not isinstance(value, int):
         raise Reject("validation_error", f"{name} must be a whole number.")
     if value <= 0:
         raise Reject("validation_error", f"{name} must be greater than zero.")
+    if value > maximum:
+        raise Reject("validation_error", f"{name} must be at most {maximum}.")
     return value
 
 
@@ -81,15 +86,13 @@ def parse_invoice(raw, device_code):
             {
                 "id": item_id,
                 "product_id": parse_uuid(entry.get("product_id"), "product_id"),
-                "qty_packets": parse_int(entry.get("qty_packets"), "qty_packets"),
-                "unit_price_cents": parse_int(entry.get("unit_price_cents"), "unit_price_cents"),
+                "qty_packets": parse_int(entry.get("qty_packets"), "qty_packets", MAX_QTY),
+                "unit_price_cents": parse_int(
+                    entry.get("unit_price_cents"), "unit_price_cents", MAX_CENTS
+                ),
             }
         )
-    total = raw.get("total_cents")
-    if isinstance(total, bool) or not isinstance(total, int):
-        raise Reject("validation_error", "total_cents must be a whole number.")
-    if total <= 0:
-        raise Reject("validation_error", "total_cents must be greater than zero.")
+    total = parse_int(raw.get("total_cents"), "total_cents", MAX_CENTS)
     expected = sum(rules.line_total(i["qty_packets"], i["unit_price_cents"]) for i in items)
     if total != expected:
         raise Reject(
@@ -108,7 +111,7 @@ def parse_payment(raw):
     """Validate one pushed payment (Doc 1 s6.1; needs customer_id or invoice_id)."""
     if not isinstance(raw, dict):
         raise Reject("validation_error", "A payment must be an object.")
-    amount = parse_int(raw.get("amount_cents"), "amount_cents")
+    amount = parse_int(raw.get("amount_cents"), "amount_cents", MAX_CENTS)
     method = raw.get("method")
     if method not in METHODS:
         raise Reject("validation_error", f"method must be one of {', '.join(METHODS)}.")

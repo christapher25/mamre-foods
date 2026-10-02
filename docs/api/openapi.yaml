@@ -100,7 +100,9 @@ paths:
         Every record gets its own result and one bad record never blocks the others. Invoices
         are processed first, then payments, in the order sent. At most 200 records in total
         (invoices + payments + returns) per push; more is a 400 validation_error with the
-        Doc 2 s5.2 error body. device_code must be the code of one of the pushing worker's
+        Doc 2 s5.2 error body. Bounds: unit_price_cents, amount_cents and total_cents at most
+        1,000,000,000; qty_packets at most 100,000. A record above a bound is rejected with
+        validation_error, retryable false (never a 500). device_code must be the code of one of the pushing worker's
         devices (otherwise 400 validation_error for the whole push) and every invoice number
         must carry that code (Doc 2 I-3; otherwise that invoice is rejected, wrong_device). The unit price on
         each item is the device snapshot and is stored as sent, never repriced (I-7).
@@ -324,6 +326,7 @@ components:
         total_cents:
           type: integer
           minimum: 1
+          maximum: 1000000000
           description: Must equal the sum of the line totals (Doc 2 I-2).
     PushInvoiceItem:
       type: object
@@ -331,8 +334,12 @@ components:
       properties:
         id: { type: string, format: uuid }
         product_id: { type: string, format: uuid }
-        qty_packets: { type: integer, minimum: 1 }
-        unit_price_cents: { type: integer, minimum: 1, description: Device price snapshot. }
+        qty_packets: { type: integer, minimum: 1, maximum: 100000 }
+        unit_price_cents:
+          type: integer
+          minimum: 1
+          maximum: 1000000000
+          description: Device price snapshot.
     PushPayment:
       type: object
       required: [id, amount_cents, method, paid_at]
@@ -346,7 +353,7 @@ components:
           description: Derived from invoice_id when omitted. If both are sent they must match.
         invoice_id: { type: string, format: uuid, nullable: true }
         receipt_number: { type: string, nullable: true, description: Stored as sent. }
-        amount_cents: { type: integer, minimum: 1 }
+        amount_cents: { type: integer, minimum: 1, maximum: 1000000000 }
         method: { type: string, enum: [cash, zelle, check, card, other] }
         paid_at: { type: string, format: date-time }
         note: { type: string, description: Required when method is other. }
