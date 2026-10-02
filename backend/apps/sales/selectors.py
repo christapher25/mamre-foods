@@ -58,6 +58,11 @@ def invoice_paid_cents(invoice):
     ] or 0
 
 
+def invoice_payments_cents(invoice):
+    """Cents of payments linked to an invoice (used for the walk-in full-payment rule)."""
+    return Payment.objects.filter(invoice=invoice).aggregate(s=Sum("amount_cents"))["s"] or 0
+
+
 def open_invoices(customer):
     """[(invoice_id, remaining_cents)] for the customer's non-void invoices that still owe
     money, oldest first (Doc 1 s6.2): issued_at, then number for a stable order."""
