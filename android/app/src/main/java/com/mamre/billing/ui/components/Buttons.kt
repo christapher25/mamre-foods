@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mamre.billing.ui.theme.MamreTheme
 import com.mamre.billing.ui.theme.Sizes
 
 /** The main action of a screen: full width, 56 dp tall. */
@@ -28,8 +29,8 @@ fun PrimaryButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.outline,
-            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            disabledContainerColor = MamreTheme.extra.disabledContainer,
+            disabledContentColor = MamreTheme.extra.onDisabled,
         ),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium)
@@ -50,11 +51,11 @@ fun SecondaryButton(
         modifier = modifier.fillMaxWidth().heightIn(min = Sizes.touchTarget),
         border = BorderStroke(
             1.dp,
-            if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+            if (enabled) MaterialTheme.colorScheme.primary else MamreTheme.extra.onDisabled,
         ),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = MaterialTheme.colorScheme.primary,
-            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            disabledContentColor = MamreTheme.extra.onDisabled,
         ),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium)

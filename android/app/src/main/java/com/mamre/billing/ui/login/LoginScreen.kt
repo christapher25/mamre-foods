@@ -32,7 +32,7 @@ fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(Spacing.xl),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xl),
         verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {

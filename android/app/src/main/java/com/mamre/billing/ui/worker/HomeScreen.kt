@@ -2,16 +2,29 @@ package com.mamre.billing.ui.worker
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -59,15 +72,23 @@ fun HomeScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = Spacing.xs),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                GridTile("Record payment", Modifier.weight(1f)) { onTile(HomeTile.RECORD_PAYMENT) }
-                GridTile("Return", Modifier.weight(1f)) { onTile(HomeTile.RETURN) }
+            // Each row is as tall as its taller tile, so all four tiles are the same size.
+            Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                GridTile("Record payment", Icons.Default.Payments, Modifier.weight(1f).fillMaxHeight()) {
+                    onTile(HomeTile.RECORD_PAYMENT)
+                }
+                GridTile("Return", Icons.Default.Replay, Modifier.weight(1f).fillMaxHeight()) {
+                    onTile(HomeTile.RETURN)
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
-                GridTile("Today's invoices", Modifier.weight(1f)) { onTile(HomeTile.TODAYS_INVOICES) }
+            Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                GridTile("Today's invoices", Icons.Default.Today, Modifier.weight(1f).fillMaxHeight()) {
+                    onTile(HomeTile.TODAYS_INVOICES)
+                }
                 GridTile(
                     "Sync status",
-                    Modifier.weight(1f),
+                    Icons.Default.Sync,
+                    Modifier.weight(1f).fillMaxHeight(),
                     detail = "Pending: ${state.pendingCount}",
                 ) { onTile(HomeTile.SYNC_STATUS) }
             }
@@ -83,23 +104,34 @@ private fun NewInvoiceTile(onClick: () -> Unit) {
         minContentHeight = 120.dp,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(
-            "New invoice",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onPrimary,
-        )
-        Text(
-            "Choose a customer and add packets",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            Icon(
+                Icons.Default.Receipt,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(36.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "New invoice",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+                Text(
+                    "Choose a customer and add packets",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun GridTile(
     title: String,
+    icon: ImageVector,
     modifier: Modifier = Modifier,
     detail: String? = null,
     onClick: () -> Unit,
@@ -111,14 +143,13 @@ private fun GridTile(
         contentPadding = Spacing.md,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        if (detail != null) {
-            Text(
-                detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = Spacing.xs),
-            )
-        }
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Spacing.xs))
+        // Every tile reserves the detail line so tiles with and without one match.
+        Text(
+            detail ?: " ",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

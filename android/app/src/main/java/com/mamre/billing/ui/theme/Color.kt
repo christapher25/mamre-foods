@@ -21,3 +21,7 @@ val BrandOnSurface = BrandSecondary
 val BrandOnSurfaceMuted = Color(0xFF566075)
 val BrandErrorContainer = Color(0xFFFBEAE8)
 val BrandSuccessContainer = Color(0xFFE6F2E8)
+
+// Disabled controls stay readable: dark text on a light grey, about 6:1 contrast.
+val BrandDisabledContainer = Color(0xFFE4E7EC)
+val BrandOnDisabled = Color(0xFF4A5468)

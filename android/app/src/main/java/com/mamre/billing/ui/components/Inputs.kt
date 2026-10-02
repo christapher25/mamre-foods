@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -23,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.mamre.billing.ui.theme.MamreTheme
 import com.mamre.billing.ui.theme.Sizes
 import com.mamre.billing.ui.theme.Spacing
 
@@ -47,7 +52,7 @@ fun QuantityStepper(
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         StepperButton(enabled = enabled && value > 0, onClick = { onValueChange(value - 1) }) {
-            Text("−", style = MaterialTheme.typography.headlineSmall)
+            Icon(Icons.Default.Remove, contentDescription = "Remove one packet")
         }
         OutlinedTextField(
             value = text,
@@ -64,7 +69,7 @@ fun QuantityStepper(
             modifier = Modifier.width(88.dp).heightIn(min = Sizes.touchTarget),
         )
         StepperButton(enabled = enabled && value < MAX_PACKETS, onClick = { onValueChange(value + 1) }) {
-            Text("+", style = MaterialTheme.typography.headlineSmall)
+            Icon(Icons.Default.Add, contentDescription = "Add one packet")
         }
     }
 }
@@ -82,8 +87,8 @@ private fun StepperButton(
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.background,
-            disabledContentColor = MaterialTheme.colorScheme.outline,
+            disabledContainerColor = MamreTheme.extra.disabledContainer,
+            disabledContentColor = MamreTheme.extra.onDisabled,
         ),
     ) { content() }
 }

@@ -34,10 +34,18 @@ class ExtraColors(
     val success: Color,
     val successContainer: Color,
     val onSurfaceMuted: Color,
+    val disabledContainer: Color,
+    val onDisabled: Color,
 )
 
 private val LocalExtraColors = staticCompositionLocalOf {
-    ExtraColors(BrandSuccess, BrandSuccessContainer, BrandOnSurfaceMuted)
+    ExtraColors(
+        BrandSuccess,
+        BrandSuccessContainer,
+        BrandOnSurfaceMuted,
+        BrandDisabledContainer,
+        BrandOnDisabled,
+    )
 }
 
 /** Read the extra colours as `MamreTheme.extra.success`. */
