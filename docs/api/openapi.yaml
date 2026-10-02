@@ -7,7 +7,7 @@ info:
     Mobile API used by the Android worker app. Base path /api/v1/.
     Worker responses never contain cost, profit or expense data (Doc 2 I-8).
     Money is integer cents (Doc 2 I-1). All times are UTC (Doc 2 I-12).
-  version: 0.2.0
+  version: 0.3.0
 servers:
   - url: /api/v1
 paths:
@@ -88,6 +88,67 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/CatalogPull" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /sync/push:
+    post:
+      summary: Push invoices and payments from the device (Doc 2 s5.1, s6; Doc 1 s5, s6)
+      description: >
+        Worker only (admin gets 403). Idempotent by record UUID (Doc 2 I-11): sending a record
+        that is already stored returns status duplicate, which the device treats as success.
+        Every record gets its own result and one bad record never blocks the others. Invoices
+        are processed first, then payments, in the order sent. At most 200 records in total
+        (invoices + payments + returns) per push; more is a 400 validation_error with the
+        Doc 2 s5.2 error body. device_code must be the code of one of the pushing worker's
+        devices and every invoice number must carry that code (Doc 2 I-3). The unit price on
+        each item is the device snapshot and is stored as sent, never repriced (I-7).
+        A walk-in invoice (customer_id null) must be fully paid: the payments in the same push
+        that reference it must add up to exactly its total. Walk-in payments are stored but
+        never allocated. A credit customer's payments are allocated by the server, oldest
+        unpaid invoice first, spilling into the next; any remainder stays as credit on account
+        (Doc 1 s6.2). Returns are not supported yet: a non-empty returns list is rejected
+        record by record with code returns_not_supported. A payment needs customer_id or
+        invoice_id. Payment.status from the Doc 2 table is not used.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushRequest" }
+      responses:
+        "200":
+          description: One result per record received, in the order sent (invoices, payments, returns).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PushResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /sync/customer-activity:
+    get:
+      summary: Invoices, payments, allocations and balance per credit customer (Doc 2 s5)
+      description: >
+        Worker only (admin gets 403). cursor=0 (or omitted) returns everything. The server reads
+        its sales counter first and returns only rows at or below it, so a row committed later
+        can never be skipped (same rule as /sync/catalog, Doc 2 s6.4). A credit customer is
+        included when any of its invoices, payments or allocations changed after the cursor
+        (a void counts as a change). Records are those of every worker for the customer, because
+        the balance is per customer. balance_cents is computed at the returned cursor as
+        opening balance + non-void invoices - payments (credits from returns arrive in P4);
+        it is never stored (Doc 2 I-6). Void invoices are included with status void. No cost data.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Activity since the cursor.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerActivityPull" }
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
@@ -227,3 +288,179 @@ components:
       properties:
         key: { type: string }
         value: { type: string }
+    PushRequest:
+      type: object
+      required: [device_code, invoices, payments, returns]
+      description: At most 200 records in total across the three lists.
+      properties:
+        device_code: { type: string, example: W1 }
+        invoices:
+          type: array
+          items: { $ref: "#/components/schemas/PushInvoice" }
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/PushPayment" }
+        returns:
+          type: array
+          description: Not supported yet. A non-empty list is rejected with returns_not_supported.
+          items: { type: object, additionalProperties: true }
+    PushInvoice:
+      type: object
+      required: [id, number, customer_id, issued_at, items, total_cents]
+      properties:
+        id: { type: string, format: uuid, description: Made on the device. }
+        number:
+          type: string
+          pattern: "^MAM-[A-Z0-9]+-[0-9]{4,}$"
+          example: MAM-W1-0042
+        customer_id: { type: string, format: uuid, nullable: true, description: null for walk-in. }
+        issued_at: { type: string, format: date-time }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PushInvoiceItem" }
+        total_cents:
+          type: integer
+          minimum: 1
+          description: Must equal the sum of the line totals (Doc 2 I-2).
+    PushInvoiceItem:
+      type: object
+      required: [id, product_id, qty_packets, unit_price_cents]
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        qty_packets: { type: integer, minimum: 1 }
+        unit_price_cents: { type: integer, minimum: 1, description: Device price snapshot. }
+    PushPayment:
+      type: object
+      required: [id, amount_cents, method, paid_at]
+      description: Needs customer_id or invoice_id. Neither is rejected.
+      properties:
+        id: { type: string, format: uuid }
+        customer_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Derived from invoice_id when omitted. If both are sent they must match.
+        invoice_id: { type: string, format: uuid, nullable: true }
+        receipt_number: { type: string, nullable: true, description: Stored as sent. }
+        amount_cents: { type: integer, minimum: 1 }
+        method: { type: string, enum: [cash, zelle, check, card, other] }
+        paid_at: { type: string, format: date-time }
+        note: { type: string, description: Required when method is other. }
+    PushResponse:
+      type: object
+      required: [results, server_time, catalog_cursor]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/PushResult" }
+        server_time: { type: string, format: date-time }
+        catalog_cursor:
+          type: integer
+          description: Current catalog sync counter, for the next GET /sync/catalog.
+    PushResult:
+      type: object
+      required: [type, id, status]
+      properties:
+        type: { type: string, enum: [invoice, payment, return] }
+        id: { type: string, description: The record UUID as sent (as received if it was not a valid UUID). }
+        status: { type: string, enum: [accepted, duplicate, rejected] }
+        allocated:
+          type: array
+          description: Payments only, when accepted or duplicate. Empty for a walk-in payment.
+          items: { $ref: "#/components/schemas/Allocation" }
+        reason:
+          allOf: [{ $ref: "#/components/schemas/RejectReason" }]
+          description: Present only when status is rejected.
+    RejectReason:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          description: >
+            Stable machine string, for example validation_error, invalid_number, wrong_device,
+            total_mismatch, duplicate_number, unknown_customer, unknown_product,
+            walkin_not_fully_paid, customer_mismatch, missing_target, invoice_not_found,
+            returns_not_supported.
+        message: { type: string }
+        retryable:
+          type: boolean
+          description: >
+            True only for dependency problems that may clear on a later push (for example
+            invoice_not_found: the payment's invoice has not arrived yet). False for validation
+            failures, which will never succeed unchanged.
+    Allocation:
+      type: object
+      required: [invoice_id, amount_cents]
+      properties:
+        invoice_id: { type: string, format: uuid }
+        amount_cents: { type: integer, minimum: 1 }
+    CustomerActivityPull:
+      type: object
+      required: [cursor, customers]
+      properties:
+        cursor:
+          type: integer
+          description: Sales counter value read first. Equals the request cursor if nothing changed.
+        customers:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerActivity" }
+    CustomerActivity:
+      type: object
+      required: [customer_id, opening_balance_cents, balance_cents, invoices, payments, allocations]
+      properties:
+        customer_id: { type: string, format: uuid }
+        opening_balance_cents: { type: integer }
+        balance_cents:
+          type: integer
+          description: Computed at the returned cursor. Negative means credit on account.
+        invoices:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityInvoice" }
+        payments:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityPayment" }
+        allocations:
+          type: array
+          items: { $ref: "#/components/schemas/ActivityAllocation" }
+    ActivityInvoice:
+      type: object
+      required: [id, number, issued_at, total_cents, status, items]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string }
+        issued_at: { type: string, format: date-time }
+        total_cents: { type: integer }
+        status: { type: string, enum: [active, void] }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, product_id, product_name, qty_packets, unit_price_cents, line_total_cents]
+            properties:
+              id: { type: string, format: uuid }
+              product_id: { type: string, format: uuid }
+              product_name: { type: string }
+              qty_packets: { type: integer }
+              unit_price_cents: { type: integer }
+              line_total_cents: { type: integer }
+    ActivityPayment:
+      type: object
+      required: [id, invoice_id, receipt_number, amount_cents, method, paid_at]
+      properties:
+        id: { type: string, format: uuid }
+        invoice_id: { type: string, format: uuid, nullable: true }
+        receipt_number: { type: string, nullable: true }
+        amount_cents: { type: integer }
+        method: { type: string, enum: [cash, zelle, check, card, other] }
+        paid_at: { type: string, format: date-time }
+    ActivityAllocation:
+      type: object
+      required: [id, payment_id, invoice_id, amount_cents]
+      properties:
+        id: { type: string, format: uuid }
+        payment_id: { type: string, format: uuid }
+        invoice_id: { type: string, format: uuid }
+        amount_cents: { type: integer }
