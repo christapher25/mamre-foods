@@ -1,10 +1,12 @@
 """Reviewer findings for the sales app (Doc 2 I-3, I-4, I-9, s6.4)."""
 import uuid
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from apps.accounts.models import AuditLog
 from apps.sales import rules, selectors, services
@@ -69,7 +71,7 @@ def test_a_permit_for_another_invoice_does_not_open_the_door():
     other = _invoice(world, number="MAM-W1-0002", inv_id="44444444-4444-4444-8444-444444444444")
     admin = make_user("boss", role="admin")
     audit = AuditLog.objects.create(user=admin, action="invoice.void", entity="invoice",
-                                    entity_id=str(other.pk))
+                                    entity_id=str(other.pk), after_json={"void_reason": "x"})
     with void_permit(other.pk, audit):  # a real permit, but for the other invoice
         with pytest.raises(RuntimeError):
             invoice._apply_void(actor=admin, reason="x", at=utc(4), sync_version=99)
@@ -235,7 +237,8 @@ def test_void_permit_accepts_the_real_row_and_only_for_that_invoice():
     invoice = _invoice(world)
     admin = make_user("boss", role="admin")
     audit = AuditLog.objects.create(
-        user=admin, action="invoice.void", entity="invoice", entity_id=str(invoice.pk))
+        user=admin, action="invoice.void", entity="invoice", entity_id=str(invoice.pk),
+        after_json={"void_reason": "ok"})
     with void_permit(invoice.pk, audit):
         invoice._apply_void(actor=admin, reason="ok", at=utc(4), sync_version=99)
     assert _status(invoice) == "void"
@@ -288,3 +291,108 @@ def test_normal_inserts_and_the_void_still_work_with_the_guarded_base_manager():
     services.void_invoice(invoice, actor=admin, reason="ok")  # update through Model.save
     assert _status(invoice) == "void"
     assert InvoiceItem.objects.filter(invoice=invoice).count() == 1  # related lookups
+
+
+# ---- narrow review: the audit row must be a genuine, fresh, single-use admin void record -----
+
+def _forged(invoice, **overrides):
+    fields = {
+        "action": "invoice.void", "entity": "invoice", "entity_id": str(invoice.pk),
+        "after_json": {"void_reason": "forged"},
+    }
+    fields.update(overrides)
+    return AuditLog.objects.create(**fields)
+
+
+def _try_void_with(invoice, audit, actor):
+    with pytest.raises(RuntimeError):
+        with void_permit(invoice.pk, audit):
+            invoice._apply_void(actor=actor, reason="forged", at=utc(4), sync_version=99)
+    assert _status(invoice) == "active"
+    assert invoice.status == "active"
+
+
+@pytest.fixture
+def stored_with_admin():
+    world = build_world()
+    return _invoice(world), make_user("boss", role="admin"), world
+
+
+def test_forged_row_with_no_user_is_refused(stored_with_admin):
+    invoice, admin, _ = stored_with_admin
+    _try_void_with(invoice, _forged(invoice, user=None), admin)
+
+
+def test_forged_row_by_a_worker_is_refused(stored_with_admin):
+    """The reviewer's scenario: a non-admin actor writes a matching audit row by hand."""
+    invoice, admin, world = stored_with_admin
+    _try_void_with(invoice, _forged(invoice, user=world.worker), world.worker)
+
+
+def test_row_of_an_inactive_admin_is_refused(stored_with_admin):
+    invoice, _, _ = stored_with_admin
+    gone = make_user("gone", role="admin", is_active=False)
+    _try_void_with(invoice, _forged(invoice, user=gone), gone)
+
+
+def test_row_of_an_admin_demoted_after_the_row_was_written_is_refused(stored_with_admin):
+    invoice, admin, _ = stored_with_admin
+    audit = _forged(invoice, user=admin)
+    admin.role = "worker"
+    admin.save()  # the instance in the audit row is stale; the database is re-read
+    _try_void_with(invoice, audit, admin)
+
+
+@pytest.mark.parametrize("after", [None, {}, {"void_reason": ""}, {"void_reason": "   "},
+                                   {"void_reason": None}, {"other": "x"}, ["void_reason"]])
+def test_row_without_a_non_empty_void_reason_is_refused(stored_with_admin, after):
+    invoice, admin, _ = stored_with_admin
+    _try_void_with(invoice, _forged(invoice, user=admin, after_json=after), admin)
+
+
+def test_row_older_than_60_seconds_is_refused(stored_with_admin, monkeypatch):
+    invoice, admin, _ = stored_with_admin
+    audit = _forged(invoice, user=admin)
+    real_now = timezone.now
+    monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=61))
+    _try_void_with(invoice, audit, admin)
+
+
+def test_row_just_inside_60_seconds_is_accepted(stored_with_admin, monkeypatch):
+    invoice, admin, _ = stored_with_admin
+    audit = _forged(invoice, user=admin)
+    real_now = timezone.now
+    monkeypatch.setattr(timezone, "now", lambda: real_now() + timedelta(seconds=59))
+    with void_permit(invoice.pk, audit):
+        invoice._apply_void(actor=admin, reason="ok", at=utc(4), sync_version=99)
+    assert _status(invoice) == "void"
+
+
+def test_a_row_cannot_be_used_twice(stored_with_admin):
+    invoice, admin, _ = stored_with_admin
+    audit = _forged(invoice, user=admin)
+    with void_permit(invoice.pk, audit):
+        invoice._apply_void(actor=admin, reason="first", at=utc(4), sync_version=99)
+    assert _status(invoice) == "void"
+    with pytest.raises(RuntimeError):  # the permit itself refuses: the invoice is not active
+        with void_permit(invoice.pk, audit):
+            pass
+
+
+def test_void_invoice_with_a_forged_row_from_a_non_admin_leaves_it_active(
+    stored_with_admin, monkeypatch
+):
+    invoice, admin, world = stored_with_admin
+    forged = _forged(invoice, user=world.worker)
+    monkeypatch.setattr(services, "record_audit", lambda **kwargs: forged)
+    with pytest.raises(RuntimeError):
+        services.void_invoice(invoice, actor=admin, reason="Mistake")
+    assert _status(invoice) == "active"
+
+
+def test_the_normal_admin_void_with_a_reason_still_works(stored_with_admin):
+    invoice, admin, _ = stored_with_admin
+    services.void_invoice(invoice, actor=admin, reason="Wrong customer")
+    assert _status(invoice) == "void"
+    log = AuditLog.objects.get(action="invoice.void", entity_id=str(invoice.pk))
+    assert log.user_id == admin.id and log.after_json["void_reason"] == "Wrong customer"

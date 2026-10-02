@@ -7,9 +7,11 @@ going active to void, through services.void_invoice (Doc 1 s5.4).
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 IMMUTABLE_MESSAGE = "{name} rows are append-only: never edited or deleted (Doc 2 I-4, I-9)."
 
@@ -33,26 +35,42 @@ class ImmutableQuerySet(models.QuerySet):
 _VOID_PERMIT = ContextVar("sales_void_permit", default=None)
 
 
+VOID_AUDIT_MAX_AGE = timedelta(seconds=60)
+
+
 @contextmanager
 def void_permit(invoice_pk, audit):
-    """Opens the door for Invoice._apply_void on ONE invoice, and only for the real AuditLog row
-    that records this void: an AuditLog instance, action "invoice.void", entity "invoice",
-    entity_id equal to str(invoice_pk), and present in the database (checked by pk). Anything
-    else (a stand-in object, another action or invoice, an unsaved row) is refused. Used by
-    services.void_invoice and nothing else: no audit row, no void (Doc 2 s8, I-4)."""
+    """Opens the door for Invoice._apply_void on ONE invoice, and only for the genuine AuditLog
+    row that records this void. Everything is checked against the database row, not the
+    instance handed in. The row must: be an AuditLog that exists; have action "invoice.void",
+    entity "invoice" and entity_id equal to str(invoice_pk); belong to a user who is, right now,
+    an active admin; carry a non-empty "void_reason" in after_json; be at most 60 seconds old;
+    and the invoice must still be active, so a row can be used once (the second use finds a
+    void invoice). Anything else is refused. Used by services.void_invoice and nothing else:
+    no genuine audit row, no void (Doc 2 s8, I-4).
+
+    This is defence in depth against accidental or buggy callers inside the app. It is not a
+    security boundary against code that can already write to the database (DECISIONS.md)."""
+    from apps.accounts import selectors as accounts_selectors
     from apps.accounts.models import AuditLog  # lazy: accounts is a lower layer
 
-    real = (
-        isinstance(audit, AuditLog)
-        and audit.action == "invoice.void"
-        and audit.entity == "invoice"
-        and audit.entity_id == str(invoice_pk)
-        and AuditLog.objects.filter(
-            pk=audit.pk, action="invoice.void", entity="invoice", entity_id=str(invoice_pk)
-        ).exists()
+    row = AuditLog.objects.filter(pk=audit.pk).first() if isinstance(audit, AuditLog) else None
+    after = row.after_json if row is not None else None
+    reason = after.get("void_reason") if isinstance(after, dict) else None
+    genuine = (
+        row is not None
+        and row.action == "invoice.void"
+        and row.entity == "invoice"
+        and row.entity_id == str(invoice_pk)
+        and row.user_id is not None
+        and accounts_selectors.is_active_admin(row.user)
+        and isinstance(reason, str)
+        and reason.strip() != ""
+        and timezone.now() - row.at <= VOID_AUDIT_MAX_AGE
+        and Invoice.objects.filter(pk=invoice_pk, status=InvoiceStatus.ACTIVE).exists()
     )
-    if not real:
-        raise RuntimeError("A void needs its own AuditLog row first (Doc 2 s8).")
+    if not genuine:
+        raise RuntimeError("A void needs its own genuine AuditLog row first (Doc 2 s8).")
     token = _VOID_PERMIT.set(str(invoice_pk))
     try:
         yield
