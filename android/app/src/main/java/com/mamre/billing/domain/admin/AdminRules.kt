@@ -120,3 +120,11 @@ fun monthLabel(month: YearMonth): String =
     "${month.month.getDisplayName(TextStyle.FULL, Locale.US)} ${month.year}"
 
 fun monthShort(month: YearMonth): String = month.month.getDisplayName(TextStyle.SHORT, Locale.US)
+
+// --- chart helpers (B1) ---
+
+/** [part] as a whole percent of [total], 0 to 100, integer arithmetic only; a negative or empty slice is 0. */
+fun sharePercent(part: Long, total: Long): Int {
+    if (total <= 0 || part <= 0) return 0
+    return minOf(part * 100 / total, 100L).toInt()
+}

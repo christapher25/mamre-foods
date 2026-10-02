@@ -3,6 +3,8 @@ package com.mamre.billing.data.di
 import android.content.Context
 import androidx.room.Room
 import com.mamre.billing.BuildConfig
+import com.mamre.billing.data.admin.AdminApi
+import com.mamre.billing.data.admin.FakeAdminApi
 import com.mamre.billing.data.api.AppVersionInterceptor
 import com.mamre.billing.data.api.BackendApi
 import com.mamre.billing.data.api.FakeApi
@@ -64,6 +66,16 @@ object AppModule {
     /** In-memory DEMO DATA for the worker screens until Room and the outbox arrive (P2). */
     @Provides @Singleton
     fun demoStore() = DemoStore()
+
+    /**
+     * The Admin's server stand-in with DEMO DATA, its own data set (owner decision). There are no admin
+     * endpoints yet (QUESTIONS), so a real build has nothing to offer and admin sign-in is refused there.
+     */
+    @Provides @Singleton
+    fun adminApi(): AdminApi {
+        if (BuildConfig.USE_FAKE_API) return FakeAdminApi()
+        error("The server has no admin API yet")
+    }
 
     /** MockPrinter until the Symcode printer SDK arrives (Doc 2 s7, P3). */
     @Provides @Singleton
