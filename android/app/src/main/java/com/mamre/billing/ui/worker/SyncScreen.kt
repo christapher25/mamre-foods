@@ -18,11 +18,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.data.repository.SyncOutcome
+import com.mamre.billing.data.repository.WorkerSync
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.ConfirmDialog
@@ -31,17 +34,35 @@ import com.mamre.billing.ui.components.SecondaryButton
 import com.mamre.billing.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SyncViewModel @Inject constructor(
     private val session: SessionManager,
     private val store: DemoStore,
     val catalog: CatalogRepository,
+    private val workerSync: WorkerSync,
 ) : ViewModel() {
     val state = store.state
+    private val _message = MutableStateFlow<String?>(null)
+    val message = _message.asStateFlow()
+    private val _busy = MutableStateFlow(false)
+    val busy = _busy.asStateFlow()
 
-    /** Fake sync: the pretend server acknowledges everything (P2 builds the real outbox). */
-    fun syncNow() = store.syncNow()
+    /** Pulls the catalog through the repository and cursor, then acknowledges records (fake until P2). */
+    fun syncNow() {
+        if (_busy.value) return
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = when (val r = workerSync.syncNow()) {
+                SyncOutcome.Done -> "Catalog is up to date."
+                is SyncOutcome.Failed -> r.message
+            }
+            _busy.value = false
+        }
+    }
 
     fun logout() = session.logout()
 }
@@ -55,8 +76,10 @@ fun SyncScreen(onBack: () -> Unit, viewModel: SyncViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var catalogVersion by remember { mutableLongStateOf(0L) }
     var confirmLogout by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { catalogVersion = viewModel.catalog.catalogCursor() }
     val pending = state.pendingCount
+    val message by viewModel.message.collectAsStateWithLifecycle()
+    val busy by viewModel.busy.collectAsStateWithLifecycle()
+    LaunchedEffect(busy) { catalogVersion = viewModel.catalog.catalogCursor() }
 
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Sync and settings", onBack = onBack)
@@ -75,7 +98,9 @@ fun SyncScreen(onBack: () -> Unit, viewModel: SyncViewModel = hiltViewModel()) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            PrimaryButton("Sync now", onClick = viewModel::syncNow, enabled = pending > 0)
+            // Always enabled: a sync also pulls new prices, even with nothing pending.
+            PrimaryButton(if (busy) "Syncing..." else "Sync now", onClick = viewModel::syncNow, enabled = !busy)
+            message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
             AppCard {
                 Text("App version: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyLarge)
                 Text("Catalog version: $catalogVersion", style = MaterialTheme.typography.bodyLarge)
