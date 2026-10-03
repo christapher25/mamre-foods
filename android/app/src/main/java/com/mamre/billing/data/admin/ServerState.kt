@@ -66,7 +66,8 @@ data class ServerState(
     val returns: List<ReturnRow>,
     val categories: List<ExpenseCategory>,
     val expenses: List<Expense>,
-    val overrides: List<OverridePrice>,
+    /** Admin-only notes on override prices, by override id. The prices themselves live in the shared catalog. */
+    val overrideNotes: Map<String, String>,
     /** The shared materials list: wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. */
     val materials: List<Material>,
     /** Quantity of each material per packet, per product. One recipe applies to every month. */

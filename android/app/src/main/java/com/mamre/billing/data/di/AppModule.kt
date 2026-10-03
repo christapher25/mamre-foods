@@ -88,7 +88,9 @@ object AppModule {
 
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "mamre.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "mamre.db")
+            .fallbackToDestructiveMigration(true) // the catalog and its cursor are pulled again; nothing else is stored yet
+            .build()
 
     @Provides @Singleton
     fun transactionRunner(db: AppDatabase): TransactionRunner = RoomTransactionRunner(db)

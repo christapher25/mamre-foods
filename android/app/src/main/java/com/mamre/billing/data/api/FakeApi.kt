@@ -1,7 +1,7 @@
 package com.mamre.billing.data.api
 
-import com.mamre.billing.data.demo.DemoIds
 import com.mamre.billing.data.demo.SharedPriceTable
+import com.mamre.billing.domain.model.PaymentMode
 import java.time.LocalDate
 
 /**
@@ -47,31 +47,29 @@ class FakeApi(
     }
 
     /**
-     * Static catalog (products, types, customers) on the first pull; selling prices come from the table
-     * shared with the Admin's server stand-in, so a price the Admin sets reaches the worker at the next pull
-     * from an older cursor. The cursor is the highest sync version: nothing newer means an empty answer.
+     * The whole worker catalog (products, types with their price-edit flag, customers, default and override
+     * prices) comes from the table shared with the Admin's server stand-in, so anything the Admin adds or
+     * changes reaches the worker at the next pull from an older cursor. The cursor is the highest sync
+     * version: nothing newer means an empty answer.
      */
     override suspend fun catalog(accessToken: String, cursor: Long): CatalogPull {
         requireAccess(accessToken)
-        val version = maxOf(SharedPriceTable.STATIC_CATALOG_VERSION, prices.version)
+        val version = prices.version
         if (cursor >= version) return CatalogPull(cursor = cursor)
-        val first = cursor < SharedPriceTable.STATIC_CATALOG_VERSION
         return CatalogPull(
             cursor = version,
-            products = if (first) listOf(
-                ProductDto(FRESH, "FRESH", "Mamre Fresh Chapathi", 12, true),
-                ProductDto(CHAPATHI, "CHAPATHI", "Mamre Chapathi", 12, true),
-            ) else emptyList(),
-            customerTypes = if (first) listOf(
-                CustomerTypeDto(RESTAURANT, "Restaurant", true),
-                CustomerTypeDto(SHOP, "Shop", true),
-                CustomerTypeDto(RETAIL, "Retail", true),
-            ) else emptyList(),
-            customers = if (first) listOf(
-                CustomerDto(DemoIds.RESTAURANT, "Test Restaurant", RESTAURANT, "", "", "credit", true),
-                CustomerDto(DemoIds.SHOP, "Test Shop", SHOP, "", "", "credit", true),
-                CustomerDto(DemoIds.RETAIL_CUSTOMER, "Test Retail Customer", RETAIL, "", "", "cash", true),
-            ) else emptyList(),
+            products = prices.productsAfter(cursor).map {
+                ProductDto(it.id, it.code, it.name, it.standardPacketSize, it.isActive)
+            },
+            customerTypes = prices.typesAfter(cursor).map {
+                CustomerTypeDto(it.id, it.name, it.isActive, it.workerCanEditPrice)
+            },
+            customers = prices.customersAfter(cursor).map {
+                CustomerDto(
+                    it.id, it.name, it.typeId, it.phone, it.address,
+                    if (it.paymentMode == PaymentMode.CREDIT) "credit" else "cash", it.isActive,
+                )
+            },
             priceDefaults = prices.entriesAfter(cursor).map {
                 PriceDefaultDto(
                     id = it.id,
@@ -80,6 +78,9 @@ class FakeApi(
                     unitPriceCents = it.unitPriceCents,
                     effectiveFrom = it.effectiveFrom.toString(),
                 )
+            },
+            priceOverrides = prices.overridesAfter(cursor).map {
+                PriceOverrideDto(it.id, it.customerId, it.productId, it.unitPriceCents, it.effectiveFrom.toString(), it.isActive)
             },
         )
     }
@@ -104,10 +105,5 @@ class FakeApi(
     private companion object {
         const val ACCESS_PREFIX = "fake-access-"
         const val REFRESH_PREFIX = "fake-refresh-"
-        const val FRESH = DemoIds.FRESH
-        const val CHAPATHI = DemoIds.CHAPATHI
-        const val RESTAURANT = DemoIds.RESTAURANT_TYPE
-        const val SHOP = DemoIds.SHOP_TYPE
-        const val RETAIL = DemoIds.RETAIL_TYPE
     }
 }

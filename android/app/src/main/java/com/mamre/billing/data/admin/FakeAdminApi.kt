@@ -1,5 +1,6 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.data.demo.SharedCustomerRow
 import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminCustomerType
@@ -135,12 +136,13 @@ class FakeAdminApi(
     override suspend fun addCustomer(form: CustomerForm, by: String): AdminCustomer {
         checkForm(form)
         val c = AdminCustomer(
-            id = "c-new-${s.customers.size + 1}",
+            id = "c-new-${s.customers.size + 1}", // ids never repeat: customers are never removed
             name = form.name.trim(), typeId = form.typeId,
             typeName = s.types.first { it.id == form.typeId }.name,
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive, openingBalanceCents = form.openingBalanceCents,
         )
+        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0)) // workers get it at their next sync
         changed(by, "Add customer ${c.name}", "-", describe(c)) { it.copy(customers = it.customers + c) }
         return c
     }
@@ -153,6 +155,9 @@ class FakeAdminApi(
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive,
         )
+        prices.updateCustomer(id) {
+            it.copy(name = updated.name, typeId = updated.typeId, phone = updated.phone, address = updated.address, paymentMode = updated.paymentMode, isActive = updated.isActive)
+        }
         changed(by, "Edit customer ${old.name}", describe(old), describe(updated)) { st ->
             st.copy(customers = st.customers.map { if (it.id == id) updated else it })
         }
@@ -178,31 +183,36 @@ class FakeAdminApi(
         changed(by, "Price ${product.name} / ${type.name}", before, "${formatCents(priceCents)} from $from") { it }
     }
 
+    private fun overrideRows(customerId: String? = null): List<OverridePrice> =
+        prices.overrides().filter { customerId == null || it.customerId == customerId }.map {
+            OverridePrice(it.id, it.customerId, it.productId, it.unitPriceCents, it.effectiveFrom, it.isActive, s.overrideNotes[it.id].orEmpty())
+        }
+
     override suspend fun overrides(customerId: String): List<OverridePrice> =
-        s.overrides.filter { it.customerId == customerId }.sortedByDescending { it.effectiveFrom }
+        overrideRows(customerId).sortedByDescending { it.effectiveFrom }
 
     override suspend fun setOverride(customerId: String, productId: String, priceCents: Long, from: LocalDate, note: String, by: String) {
         val customer = s.customers.firstOrNull { it.id == customerId } ?: refuse("Customer not found")
         val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
-        val latest = s.overrides.filter { it.customerId == customerId && it.productId == productId && it.isActive }.maxByOrNull { it.effectiveFrom }
+        val latest = overrideRows(customerId).filter { it.productId == productId && it.isActive }.maxByOrNull { it.effectiveFrom }
         val check = validateNewPrice(centsToPlain(priceCents), from, latest?.effectiveFrom)
         if (check is PriceCheck.Invalid) refuse(check.problems.joinToString { priceProblemMessage(it, latest?.effectiveFrom) })
         val before = latest?.let { "${formatCents(it.unitPriceCents)} from ${it.effectiveFrom}" } ?: "no override"
+        val row = prices.addOverride(customerId, productId, priceCents, from) // workers receive it at their next sync
         changed(by, "Override ${customer.name} / ${product.name}", before, "${formatCents(priceCents)} from $from") { st ->
-            st.copy(overrides = st.overrides + OverridePrice("po-${st.overrides.size + 1}", customerId, productId, priceCents, from, true, note.trim()))
+            st.copy(overrideNotes = st.overrideNotes + (row.id to note.trim()))
         }
     }
 
     override suspend fun clearOverride(customerId: String, productId: String, by: String) {
         val customer = s.customers.firstOrNull { it.id == customerId } ?: refuse("Customer not found")
         val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
-        val active = s.overrides.filter { it.customerId == customerId && it.productId == productId && it.isActive }
+        val active = overrideRows(customerId).filter { it.productId == productId && it.isActive }
         if (active.isEmpty()) refuse("There is no override to clear")
         val latest = active.maxByOrNull { it.effectiveFrom }!!
         // The row is kept and switched off: price history is never deleted (Doc 2 s4.2).
-        changed(by, "Clear override ${customer.name} / ${product.name}", "${formatCents(latest.unitPriceCents)} from ${latest.effectiveFrom}", "no override") { st ->
-            st.copy(overrides = st.overrides.map { if (it in active) it.copy(isActive = false) else it })
-        }
+        prices.deactivateOverrides(customerId, productId)
+        changed(by, "Clear override ${customer.name} / ${product.name}", "${formatCents(latest.unitPriceCents)} from ${latest.effectiveFrom}", "no override") { it }
     }
 
     // ------------------------------------------------------------------ costing, materials, purchases

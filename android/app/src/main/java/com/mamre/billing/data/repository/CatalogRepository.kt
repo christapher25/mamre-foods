@@ -55,7 +55,7 @@ class CatalogRepository(
     suspend fun applyCatalog(pull: CatalogPull) {
         // Map first so a bad row fails before anything is written.
         val productRows = pull.products.map { ProductEntity(it.id, it.code, it.name, it.unitsPerPacket, it.isActive) }
-        val typeRows = pull.customerTypes.map { CustomerTypeEntity(it.id, it.name, it.isActive) }
+        val typeRows = pull.customerTypes.map { CustomerTypeEntity(it.id, it.name, it.isActive, it.workerCanEditPrice) }
         val customerRows = pull.customers.map {
             check(it.paymentMode == "cash" || it.paymentMode == "credit") {
                 "Unknown payment_mode: ${it.paymentMode}"

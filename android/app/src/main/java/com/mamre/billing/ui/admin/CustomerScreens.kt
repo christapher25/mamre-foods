@@ -79,6 +79,9 @@ data class CustomerListUi(
     val customers: List<AdminCustomer> = emptyList(),
     val balances: Map<String, Long> = emptyMap(),
     val query: String = "",
+    val types: List<AdminCustomerType> = emptyList(),
+    /** Null shows every type (change set C1: Restaurant, Shop, Retail, Catering). */
+    val typeId: String? = null,
 )
 
 @HiltViewModel
@@ -90,24 +93,34 @@ class CustomerListViewModel @Inject constructor(private val api: AdminApi) : Vie
         viewModelScope.launch {
             api.revision.collect {
                 val customers = api.customers()
-                _ui.update { s -> s.copy(loading = false, customers = customers, balances = customers.associate { it.id to api.customerBalance(it.id) }) }
+                _ui.update { s -> s.copy(loading = false, types = api.customerTypes(), customers = customers, balances = customers.associate { it.id to api.customerBalance(it.id) }) }
             }
         }
     }
 
     fun setQuery(q: String) = _ui.update { it.copy(query = q) }
+
+    fun setType(typeId: String?) = _ui.update { it.copy(typeId = typeId) }
 }
 
 @Composable
 fun CustomerListScreen(onOpen: (String) -> Unit, onAdd: () -> Unit, viewModel: CustomerListViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    CustomerListContent(ui, viewModel::setQuery, onOpen, onAdd)
+    CustomerListContent(ui, viewModel::setQuery, onOpen, onAdd, viewModel::setType)
 }
 
 @Composable
-fun CustomerListContent(ui: CustomerListUi, onQuery: (String) -> Unit, onOpen: (String) -> Unit, onAdd: () -> Unit) {
+fun CustomerListContent(
+    ui: CustomerListUi,
+    onQuery: (String) -> Unit,
+    onOpen: (String) -> Unit,
+    onAdd: () -> Unit,
+    onType: (String?) -> Unit = {},
+) {
     val q = ui.query.trim().lowercase()
-    val shown = ui.customers.filter { q.isEmpty() || it.name.lowercase().contains(q) || it.phone.contains(q) }
+    val shown = ui.customers.filter {
+        (ui.typeId == null || it.typeId == ui.typeId) && (q.isEmpty() || it.name.lowercase().contains(q) || it.phone.contains(q))
+    }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Customers", actions = { DemoChip() })
         LazyColumn(
@@ -119,6 +132,13 @@ fun CustomerListContent(ui: CustomerListUi, onQuery: (String) -> Unit, onOpen: (
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     PrimaryButton("Add customer", onClick = onAdd)
                     LabeledTextField(label = "Search by name or phone", value = ui.query, onValueChange = onQuery)
+                    OptionChips(
+                        options = listOf<AdminCustomerType?>(null) + ui.types,
+                        selected = ui.types.firstOrNull { it.id == ui.typeId },
+                        label = { it?.name ?: "All" },
+                        onSelect = { onType(it?.id) },
+                        perRow = 3,
+                    )
                 }
             }
             if (shown.isEmpty() && !ui.loading) item { EmptyState("No customers match") }
@@ -424,6 +444,11 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
                     Switch(checked = active, onCheckedChange = { active = it })
                 }
             }
+            Text(
+                "Workers receive this at their next sync.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             PrimaryButton("Save customer", onClick = {
                 tried = true

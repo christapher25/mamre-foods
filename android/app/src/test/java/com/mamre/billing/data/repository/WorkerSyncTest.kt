@@ -50,7 +50,7 @@ class WorkerSyncTest {
     private val sync = WorkerSync(repo, store)
 
     private suspend fun shopFreshPrice(date: LocalDate): Long {
-        val shop = repo.activeCustomers().first { it.id == DemoIds.SHOP }
+        val shop = repo.activeCustomers().first { it.id == "c-desi-grocers" } // a Shop customer with no override (Patel Mart has one)
         val fresh = repo.activeProducts().first { it.id == DemoIds.FRESH }
         return (resolvePrice(shop, fresh, date, repo.priceBook()) as PriceResult.Found).unitPriceCents
     }
@@ -94,5 +94,78 @@ class WorkerSyncTest {
         offline = false
         assertEquals(SyncOutcome.Done, sync.syncNow())
         assertEquals(333L, shopFreshPrice(LocalDate.of(2026, 11, 2)))
+    }
+}
+
+/** Change set C1: one shared catalog; what the Admin adds reaches the worker only through Sync now. */
+class SharedCatalogSyncTest {
+    private val today = LocalDate.of(2026, 10, 3)
+    private val zone = ZoneId.systemDefault()
+    private val clock = Clock.fixed(today.atTime(12, 0).atZone(zone).toInstant(), zone)
+    private val table = SharedPriceTable.seeded(today)
+    private val admin = FakeAdminApi(clock, table)
+    private val api = FakeApi(table)
+    private val types = FakeCustomerTypeDao()
+    private val repo = CatalogRepository(
+        FakeProductDao(), types, FakeCustomerDao(), FakePriceDefaultDao(), FakePriceOverrideDao(),
+        FakeSyncStateDao(), FakeTransactionRunner(),
+        CatalogRemote { cursor -> api.catalog(api.login("user1", "user1").access, cursor) },
+    )
+    private val sync = WorkerSync(repo, DemoStore())
+
+    private fun form(name: String, type: String = DemoIds.CATERING_TYPE) = com.mamre.billing.domain.admin.CustomerForm(
+        name, type, "555-0100", "1 Main St", com.mamre.billing.domain.model.PaymentMode.CREDIT, "", true,
+    )
+
+    @Test fun aCustomerAddedByTheAdminAppearsInTheWorkerListAfterSyncNowAndNotBefore() = runTest {
+        sync.syncNow()
+        assertTrue(repo.activeCustomers().none { it.name == "Banquet Hall" })
+        admin.addCustomer(form("Banquet Hall"), "Test Admin")
+        assertTrue("not before the sync", repo.activeCustomers().none { it.name == "Banquet Hall" })
+        sync.syncNow()
+        val c = repo.activeCustomers().single { it.name == "Banquet Hall" }
+        assertEquals(DemoIds.CATERING_TYPE, c.typeId)
+    }
+
+    @Test fun anEditedCustomerReachesTheWorkerAtTheNextSyncToo() = runTest {
+        sync.syncNow()
+        val id = DemoIds.RETAIL_CUSTOMER
+        admin.updateCustomer(id, form("Rao Family Restaurant", DemoIds.RESTAURANT_TYPE), "Test Admin")
+        assertEquals("Rao Family", repo.customer(id)!!.name)
+        sync.syncNow()
+        assertEquals("Rao Family Restaurant", repo.customer(id)!!.name)
+        assertEquals(DemoIds.RESTAURANT_TYPE, repo.customer(id)!!.typeId)
+    }
+
+    @Test fun theWorkerCatalogHasFourTypesAndTheFlagsReachItWithTheFirstSync() = runTest {
+        sync.syncNow()
+        val byName = repo.priceBook().customerTypes.associateBy { it.name }
+        assertEquals(setOf("Restaurant", "Shop", "Retail", "Catering"), byName.keys)
+        assertEquals(
+            mapOf("Restaurant" to false, "Shop" to false, "Retail" to true, "Catering" to true),
+            byName.mapValues { it.value.workerCanEditPrice },
+        )
+    }
+
+    @Test fun anOverridePriceSetByTheAdminReachesTheWorkerAfterSync() = runTest {
+        sync.syncNow()
+        val before = repo.priceBook().overrides.size
+        admin.setOverride("c-desi-grocers", DemoIds.FRESH, 290, LocalDate.of(2026, 11, 1), "Loyalty", "Test Admin")
+        assertEquals(before, repo.priceBook().overrides.size)
+        sync.syncNow()
+        val o = repo.priceBook().overrides.single { it.customerId == "c-desi-grocers" }
+        assertEquals(290L, o.unitPriceCents)
+        admin.clearOverride("c-desi-grocers", DemoIds.FRESH, "Test Admin")
+        sync.syncNow()
+        assertTrue(repo.priceBook().overrides.single { it.customerId == "c-desi-grocers" }.let { !it.isActive })
+    }
+
+    @Test fun everyCustomerExistsOnceWithOneIdOnBothSides() = runTest {
+        val shared = table.customers()
+        assertEquals(shared.size, shared.map { it.id }.toSet().size)
+        assertEquals(shared.size, shared.map { it.name }.toSet().size)
+        assertEquals(shared.map { it.id }.toSet(), admin.customers().map { it.id }.toSet())
+        sync.syncNow()
+        assertEquals(shared.map { it.id }.toSet(), repo.activeCustomers().map { it.id }.toSet())
     }
 }

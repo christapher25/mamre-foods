@@ -6,6 +6,7 @@ import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.InvoiceDraft
 import com.mamre.billing.domain.model.Customer
+import com.mamre.billing.domain.model.CustomerType
 import com.mamre.billing.domain.model.Product
 import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.pricing.PriceResult
@@ -46,6 +47,8 @@ data class InvoiceUi(
     val deviceCode: String? = null,
     val query: String = "",
     val customers: List<CustomerRow> = emptyList(),
+    /** The active customer types in tile order (Restaurant, Shop, Retail, Catering, then any others). */
+    val types: List<CustomerType> = emptyList(),
     val customerChosen: Boolean = false,
     val customer: Customer? = null,
     val customerName: String = "",
@@ -105,6 +108,7 @@ class InvoiceFlowViewModel @Inject constructor(
             query = inp.query,
             customers = filterCustomers(snap.customers, inp.query)
                 .map { CustomerRow(it, snap.typeName(it), demo.balanceOf(it.id)) },
+            types = snap.types,
             customerChosen = inp.chosen,
             customer = customer,
             customerName = customer?.name ?: WALK_IN_NAME,

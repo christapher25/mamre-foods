@@ -19,6 +19,8 @@ data class CustomerType(
     val id: String,
     val name: String,
     val isActive: Boolean,
+    /** Change set C3: whether a worker may change a line's price for this type (Retail and Catering by default). */
+    val workerCanEditPrice: Boolean = false,
 )
 
 data class Customer(

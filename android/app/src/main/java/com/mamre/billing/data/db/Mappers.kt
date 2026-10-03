@@ -9,7 +9,7 @@ import com.mamre.billing.domain.model.Product
 
 fun ProductEntity.toDomain() = Product(id, code, name, unitsPerPacket, isActive)
 
-fun CustomerTypeEntity.toDomain() = CustomerType(id, name, isActive)
+fun CustomerTypeEntity.toDomain() = CustomerType(id, name, isActive, workerCanEditPrice)
 
 fun CustomerEntity.toDomain() = Customer(
     id = id,

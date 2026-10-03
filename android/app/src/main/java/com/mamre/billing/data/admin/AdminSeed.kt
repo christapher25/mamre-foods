@@ -43,17 +43,31 @@ object SeedIds {
     const val BAKING_POWDER = "i-baking-powder"
     const val SORBATE = "i-sorbate"
     const val PACKING = "i-packing"
-    const val SPICE_GARDEN = "c-spice-garden"
-    const val PATEL_MART = "c-patel-mart"
+    const val CATERING = DemoIds.CATERING_TYPE
+    // Customers use the worker's ids where both sides had one, so each customer exists once (change set C1).
+    const val SPICE_GARDEN = DemoIds.RESTAURANT
+    const val PATEL_MART = DemoIds.SHOP
+    const val RAO_FAMILY = DemoIds.RETAIL_CUSTOMER
+    const val ROYAL_BANQUETS = DemoIds.CATERING
     const val CORNER_SHOP = "c-corner-shop"
     const val CAT_ELECTRICITY = "x-electricity"
     const val CAT_MACHINE = "x-machine"
     const val CAT_LABOUR = "x-labour"
 }
 
-private const val UNIT_PACKET = 12
 private const val PACKING_CENTS = 15L
 private const val LAUNCH_AFTER_MONTHS = 2L // Mamre Chapathi is sold from the third month of the demo data
+
+/** How a customer behaves in the demo history. Name, type and payment mode come from the shared catalog. */
+private data class Behaviour(
+    val id: String,
+    val baseQty: Int,
+    val everyDays: Int,
+    val offset: Int,
+    val opening: Long = 0,
+    val payPercent: Int = 60,
+    val stoppedPayingDaysAgo: Int? = null,
+)
 
 private data class CustomerSeed(
     val id: String,
@@ -80,34 +94,33 @@ private data class CustomerSeed(
  * Doc 1 P-2); the material prices are the invented ones of Doc 1 s9.5 (P-3 is pending).
  */
 object AdminSeed {
-    private val customerSeeds = listOf(
-        CustomerSeed(SeedIds.SPICE_GARDEN, "Spice Garden", SeedIds.RESTAURANT, PaymentMode.CREDIT, 80, 3, 0),
-        CustomerSeed("c-curry-house", "Curry House", SeedIds.RESTAURANT, PaymentMode.CREDIT, 64, 3, 1, opening = 15_000, payPercent = 70),
-        CustomerSeed("c-taj-kitchen", "Taj Kitchen", SeedIds.RESTAURANT, PaymentMode.CREDIT, 72, 4, 2, stoppedPayingDaysAgo = 45),
-        CustomerSeed("c-masala-bistro", "Masala Bistro", SeedIds.RESTAURANT, PaymentMode.CASH, 48, 4, 3),
-        CustomerSeed(SeedIds.PATEL_MART, "Patel Mart", SeedIds.SHOP, PaymentMode.CREDIT, 48, 5, 0, payPercent = 80),
-        CustomerSeed(SeedIds.CORNER_SHOP, "Corner Shop", SeedIds.SHOP, PaymentMode.CREDIT, 36, 5, 2, stoppedPayingDaysAgo = 120),
-        CustomerSeed("c-desi-grocers", "Desi Grocers", SeedIds.SHOP, PaymentMode.CASH, 40, 6, 1),
-        CustomerSeed("c-rao-family", "Rao Family", SeedIds.RETAIL, PaymentMode.CASH, 12, 9, 4),
-        CustomerSeed("c-sharma-family", "Sharma Family", SeedIds.RETAIL, PaymentMode.CREDIT, 16, 10, 5, payPercent = 40),
+    private val behaviours = listOf(
+        Behaviour(SeedIds.SPICE_GARDEN, 80, 3, 0),
+        Behaviour("c-curry-house", 64, 3, 1, opening = 15_000, payPercent = 70),
+        Behaviour("c-taj-kitchen", 72, 4, 2, stoppedPayingDaysAgo = 45),
+        Behaviour("c-masala-bistro", 48, 4, 3),
+        Behaviour(SeedIds.PATEL_MART, 48, 5, 0, payPercent = 80),
+        Behaviour(SeedIds.CORNER_SHOP, 36, 5, 2, stoppedPayingDaysAgo = 120),
+        Behaviour("c-desi-grocers", 40, 6, 1),
+        Behaviour(SeedIds.RAO_FAMILY, 12, 9, 4),
+        Behaviour("c-sharma-family", 16, 10, 5, payPercent = 40),
+        Behaviour(SeedIds.ROYAL_BANQUETS, 96, 6, 3, payPercent = 60),
     )
 
     fun build(today: LocalDate, prices: SharedPriceTable = SharedPriceTable.seeded(today)): ServerState {
+        val sharedCustomers = prices.customers().associateBy { it.id }
+        val customerSeeds = behaviours.map { b ->
+            val row = sharedCustomers.getValue(b.id)
+            CustomerSeed(b.id, row.name, row.typeId, row.paymentMode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
+        }
         val last = YearMonth.from(today)
         val first = last.minusMonths(6)
         val start = first.atDay(1)
         val launch = first.plusMonths(LAUNCH_AFTER_MONTHS).atDay(1)
 
-        val types = listOf(
-            AdminCustomerType(SeedIds.RESTAURANT, "Restaurant"),
-            AdminCustomerType(SeedIds.SHOP, "Shop"),
-            AdminCustomerType(SeedIds.RETAIL, "Retail"),
-        )
+        val types = prices.types().map { AdminCustomerType(it.id, it.name, it.workerCanEditPrice) }
         val typeName = types.associate { it.id to it.name }
-        val products = listOf(
-            AdminProduct(SeedIds.FRESH, "FRESH", "Mamre Fresh Chapathi", UNIT_PACKET, PACKING_CENTS),
-            AdminProduct(SeedIds.CHAPATHI, "CHAPATHI", "Mamre Chapathi", UNIT_PACKET, PACKING_CENTS),
-        )
+        val products = prices.products().map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, PACKING_CENTS) }
         val productName = products.associate { it.id to it.name }
         val customers = customerSeeds.map {
             AdminCustomer(
@@ -118,10 +131,8 @@ object AdminSeed {
         }
 
         val priceEntries = prices.all().map { PriceEntry(it.id, it.productId, it.customerTypeId, it.unitPriceCents, it.effectiveFrom) }
-        val overrides = listOf(
-            OverridePrice("po-1", SeedIds.SPICE_GARDEN, SeedIds.CHAPATHI, 240, launch, true, "Volume customer"),
-            OverridePrice("po-2", SeedIds.PATEL_MART, SeedIds.FRESH, 285, start, true, "Agreed at signup"),
-        )
+        val overrideNotes = mapOf("po-1" to "Volume customer", "po-2" to "Agreed at signup")
+        val overrides = prices.overrides().map { OverridePrice(it.id, it.customerId, it.productId, it.unitPriceCents, it.effectiveFrom, it.isActive, overrideNotes[it.id].orEmpty()) }
 
         fun unitPrice(c: CustomerSeed?, productId: String, typeId: String, date: LocalDate): Long? {
             val o = overrides.filter {
@@ -358,7 +369,6 @@ object AdminSeed {
             returns = returns.toList(),
             categories = categories,
             expenses = expenses.toList(),
-            overrides = overrides,
             materials = materials,
             recipes = recipes,
             purchases = purchases.toList(),
@@ -366,6 +376,7 @@ object AdminSeed {
             openingStock = openingStock,
             wastageBp = DEFAULT_WASTAGE_BP,
             settings = BusinessSettings("Mamre Foods", "Address pending (Doc 1 P-6)", "Phone pending", "Thank you!"),
+            overrideNotes = overrideNotes,
             workers = listOf(
                 WorkerAccount("w-1", "Test Worker", "user1", "W1", true),
                 WorkerAccount("w-2", "Second Worker", "user2", "W2", false),

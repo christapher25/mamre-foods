@@ -24,6 +24,7 @@ data class CustomerTypeEntity(
     @PrimaryKey val id: String,
     val name: String,
     @ColumnInfo(name = "is_active") val isActive: Boolean,
+    @ColumnInfo(name = "worker_can_edit_price") val workerCanEditPrice: Boolean = false,
 )
 
 @Entity(tableName = "customers", indices = [Index("type_id")])

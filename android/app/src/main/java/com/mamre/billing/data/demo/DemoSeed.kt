@@ -13,9 +13,11 @@ object DemoIds {
     const val RESTAURANT_TYPE = "00000000-0000-4000-8000-0000000000e1"
     const val SHOP_TYPE = "00000000-0000-4000-8000-0000000000e2"
     const val RETAIL_TYPE = "00000000-0000-4000-8000-0000000000e3"
+    const val CATERING_TYPE = "00000000-0000-4000-8000-0000000000e4"
     const val RESTAURANT = "00000000-0000-4000-8000-0000000000c1"
     const val SHOP = "00000000-0000-4000-8000-0000000000c2"
     const val RETAIL_CUSTOMER = "00000000-0000-4000-8000-0000000000c3"
+    const val CATERING = "00000000-0000-4000-8000-0000000000c4"
 }
 
 /**
@@ -28,7 +30,7 @@ object DemoIds {
  * Prices are the invented test prices in FakeApi's catalog (Doc 1 P-4 is pending).
  */
 object DemoSeed {
-    private const val RESTAURANT_NAME = "Test Restaurant"
+    private const val RESTAURANT_NAME = "Spice Garden"
     private const val RESTAURANT_TYPE_NAME = "Restaurant"
     private const val CHAPATHI_PRICE_CENTS = 250L
 

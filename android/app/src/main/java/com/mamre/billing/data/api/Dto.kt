@@ -61,6 +61,8 @@ data class CustomerTypeDto(
     val id: String,
     val name: String,
     @SerialName("is_active") val isActive: Boolean,
+    /** Owner decision C3: the worker may change a line's price for customers of this type. */
+    @SerialName("worker_can_edit_price") val workerCanEditPrice: Boolean = false,
 )
 
 @Serializable

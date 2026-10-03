@@ -24,7 +24,12 @@ sealed interface Figure {
 
 val Figure.valueOrNull: Long? get() = (this as? Figure.Known)?.value
 
-data class AdminCustomerType(val id: String, val name: String)
+data class AdminCustomerType(
+    val id: String,
+    val name: String,
+    /** Change set C3: whether a worker may change a line's price for customers of this type. */
+    val workerCanEditPrice: Boolean = false,
+)
 
 data class AdminProduct(
     val id: String,

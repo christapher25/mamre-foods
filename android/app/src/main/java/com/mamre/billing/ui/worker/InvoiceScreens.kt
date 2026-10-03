@@ -3,7 +3,11 @@ package com.mamre.billing.ui.worker
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,7 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
+import com.mamre.billing.domain.model.CustomerType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,14 +55,38 @@ import com.mamre.billing.ui.theme.Spacing
 /** The message a worker reads for a product that cannot be sold (Doc 1 s4.2). */
 const val NO_PRICE_MESSAGE = "No price set - contact admin"
 
-/** W2 Select customer (Doc 2 s10): search, customer cards, and a prominent Walk-in sale button. */
+/**
+ * W2 Select customer (Doc 2 s10, change set C1): one tile per customer type with a count; a tile opens that
+ * type's customers with search. A Walk-in sale button stays under Retail (walk-in follows the Retail rules).
+ */
 @Composable
 fun CustomerScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onChosen: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
+    var typeId by rememberSaveable { mutableStateOf<String?>(null) }
+    val type = ui.types.firstOrNull { it.id == typeId }
+    val goBack = {
+        if (type != null) {
+            typeId = null
+            vm.onQuery("")
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(enabled = type != null) { goBack() }
+    val walkIn: @Composable () -> Unit = {
+        PrimaryButton("Walk-in sale", onClick = {
+            vm.selectWalkIn()
+            onChosen()
+        })
+    }
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Select customer", onBack = onBack)
+        AppTopBar(title = type?.name ?: "Select customer", subtitle = if (type != null) "Select customer" else null, onBack = goBack)
+        if (type == null) {
+            TypeTiles(ui, onType = { typeId = it.id }, walkIn = walkIn)
+            return@Column
+        }
         CustomerList(
-            rows = ui.customers,
+            rows = ui.customers.filter { it.customer.typeId == type.id },
             query = ui.query,
             onQuery = vm::onQuery,
             loading = ui.loading,
@@ -63,13 +94,42 @@ fun CustomerScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onChosen: () ->
                 vm.selectCustomer(it.customer)
                 onChosen()
             },
-            header = {
-                PrimaryButton("Walk-in sale", onClick = {
-                    vm.selectWalkIn()
-                    onChosen()
-                })
-            },
+            header = if (type.name == RETAIL_TYPE_NAME) walkIn else null,
         )
+    }
+}
+
+private const val RETAIL_TYPE_NAME = "Retail"
+
+/** Four type tiles in two columns with the number of customers, then the Walk-in sale button. */
+@Composable
+private fun TypeTiles(ui: InvoiceUi, onType: (CustomerType) -> Unit, walkIn: @Composable () -> Unit) {
+    val counts = ui.types.associate { t -> t.id to ui.customers.count { it.customer.typeId == t.id } }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        if (!ui.loading && ui.types.isEmpty()) {
+            Text("No customer types yet. Tap Sync now on the Sync screen.", style = MaterialTheme.typography.bodyLarge)
+        }
+        ui.types.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                pair.forEach { t ->
+                    AppCard(onClick = { onType(t) }, modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        Text(t.name, style = MaterialTheme.typography.titleLarge)
+                        val n = counts[t.id] ?: 0
+                        Text(
+                            "$n customer${if (n == 1) "" else "s"}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        Text("Retail rules also apply to a walk-in.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        walkIn()
     }
 }
 
