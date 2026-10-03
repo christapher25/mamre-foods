@@ -54,6 +54,7 @@ fun HomeScreen(
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
             title = state.workerName ?: "Mamre Foods",
+            showLogo = true,
             subtitle = state.deviceCode?.let { "Device $it" },
             actions = {
                 StatusChip(DEMO_DATA_LABEL, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm))

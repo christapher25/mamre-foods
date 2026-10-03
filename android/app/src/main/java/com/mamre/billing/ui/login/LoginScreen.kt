@@ -18,6 +18,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.ui.components.LabeledTextField
+import com.mamre.billing.ui.components.MamreLogo
+import androidx.compose.ui.unit.dp
 import com.mamre.billing.ui.components.PrimaryButton
 import com.mamre.billing.ui.theme.Spacing
 
@@ -36,6 +38,7 @@ fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
         verticalArrangement = Arrangement.spacedBy(Spacing.lg, Alignment.CenterVertically),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            MamreLogo(size = 96.dp, modifier = Modifier.padding(bottom = Spacing.sm))
             Text(
                 "Mamre Foods",
                 style = MaterialTheme.typography.headlineLarge,

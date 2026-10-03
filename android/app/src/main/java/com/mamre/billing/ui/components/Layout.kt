@@ -43,6 +43,7 @@ fun AppTopBar(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
+    showLogo: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Surface(modifier = modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface) {
@@ -58,6 +59,8 @@ fun AppTopBar(
                     IconButton(onClick = onBack, modifier = Modifier.size(Sizes.touchTarget)) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
+                } else if (showLogo) {
+                    MamreLogo(size = 32.dp, modifier = Modifier.padding(start = Spacing.sm))
                 } else {
                     Spacer(Modifier.size(Spacing.sm))
                 }

@@ -97,6 +97,7 @@ fun DashboardContent(ui: DashboardUi, adminName: String?, onMonth: (YearMonth) -
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
             title = "Dashboard",
+            showLogo = true,
             subtitle = adminName?.let { "Admin - $it" } ?: "Admin",
             actions = { StatusChip(DEMO_DATA_LABEL, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm)) },
         )
