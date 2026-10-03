@@ -58,6 +58,8 @@ data class AdminCustomer(
     val openingBalanceCents: Long,
     /** Area or branch (change set D2). */
     val location: String = "",
+    /** Corporate account (change set D4): hidden from the salesman side and from bills, still tracked here. */
+    val isCorporate: Boolean = false,
 ) {
     /** "Name - Location": what the Admin lists show, so two stores of one chain can be told apart. */
     val label: String get() = com.mamre.billing.domain.model.customerLabel(name, location)
@@ -76,6 +78,8 @@ data class CustomerForm(
     val openingBalanceCents: Long = 0,
     /** Area or branch (change set D2). Required except for a Retail customer whose name is new. */
     val location: String = "",
+    /** Corporate account (change set D4). */
+    val isCorporate: Boolean = false,
 )
 
 data class InvoiceItem(

@@ -67,7 +67,7 @@ class FakeApi(
             customers = prices.customersAfter(cursor).map {
                 CustomerDto(
                     it.id, it.name, it.typeId, it.phone, it.address,
-                    if (it.paymentMode == PaymentMode.CREDIT) "credit" else "cash", it.isActive, it.location,
+                    if (it.paymentMode == PaymentMode.CREDIT) "credit" else "cash", it.isActive, it.location, it.isCorporate,
                 )
             },
             priceDefaults = prices.entriesAfter(cursor).map {

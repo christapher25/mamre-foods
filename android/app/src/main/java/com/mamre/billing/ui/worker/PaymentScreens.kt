@@ -71,6 +71,8 @@ data class PaymentUi(
     val note: String = "",
     val check: PaymentCheck = PaymentCheck.Rejected(PaymentProblem.NOT_AN_AMOUNT),
 ) {
+    /** Corporate account (change set D4): the form shows no balance. */
+    val isCorporate: Boolean get() = customer?.isCorporate == true
     val noteMissing: Boolean get() = noteMissingForOther(method, note)
     val canRecord: Boolean
         get() = customer != null && check is PaymentCheck.Ok && !noteMissing && deviceCode != null
@@ -139,7 +141,7 @@ class PaymentFlowViewModel @Inject constructor(
         val salesman = session.profile?.fullName ?: return null
         if (!u.canRecord) return null
         return store.recordPayment(
-            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note, salesman, customer.location),
+            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note, salesman, customer.location, customer.isCorporate),
         )
     }
 }
@@ -173,9 +175,12 @@ fun PaymentFormScreen(vm: PaymentFlowViewModel, onBack: () -> Unit, onRecorded: 
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            AppCard {
-                LabelValueRow(if (ui.balanceCents < 0) "Credit on account" else "Balance due") {
-                    AmountText(kotlin.math.abs(ui.balanceCents), size = AmountSize.MEDIUM)
+            // A corporate account shows no balance on the salesman side (change set D4); it is still tracked.
+            if (!ui.isCorporate) {
+                AppCard {
+                    LabelValueRow(if (ui.balanceCents < 0) "Credit on account" else "Balance due") {
+                        AmountText(kotlin.math.abs(ui.balanceCents), size = AmountSize.MEDIUM)
+                    }
                 }
             }
             val rejected = ui.check as? PaymentCheck.Rejected
@@ -195,7 +200,7 @@ fun PaymentFormScreen(vm: PaymentFlowViewModel, onBack: () -> Unit, onRecorded: 
                 onValueChange = vm::onNote,
                 errorText = if (ui.noteMissing && ui.note.isNotEmpty()) "Add a note for Other" else null,
             )
-            if (ok != null) {
+            if (ok != null && !ui.isCorporate) {
                 AppCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
                     if (ok.creditOnAccountCents > 0) {
                         LabelValueRow("Credit on account") {

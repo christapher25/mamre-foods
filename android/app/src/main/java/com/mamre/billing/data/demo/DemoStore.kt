@@ -44,6 +44,7 @@ data class InvoiceDraft(
     /** The signed-in salesman's name, printed on the bill (change set D1). */
     val salesmanName: String = "",
     val customerLocation: String = "",
+    val isCorporate: Boolean = false,
 )
 
 /** Everything the worker screens read. Immutable: a new state replaces the old one. */
@@ -86,6 +87,7 @@ data class PaymentDraft(
     val note: String,
     val salesmanName: String = "",
     val customerLocation: String = "",
+    val isCorporate: Boolean = false,
 )
 
 /** What the worker confirmed on the Return screen (Doc 1 s7.1). */
@@ -152,6 +154,7 @@ class DemoStore(
             balanceAfterCents = previous + total - draft.paidNowCents,
             salesmanName = draft.salesmanName,
             customerLocation = draft.customerLocation,
+            isCorporate = draft.isCorporate,
         )
         _state.update { it.copy(invoices = it.invoices + record, pendingCount = it.pendingCount + 1) }
         return record
@@ -178,6 +181,7 @@ class DemoStore(
             note = draft.note.trim(),
             salesmanName = draft.salesmanName,
             customerLocation = draft.customerLocation,
+            isCorporate = draft.isCorporate,
         )
         _state.update { it.copy(payments = it.payments + record, pendingCount = it.pendingCount + 1) }
         return record

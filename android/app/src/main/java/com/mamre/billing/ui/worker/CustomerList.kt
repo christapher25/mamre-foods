@@ -73,7 +73,7 @@ fun CustomerList(
     }
 }
 
-/** Name, type chip, Cash or Credit chip, and Balance due for a credit customer (Doc 2 s10). */
+/** Name and location, type chip, Cash or Credit chip, and Balance due for a credit customer, never a corporate one (Doc 2 s10, D4). */
 @Composable
 fun CustomerCard(row: CustomerRow, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val customer = row.customer
@@ -87,7 +87,7 @@ fun CustomerCard(row: CustomerRow, onClick: () -> Unit, modifier: Modifier = Mod
             StatusChip(row.typeName)
             StatusChip(if (credit) "Credit" else "Cash", kind = if (credit) ChipKind.ACCENT else ChipKind.NEUTRAL)
         }
-        if (credit) {
+        if (row.showsBalance) {
             val cents = row.balanceCents
             Text(
                 text = if (cents < 0) "Credit on account ${formatCents(-cents)}" else "Balance due ${formatCents(cents)}",

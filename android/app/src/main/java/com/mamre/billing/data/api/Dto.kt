@@ -76,6 +76,8 @@ data class CustomerDto(
     @SerialName("is_active") val isActive: Boolean,
     /** Owner decision D2: area or branch. Not in openapi.yaml v0.2.0 yet (QUESTIONS), so it may be missing. */
     val location: String = "",
+    /** Owner decision D4. Not in openapi.yaml v0.2.0 yet (QUESTIONS), so it may be missing and then means false. */
+    @SerialName("is_corporate") val isCorporate: Boolean = false,
 )
 
 @Serializable

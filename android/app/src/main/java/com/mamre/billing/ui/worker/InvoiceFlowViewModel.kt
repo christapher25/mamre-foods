@@ -6,6 +6,7 @@ import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.InvoiceDraft
 import com.mamre.billing.domain.model.Customer
+import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.CustomerType
 import com.mamre.billing.domain.model.Product
 import com.mamre.billing.domain.money.centsToPlain
@@ -43,7 +44,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** A customer in a pick list, with the balance the ledger gives today (Doc 1 s6.3). */
-data class CustomerRow(val customer: Customer, val typeName: String, val balanceCents: Long)
+data class CustomerRow(val customer: Customer, val typeName: String, val balanceCents: Long) {
+    /** "Balance due" on the card: credit customers only, and never a corporate account (change set D4). */
+    val showsBalance: Boolean get() = customer.paymentMode == PaymentMode.CREDIT && !customer.isCorporate
+}
 
 /** One kind of packet of a product on the builder: its size, how many are entered and its list price. */
 data class PacketRow(
@@ -79,6 +83,8 @@ data class InvoiceUi(
     val customer: Customer? = null,
     val customerName: String = "",
     val customerLocation: String = "",
+    /** Corporate account (change set D4): the payment step and the confirm screen show no balance. */
+    val isCorporate: Boolean = false,
     val typeName: String = "",
     val products: List<ProductRow> = emptyList(),
     val lines: List<InvoiceLine> = emptyList(),
@@ -160,6 +166,7 @@ class InvoiceFlowViewModel @Inject constructor(
             customer = customer,
             customerName = customer?.name ?: WALK_IN_NAME,
             customerLocation = customer?.location.orEmpty(),
+            isCorporate = customer?.isCorporate == true,
             typeName = snap.typeName(customer),
             products = rows,
             lines = lines,
@@ -257,6 +264,7 @@ class InvoiceFlowViewModel @Inject constructor(
                 customerId = u.customer?.id,
                 customerName = u.customerName,
                 customerLocation = u.customerLocation,
+                isCorporate = u.isCorporate,
                 customerTypeName = u.typeName,
                 deviceCode = device,
                 lines = u.lines,

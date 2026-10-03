@@ -24,6 +24,7 @@ fun CustomerEntity.toDomain() = Customer(
     },
     isActive = isActive,
     location = location,
+    isCorporate = isCorporate,
 )
 
 fun PriceDefaultEntity.toDomain() = PriceDefault(id, productId, customerTypeId, unitPriceCents, effectiveFrom)

@@ -14,7 +14,7 @@ import androidx.room.withTransaction
         PriceOverrideEntity::class,
         SyncStateEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

@@ -145,19 +145,19 @@ class FakeAdminApi(
     }
 
     private fun describe(c: AdminCustomer) =
-        "${c.name}, location '${c.location}', ${c.typeName}, ${if (c.paymentMode == PaymentMode.CREDIT) "Credit" else "Cash"}, " +
+        "${c.name}, location '${c.location}', ${if (c.isCorporate) "corporate account" else "not corporate"}, ${c.typeName}, ${if (c.paymentMode == PaymentMode.CREDIT) "Credit" else "Cash"}, " +
             "phone '${c.phone}', address '${c.address}', notes '${c.notes}', ${if (c.isActive) "active" else "inactive"}"
 
     override suspend fun addCustomer(form: CustomerForm, by: String): AdminCustomer {
         checkForm(form)
         val c = AdminCustomer(
             id = "c-new-${s.customers.size + 1}", // ids never repeat: customers are never removed
-            name = normalizeSpaces(form.name), location = normalizeSpaces(form.location), typeId = form.typeId,
+            name = normalizeSpaces(form.name), location = normalizeSpaces(form.location), isCorporate = form.isCorporate, typeId = form.typeId,
             typeName = s.types.first { it.id == form.typeId }.name,
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive, openingBalanceCents = form.openingBalanceCents,
         )
-        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0, c.location)) // salesmen get it at their next sync
+        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0, c.location, c.isCorporate)) // salesmen get it at their next sync
         changed(by, "Add customer ${c.name}", "-", describe(c)) { it.copy(customers = it.customers + c) }
         return c
     }
@@ -166,12 +166,12 @@ class FakeAdminApi(
         checkForm(form, editingId = id)
         val old = s.customers.firstOrNull { it.id == id } ?: refuse("Customer not found")
         val updated = old.copy(
-            name = normalizeSpaces(form.name), location = normalizeSpaces(form.location), typeId = form.typeId, typeName = s.types.first { it.id == form.typeId }.name,
+            name = normalizeSpaces(form.name), location = normalizeSpaces(form.location), isCorporate = form.isCorporate, typeId = form.typeId, typeName = s.types.first { it.id == form.typeId }.name,
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive,
         )
         prices.updateCustomer(id) {
-            it.copy(name = updated.name, location = updated.location, typeId = updated.typeId, phone = updated.phone, address = updated.address, paymentMode = updated.paymentMode, isActive = updated.isActive)
+            it.copy(name = updated.name, location = updated.location, isCorporate = updated.isCorporate, typeId = updated.typeId, phone = updated.phone, address = updated.address, paymentMode = updated.paymentMode, isActive = updated.isActive)
         }
         changed(by, "Edit customer ${old.name}", describe(old), describe(updated)) { st ->
             st.copy(customers = st.customers.map { if (it.id == id) updated else it })

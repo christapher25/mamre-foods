@@ -400,7 +400,7 @@ fun PaymentScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -
         ) {
             AppCard {
                 LabelValueRow("Invoice total") { AmountText(ui.totalCents, size = AmountSize.MEDIUM) }
-                if (credit) {
+                if (credit && !ui.isCorporate) {
                     LabelValueRow("Previous balance", Modifier.padding(top = Spacing.sm)) {
                         AmountText(ui.previousBalanceCents, size = AmountSize.SMALL)
                     }
@@ -430,7 +430,7 @@ fun PaymentScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -
             }
             SectionHeader("Payment method")
             OptionChips(PaymentMethod.entries, ui.method, { it.label }, vm::onMethod)
-            BalanceAfter(ui.check, ui.payerKind)
+            if (!ui.isCorporate) BalanceAfter(ui.check, ui.payerKind)
         }
         StickyBottomBar {
             PrimaryButton("Continue", onClick = onContinue, enabled = ui.check is PaymentCheck.Ok)
@@ -493,7 +493,7 @@ fun ConfirmScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onConfirmed: (St
                 if (ok != null) {
                     val paid = if (ok.amountCents > 0) "Paid now (${ui.method.label})" else "Paid now"
                     LabelValueRow(paid, Modifier.padding(top = Spacing.sm)) { AmountText(ok.amountCents, size = AmountSize.SMALL) }
-                    if (ui.payerKind != PayerKind.WALK_IN) {
+                    if (ui.payerKind != PayerKind.WALK_IN && !ui.isCorporate) {
                         if (ok.creditOnAccountCents > 0) {
                             LabelValueRow("Credit on account", Modifier.padding(top = Spacing.sm)) {
                                 AmountText(ok.creditOnAccountCents, size = AmountSize.SMALL, color = MamreTheme.extra.success)

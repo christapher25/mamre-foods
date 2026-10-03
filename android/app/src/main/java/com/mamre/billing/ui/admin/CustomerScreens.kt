@@ -21,6 +21,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -158,6 +160,7 @@ fun CustomerListContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             if (!c.isActive) StatusChip("Inactive", modifier = Modifier.padding(top = Spacing.xs))
+                            if (c.isCorporate) StatusChip("Corporate", kind = ChipKind.ACCENT, modifier = Modifier.padding(top = Spacing.xs))
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Balance", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -271,6 +274,7 @@ fun CustomerDetailContent(
                     StatusChip(c.typeName)
                     StatusChip(c.modeLabel())
                     if (!c.isActive) StatusChip("Inactive", kind = ChipKind.ERROR)
+                    if (c.isCorporate) StatusChip("Corporate", kind = ChipKind.ACCENT)
                 }
                 DetailLine("Phone", c.phone.ifBlank { "-" })
                 DetailLine("Address", c.address.ifBlank { "-" })
@@ -403,6 +407,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
     val e = ui.existing
     var name by remember { mutableStateOf(e?.name.orEmpty()) }
     var location by remember { mutableStateOf(e?.location.orEmpty()) }
+    var corporate by remember { mutableStateOf(e?.isCorporate ?: false) }
     var typeId by remember { mutableStateOf(e?.typeId) }
     var phone by remember { mutableStateOf(e?.phone.orEmpty()) }
     var address by remember { mutableStateOf(e?.address.orEmpty()) }
@@ -413,7 +418,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
     var tried by remember { mutableStateOf(false) }
 
     val openingCents = parseCents(opening)
-    val form = CustomerForm(name, typeId.orEmpty(), phone, address, mode, notes, active, openingCents ?: 0L, location)
+    val form = CustomerForm(name, typeId.orEmpty(), phone, address, mode, notes, active, openingCents ?: 0L, location, corporate)
     val problems = validateCustomerForm(form)
     val typeName = ui.types.firstOrNull { it.id == typeId }?.name
     val identity = if (typeName == null) null else checkCustomerIdentity(name, location, typeName, ui.others)
@@ -445,6 +450,19 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
             }
             Text("Payment", style = MaterialTheme.typography.titleSmall)
             OptionChips(PaymentMode.entries, mode, { if (it == PaymentMode.CREDIT) "Credit" else "Cash" }, { mode = it }, perRow = 2)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Corporate account", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).padding(end = Spacing.sm))
+                Switch(
+                    checked = corporate,
+                    onCheckedChange = { corporate = it },
+                    modifier = Modifier.semantics { contentDescription = "Corporate account" },
+                )
+            }
+            Text(
+                "No balance is shown on bills or in the salesman's app. It is still tracked.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             LabeledTextField("Phone", phone, { phone = it })
             LabeledTextField("Address", address, { address = it }, singleLine = false)
             LabeledTextField("Notes", notes, { notes = it }, singleLine = false)

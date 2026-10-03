@@ -33,6 +33,8 @@ data class Customer(
     val isActive: Boolean,
     /** Area or branch (change set D2); name plus location is unique. Empty for a Retail customer without one. */
     val location: String = "",
+    /** Corporate account (change set D4): no balance is shown on bills or in the salesman's app; it is still tracked. */
+    val isCorporate: Boolean = false,
 )
 
 /** Price history row. Has no is_active: it is never removed (DECISIONS: PriceDefault). */

@@ -37,6 +37,7 @@ data class CustomerEntity(
     @ColumnInfo(name = "payment_mode") val paymentMode: String,
     @ColumnInfo(name = "is_active") val isActive: Boolean,
     val location: String = "",
+    @ColumnInfo(name = "is_corporate") val isCorporate: Boolean = false,
 )
 
 @Entity(tableName = "price_defaults", indices = [Index("customer_type_id", "product_id")])

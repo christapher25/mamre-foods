@@ -77,6 +77,7 @@ private data class CustomerSeed(
     val id: String,
     val name: String,
     val location: String,
+    val isCorporate: Boolean,
     val typeId: String,
     val mode: PaymentMode,
     val baseQty: Int,
@@ -118,7 +119,7 @@ object AdminSeed {
         val sharedCustomers = prices.customers().associateBy { it.id }
         val customerSeeds = behaviours.map { b ->
             val row = sharedCustomers.getValue(b.id)
-            CustomerSeed(b.id, row.name, row.location, row.typeId, row.paymentMode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
+            CustomerSeed(b.id, row.name, row.location, row.isCorporate, row.typeId, row.paymentMode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
         }
         val last = YearMonth.from(today)
         val first = last.minusMonths(6)
@@ -131,7 +132,7 @@ object AdminSeed {
         val productName = products.associate { it.id to it.name }
         val customers = customerSeeds.map {
             AdminCustomer(
-                id = it.id, name = it.name, location = it.location, typeId = it.typeId, typeName = typeName.getValue(it.typeId),
+                id = it.id, name = it.name, location = it.location, isCorporate = it.isCorporate, typeId = it.typeId, typeName = typeName.getValue(it.typeId),
                 phone = "", address = "", paymentMode = it.mode, notes = "", isActive = true,
                 openingBalanceCents = it.opening,
             )
