@@ -163,8 +163,8 @@ fun ExpensesContent(
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Expenses", onBack = onBack, actions = { DemoChip() })
         TabRow(selectedTabIndex = ui.tab, containerColor = MaterialTheme.colorScheme.surface) {
-            Tab(selected = ui.tab == 0, onClick = { onTab(0) }, text = { Text("MATERIALS", maxLines = 1) })
-            Tab(selected = ui.tab == 1, onClick = { onTab(1) }, text = { Text("OTHER EXPENSES", maxLines = 1) })
+            Tab(selected = ui.tab == 0, onClick = { onTab(0) }, text = { Text("MATERIALS", style = MaterialTheme.typography.labelMedium) })
+            Tab(selected = ui.tab == 1, onClick = { onTab(1) }, text = { Text("OTHER EXPENSES", style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) })
         }
         val span = ui.span
         val month = ui.month
@@ -211,10 +211,10 @@ private fun MaterialsTab(
     report.rows.forEach { MaterialCard(it) }
     AppCard {
         Text("Totals", style = MaterialTheme.typography.titleSmall)
-        LabelValueRow("Opening stock value") { FigureLine(report.openingValueTotal) { formatCents(it) } }
+        LabelValueRow("Opening value") { FigureLine(report.openingValueTotal) { formatCents(it) } }
         LabelValueRow("Bought") { Text(formatCents(report.boughtTotalCents)) }
         LabelValueRow("Cost consumed") { FigureLine(report.costConsumedTotal) { formatCents(it) } }
-        LabelValueRow("Closing stock value") { FigureLine(report.closingValueTotal) { formatCents(it) } }
+        LabelValueRow("Closing value") { FigureLine(report.closingValueTotal) { formatCents(it) } }
     }
 
     SectionHeader("Purchases this month")

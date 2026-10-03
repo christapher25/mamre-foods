@@ -232,7 +232,7 @@ fun SalesDetailContent(ui: SalesDetailUi, onBack: () -> Unit, onVoid: (String) -
     var confirm by remember { mutableStateOf(false) }
     val d = ui.detail
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = d?.invoice?.number ?: "Invoice", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Invoice", subtitle = d?.invoice?.number, onBack = onBack, actions = { DemoChip() })
         if (d == null) {
             if (!ui.loading) EmptyState("Invoice not found")
             return@Column

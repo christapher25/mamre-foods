@@ -103,7 +103,7 @@ fun MoreScreen(onOpen: (String) -> Unit) {
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            MoreItem("Costing", "Cost per packet and ingredient prices", AdminRoutes.COSTING, onOpen)
+            MoreItem("Costing", "Cost per packet, recipes and wastage", AdminRoutes.COSTING, onOpen)
             MoreItem("Expenses", "Material purchases and other expenses", AdminRoutes.EXPENSES, onOpen)
             MoreItem("Returns and damage", "Customer returns and production damage", AdminRoutes.RETURNS, onOpen)
             MoreItem("Balances", "Who owes what, with ageing", AdminRoutes.BALANCES, onOpen)
