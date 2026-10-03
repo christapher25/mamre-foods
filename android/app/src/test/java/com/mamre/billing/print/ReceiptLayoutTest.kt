@@ -203,9 +203,24 @@ class ReceiptLayoutTest {
         assertEquals("           Thank you!", lines.last())
     }
 
+
+    @Test fun noBillLineCarriesADollarSignAmountsArePlainNumbers() {
+        val withCredits = credit.copy(month = credit.month!!.copy(creditsCents = 500, totalDueCents = 11_600))
+        for (r in listOf(corporate, credit, walkIn, withCredits, credit.copy(balanceAfterCents = -1_500))) {
+            val dollar = layoutInvoiceReceipt(r).filter { it.contains("$") }
+            assertTrue("a bill line has a dollar sign: $dollar", dollar.isEmpty())
+        }
+        val lines = layoutInvoiceReceipt(withCredits)
+        assertTrue(lines.contains(lr("Brought forward", "0.00")))
+        assertTrue(lines.contains(lr("Invoiced", "201.00")))
+        assertTrue(lines.contains(lr("Credits", "-5.00")))
+        assertTrue(lines.contains(lr(" 10/05 Zelle", "50.00")))
+        assertTrue(lines.contains(lr("TOTAL DUE", "116.00")))
+        assertTrue(lines.contains(lr("TOTAL (USD)", "81.00"))) // the total line says USD instead
+    }
     @Test fun aReturnCreditAppearsInTheMonthSummaryOnlyWhenThereIsOne() {
         val withCredit = credit.copy(month = credit.month!!.copy(creditsCents = 500, totalDueCents = 11_600))
-        assertTrue(layoutInvoiceReceipt(withCredit).contains(lr("Credits", "-\$5.00")))
+        assertTrue(layoutInvoiceReceipt(withCredit).contains(lr("Credits", "-5.00")))
         assertTrue(layoutInvoiceReceipt(credit).none { it.startsWith("Credits") })
     }
 

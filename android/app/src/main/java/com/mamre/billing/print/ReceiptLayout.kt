@@ -159,20 +159,20 @@ private fun MutableList<String>.addHeader(business: String, address: List<String
     add(rule())
 }
 
-/** THIS MONTH for a credit customer, as before D3 (Doc 1 s5.3): amounts keep their dollar sign here. */
+/** THIS MONTH for a credit customer (Doc 1 s5.3): plain amounts like the rest of the bill, no dollar sign (change set E2). */
 private fun MutableList<String>.addMonthSummary(month: MonthSummary) {
     add(rule())
     add("THIS MONTH (${month.monthLabel})")
-    add(leftRight("Brought forward", formatCents(month.broughtForwardCents)))
-    add(leftRight("Invoiced", formatCents(month.invoicedCents)))
-    if (month.creditsCents > 0) add(leftRight("Credits", formatCents(-month.creditsCents)))
+    add(leftRight("Brought forward", centsToPlain(month.broughtForwardCents)))
+    add(leftRight("Invoiced", centsToPlain(month.invoicedCents)))
+    if (month.creditsCents > 0) add(leftRight("Credits", centsToPlain(-month.creditsCents)))
     if (month.payments.isNotEmpty()) {
         add("Payments:")
         for (p in month.payments) {
-            add(leftRight(" ${p.date.format(SHORT_DATE)} ${p.method.label}", formatCents(p.amountCents)))
+            add(leftRight(" ${p.date.format(SHORT_DATE)} ${p.method.label}", centsToPlain(p.amountCents)))
         }
     }
-    add(leftRight("TOTAL DUE", formatCents(month.totalDueCents)))
+    add(leftRight("TOTAL DUE", centsToPlain(month.totalDueCents)))
 }
 
 /** What a corporate customer signs: the bill itself, no balance. */

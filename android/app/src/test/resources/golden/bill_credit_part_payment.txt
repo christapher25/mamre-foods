@@ -22,11 +22,11 @@ CREDIT                     51.00
 Balance after             121.00
 --------------------------------
 THIS MONTH (Oct 2026)
-Brought forward            $0.00
-Invoiced                 $201.00
+Brought forward             0.00
+Invoiced                  201.00
 Payments:
- 10/05 Zelle              $50.00
- 10/10 Cash               $30.00
-TOTAL DUE                $121.00
+ 10/05 Zelle               50.00
+ 10/10 Cash                30.00
+TOTAL DUE                 121.00
 --------------------------------
            Thank you!
