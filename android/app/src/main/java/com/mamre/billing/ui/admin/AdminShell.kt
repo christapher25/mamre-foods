@@ -104,7 +104,7 @@ fun MoreScreen(onOpen: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             MoreItem("Costing", "Cost per packet and ingredient prices", AdminRoutes.COSTING, onOpen)
-            MoreItem("Expenses", "Monthly expenses by category", AdminRoutes.EXPENSES, onOpen)
+            MoreItem("Expenses", "Material purchases and other expenses", AdminRoutes.EXPENSES, onOpen)
             MoreItem("Returns and damage", "Customer returns and production damage", AdminRoutes.RETURNS, onOpen)
             MoreItem("Balances", "Who owes what, with ageing", AdminRoutes.BALANCES, onOpen)
             MoreItem("Settings", "Business details, workers, log out", AdminRoutes.SETTINGS, onOpen)

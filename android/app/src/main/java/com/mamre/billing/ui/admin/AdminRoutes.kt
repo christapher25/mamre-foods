@@ -23,6 +23,7 @@ object AdminRoutes {
     const val INGREDIENT_PRICE = "admin/more/costing/ingredient/{id}"
     const val EXPENSES = "admin/more/expenses"
     const val EXPENSE_ADD = "admin/more/expenses/add"
+    const val PURCHASE_ADD = "admin/more/expenses/purchase"
     const val RETURNS = "admin/more/returns"
     const val BALANCES = "admin/more/balances"
     const val SETTINGS = "admin/more/settings"
@@ -40,7 +41,7 @@ object AdminRoutes {
 
     val all = listOf(
         DASHBOARD, SALES, SALES_DETAIL, CUSTOMERS, CUSTOMER_NEW, CUSTOMER_DETAIL, CUSTOMER_EDIT, OVERRIDE_SET,
-        PRICES, PRICE_SET, MORE, COSTING, INGREDIENT_PRICE, EXPENSES, EXPENSE_ADD, RETURNS, BALANCES, SETTINGS,
+        PRICES, PRICE_SET, MORE, COSTING, INGREDIENT_PRICE, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, BALANCES, SETTINGS,
     )
 }
 
