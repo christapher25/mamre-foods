@@ -100,6 +100,17 @@ class StockCostingTest {
         assertEquals(Figure.Known(393_975_000L), wheat.usedMb)
     }
 
+    @Test fun packingCountsInvoicedAndReplacementPacketsButNotProductionDamage() {
+        val s = golden().copy(
+            returns = listOf(returnOf(ReturnResolution.REPLACEMENT, 10)),
+            damage = listOf(DamageRow("d1", LocalDate.of(2026, 9, 20), SeedIds.FRESH, 20, "Burnt", "Test Admin")),
+        )
+        val report = ServerLogic.stock(s, september)
+        // Damaged packets are spoiled before packing: materials yes, packing no.
+        assertEquals(Figure.Known(1_010_000L), row(report, SeedIds.PACKING).usedMb) // 1,000 invoiced + 10 replacement pieces
+        assertEquals(Figure.Known(393_975_000L), row(report, SeedIds.WHEAT).usedMb) // still 1,030 packets of wheat
+    }
+
     @Test fun aVoidInvoiceUsesNothing() {
         val s = golden().copy(invoices = listOf(invoice(1_000).copy(status = InvoiceStatus.VOID, voidReason = "x")))
         assertEquals(Figure.Known(0L), row(ServerLogic.stock(s, september), SeedIds.WHEAT).usedMb)

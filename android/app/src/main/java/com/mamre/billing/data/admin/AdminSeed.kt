@@ -294,11 +294,12 @@ object AdminSeed {
                 .forEach { made.merge(it.productId, it.qtyPackets.toLong(), Long::plus) }
             returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }
                 .forEach { made.merge(it.productId, it.qtyPackets.toLong(), Long::plus) }
+            val bagged = made.toMap() // packing: invoiced + replacement only
             damage.filter { YearMonth.from(it.date) == month }.forEach { made.merge(it.productId, it.packets.toLong(), Long::plus) }
             for ((materialId, bag) in bags) {
                 val m = materials.first { it.id == materialId }
                 val perPacket = products.sumOf { p ->
-                    (recipes.getValue(p.id).firstOrNull { it.materialId == materialId }?.qtyMb ?: 0L) * (made[p.id] ?: 0L)
+                    (recipes.getValue(p.id).firstOrNull { it.materialId == materialId }?.qtyMb ?: 0L) * ((if (m.isPacking) bagged else made)[p.id] ?: 0L)
                 }
                 val withWastage = if (m.isPacking) perPacket else perPacket * 102 / 100
                 // Demo: sugar is bought short two months ago, so the negative stock warning has something to show.

@@ -48,7 +48,7 @@ import java.time.temporal.ChronoUnit
  * Direct expense (owner change, supersedes Doc 1 A-11): a material's price in a month is the weighted
  * average of opening stock and that month's purchases; usage is (gross invoiced packets + replacement
  * packets + production-damaged packets) x recipe quantity x (1 + wastage), except packing, which has no
- * wastage; direct expense is the cost consumed of every material, packing included.
+ * wastage and is counted for invoiced + replacement packets only (damaged packets are spoiled before packing); direct expense is the cost consumed of every material, packing included.
  */
 object ServerLogic {
     private const val TT_PER_CENT = 100L
@@ -206,6 +206,13 @@ object ServerLogic {
         s.damage.filter { YearMonth.from(it.date) == month }
             .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.packets.toLong() } }
 
+    /** Packets that left the business in a bag: invoiced + replacement. Damaged packets are spoiled before packing. */
+    fun packetsBagged(s: ServerState, month: YearMonth): Map<String, Long> {
+        val a = invoicedPackets(s, month)
+        val b = replacementPackets(s, month)
+        return (a.keys + b.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) }
+    }
+
     /** Everything made in the month per product: invoiced + replacement + damaged packets. */
     fun packetsMade(s: ServerState, month: YearMonth): Map<String, Long> {
         val a = invoicedPackets(s, month)
@@ -252,7 +259,9 @@ object ServerLogic {
     }
 
     /** Usage of one material in a month in thousandths of its base unit, or what is missing to know it. */
-    private fun usage(s: ServerState, material: Material, packets: Map<String, Long>): Pair<Long?, List<String>> {
+    private fun usage(s: ServerState, material: Material, madePackets: Map<String, Long>, baggedPackets: Map<String, Long>): Pair<Long?, List<String>> {
+        // Materials are used by every packet made; packing only by packets that were bagged.
+        val packets = if (material.isPacking) baggedPackets else madePackets
         var sum = 0L
         val missing = mutableListOf<String>()
         for (p in s.products) {
@@ -284,18 +293,19 @@ object ServerLogic {
         var month = minOf(chainStart(s), target)
         while (true) {
             val packets = packetsMade(s, month)
-            val results = s.materials.map { m -> monthOf(s, m, month, packets, carry.getValue(m.id)) }
+            val bagged = packetsBagged(s, month)
+            val results = s.materials.map { m -> monthOf(s, m, month, packets, bagged, carry.getValue(m.id)) }
             if (month == target) return results
             results.forEach { r -> carry[r.material.id] = Carry(r.closingQty, r.closingValue, r.price) }
             month = month.plusMonths(1)
         }
     }
 
-    private fun monthOf(s: ServerState, m: Material, month: YearMonth, packets: Map<String, Long>, c: Carry): MonthMaterial {
+    private fun monthOf(s: ServerState, m: Material, month: YearMonth, packets: Map<String, Long>, bagged: Map<String, Long>, c: Carry): MonthMaterial {
         val bought = s.purchases.filter { it.materialId == m.id && YearMonth.from(it.date) == month }
         val bQty = bought.sumOf { it.qtyMb }
         val bCents = bought.sumOf { it.totalCents }
-        val (used, usedMissing) = usage(s, m, packets)
+        val (used, usedMissing) = usage(s, m, packets, bagged)
         val purchaseOnly = if (bQty > 0) Price(bCents, bQty) else null
 
         // A shortage (stock at or below zero) whose value is unknown is valued at this month's purchase price.
