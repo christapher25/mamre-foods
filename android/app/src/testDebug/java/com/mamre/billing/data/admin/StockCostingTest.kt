@@ -32,12 +32,12 @@ class StockCostingTest {
     private val october = YearMonth.of(2026, 10)
     private val base = AdminSeed.build(today, SharedPriceTable.seeded(today, baseVersion = 10))
 
-    /** An invoice of [packets] packets of [size] chapathis each (a standard packet holds 6), at 100 cents a packet. */
-    private fun invoice(packets: Int, product: String = SeedIds.FRESH, day: LocalDate = LocalDate.of(2026, 9, 15), n: Int = 1, size: Int = 6) =
+    /** An invoice of [packets] packets of [size] chapathis each (a standard packet holds 12), at 100 cents a packet. */
+    private fun invoice(packets: Int, product: String = SeedIds.FRESH, day: LocalDate = LocalDate.of(2026, 9, 15), n: Int = 1, size: Int = 12) =
         AdminInvoice(
             "t-inv-$n", "MAM-W1-9$n", base.customers.first().id, base.customers.first().name, "Restaurant", "W1",
             LocalDateTime.of(day, java.time.LocalTime.NOON),
-            listOf(InvoiceItem(product, base.products.first { it.id == product }.name, packets, 100, packets * 100L, size, 100, size != 6)),
+            listOf(InvoiceItem(product, base.products.first { it.id == product }.name, packets, 100, packets * 100L, size, 100, size != 12)),
             packets * 100L, InvoiceStatus.ACTIVE,
         )
 
@@ -47,7 +47,7 @@ class StockCostingTest {
     /** One invoice, one purchase of wheat, nothing else: the owner's golden case. */
     private fun golden() = base.copy(
         customers = base.customers.take(1),
-        invoices = listOf(invoice(2_000)),
+        invoices = listOf(invoice(1_000)),
         payments = emptyList(),
         paymentInvoiceIds = emptyMap(),
         returns = emptyList(),
@@ -62,7 +62,7 @@ class StockCostingTest {
 
     private fun returnOf(resolution: ReturnResolution, packets: Int, n: Int = 1) = ReturnRow(
         "t-ret-$n", LocalDate.of(2026, 9, 16), base.customers.first().id, base.customers.first().name, "Restaurant",
-        null, SeedIds.FRESH, "Mamre Fresh Chapathi", packets, 6, ReturnReason.DAMAGED, resolution, 100,
+        null, SeedIds.FRESH, "Mamre Fresh Chapathi", packets, 12, ReturnReason.DAMAGED, resolution, 100,
         if (resolution == ReturnResolution.CREDIT) packets * 100L else 0L,
     )
 
@@ -70,7 +70,7 @@ class StockCostingTest {
 
     @Test fun goldenCaseTwelveThousandChapathisWheatTwoPercentWastage() {
         val wheat = row(ServerLogic.stock(golden(), september), SeedIds.WHEAT)
-        // 2,000 packets of 6 = 12,000 chapathis x 1 kg per 32 chapathis = 375 kg; x (1 + 2%) = 382.5 kg used.
+        // 1,000 packets of 12 = 12,000 chapathis x 1 kg per 32 chapathis = 375 kg; x (1 + 2%) = 382.5 kg used.
         assertEquals(Figure.Known(382_500_000L), wheat.usedMb)
         // Bought 400 kg for 44000 cents: $1.10 per kg.
         assertEquals(400_000_000L, wheat.boughtQtyMb)
@@ -88,7 +88,7 @@ class StockCostingTest {
         val wheat = row(ServerLogic.stock(withCredit, september), SeedIds.WHEAT)
         assertEquals(Figure.Known(382_500_000L), wheat.usedMb) // unchanged: the credited packets were still made
         // The credit does lower net sales, which is a different figure.
-        assertEquals(2_000 * 100L - 100 * 100L, ServerLogic.netSalesCents(withCredit, september))
+        assertEquals(1_000 * 100L - 100 * 100L, ServerLogic.netSalesCents(withCredit, september))
     }
 
     @Test fun usageAlsoCountsReplacementPacketsAndProductionDamage() {
@@ -97,9 +97,9 @@ class StockCostingTest {
             damage = listOf(DamageRow("d1", LocalDate.of(2026, 9, 20), SeedIds.FRESH, 120, "Burnt", "Test Admin")),
         )
         val wheat = row(ServerLogic.stock(s, september), SeedIds.WHEAT)
-        // 12,000 invoiced + 10 replacement packets x 6 = 60 + 120 damaged chapathis = 12,180 chapathis;
-        // 12,180 / 32 = 380.625 kg; x 1.02 = 388.2375 kg, damage counted in chapathis.
-        assertEquals(Figure.Known(388_237_500L), wheat.usedMb)
+        // 12,000 invoiced + 10 replacement packets x 12 = 120 + 120 damaged chapathis = 12,240 chapathis;
+        // 12,240 / 32 = 382.5 kg; x 1.02 = 390.15 kg, damage counted in chapathis.
+        assertEquals(Figure.Known(390_150_000L), wheat.usedMb)
     }
 
     @Test fun packingCountsInvoicedAndReplacementPacketsButNotProductionDamage() {
@@ -109,12 +109,12 @@ class StockCostingTest {
         )
         val report = ServerLogic.stock(s, september)
         // Damaged chapathis are spoiled before packing: materials yes, packing no.
-        assertEquals(Figure.Known(2_010_000L), row(report, SeedIds.PACKING).usedMb) // 2,000 invoiced + 10 replacement packets, one piece each
-        assertEquals(Figure.Known(388_237_500L), row(report, SeedIds.WHEAT).usedMb) // the damaged chapathis still used wheat
+        assertEquals(Figure.Known(1_010_000L), row(report, SeedIds.PACKING).usedMb) // 1,000 invoiced + 10 replacement packets, one piece each
+        assertEquals(Figure.Known(390_150_000L), row(report, SeedIds.WHEAT).usedMb) // the damaged chapathis still used wheat
     }
 
     @Test fun aVoidInvoiceUsesNothing() {
-        val s = golden().copy(invoices = listOf(invoice(2_000).copy(status = InvoiceStatus.VOID, voidReason = "x")))
+        val s = golden().copy(invoices = listOf(invoice(1_000).copy(status = InvoiceStatus.VOID, voidReason = "x")))
         assertEquals(Figure.Known(0L), row(ServerLogic.stock(s, september), SeedIds.WHEAT).usedMb)
     }
 
@@ -187,7 +187,7 @@ class StockCostingTest {
     }
 
     @Test fun anUnsetRecipeQuantityMakesUsageIncompleteOnlyWhenThatProductWasMade() {
-        val withChapathi = golden().copy(invoices = listOf(invoice(2_000), invoice(50, SeedIds.CHAPATHI, n = 2)))
+        val withChapathi = golden().copy(invoices = listOf(invoice(1_000), invoice(25, SeedIds.CHAPATHI, n = 2)))
         val sorbate = row(ServerLogic.stock(withChapathi, september), SeedIds.SORBATE)
         val missing = listOf("Potassium sorbate quantity per kg of wheat for Mamre Chapathi (Doc 1 P-2)")
         assertEquals(Figure.Incomplete(missing), sorbate.usedMb)
@@ -198,13 +198,13 @@ class StockCostingTest {
     }
 
     @Test fun onceTheQuantityIsSetThePriceIsWhatIsStillMissing() {
-        val chapathi = golden().copy(invoices = listOf(invoice(50, SeedIds.CHAPATHI)))
+        val chapathi = golden().copy(invoices = listOf(invoice(25, SeedIds.CHAPATHI)))
         val recipes = chapathi.recipes.mapValues { (product, lines) ->
             if (product == SeedIds.CHAPATHI) lines.map { if (it.materialId == SeedIds.SORBATE) it.copy(qtyMb = 500) else it } else lines
         }
         val s = chapathi.copy(recipes = recipes)
         val sorbate = row(ServerLogic.stock(s, september), SeedIds.SORBATE)
-        // 50 packets of 6 = 300 chapathis x 0.5 g per 32 = 4.6875 g; x 1.02 = 4.78125 g -> 4,781 thousandths, rounded once.
+        // 25 packets of 12 = 300 chapathis x 0.5 g per 32 = 4.6875 g; x 1.02 = 4.78125 g -> 4,781 thousandths, rounded once.
         assertEquals(Figure.Known(4_781L), sorbate.usedMb)
         assertEquals(Figure.Incomplete(listOf("Potassium sorbate price")), sorbate.costConsumedCents)
     }
@@ -228,9 +228,9 @@ class StockCostingTest {
         assertEquals(Figure.Known(sum), report.costConsumedTotal)
         assertTrue(row(report, SeedIds.PACKING).costConsumedCents.valueOrNull!! > 0) // packing is part of it
         assertEquals(report.costConsumedTotal, ServerLogic.directExpense(fullyPriced(), september))
-        // Packing has no wastage: one piece per packet, 2,000 pieces for 2,000 packets, at 15 cents.
-        assertEquals(Figure.Known(2_000_000L), row(report, SeedIds.PACKING).usedMb)
-        assertEquals(Figure.Known(30_000L), row(report, SeedIds.PACKING).costConsumedCents)
+        // Packing has no wastage: one piece per packet, 1,000 pieces for 1,000 packets, at 15 cents.
+        assertEquals(Figure.Known(1_000_000L), row(report, SeedIds.PACKING).usedMb)
+        assertEquals(Figure.Known(15_000L), row(report, SeedIds.PACKING).costConsumedCents)
     }
 
     // --- profit formulas (owner change 5) ---
@@ -261,23 +261,30 @@ class StockCostingTest {
     private fun costedAt(s: ServerState, product: String, chapathis: Int): ProductCost.Complete =
         ServerLogic.packetCost(s, september, product, chapathis) as ProductCost.Complete
 
-    @Test fun costPerStandardPacketIsBrokenDownByMaterialWastagePackingDirectIndirectAndFull() {
+    @Test fun costPerStandardPacketOfTwelveGivesTheDoc1Vectors() {
+        // No wastage and $150 of labour over 12,000 net chapathis: $0.0125 each, so a packet of 12 carries $0.15.
         val s = fullyPriced().copy(
-            expenses = listOf(Expense("e1", SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT, LocalDate.of(2026, 9, 28), 30_000, "", "x")),
+            wastageBp = 0,
+            expenses = listOf(Expense("e1", SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT, LocalDate.of(2026, 9, 28), 15_000, "", "x")),
         )
         val fresh = ServerLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
-        assertEquals(6, fresh.chapathis) // the standard packet
-        // A 6-chapathi packet is half of the Doc 1 s9.5 packet of 12; each line is rounded half up on its own.
-        assertEquals(listOf(2_063L, 600L, 38L, 23L, 15L), fresh.lines.map { it.tt })
+        assertEquals(12, fresh.chapathis) // the standard packet
+        assertEquals(listOf(4_125L, 1_200L, 75L, 45L, 30L), fresh.lines.map { it.tt })
         assertEquals(listOf("Whole wheat flour", "Oil", "Sugar", "Salt", "Baking powder"), fresh.lines.map { it.materialName })
-        // The ingredients are rounded ONCE from the exact sum: 0.27375 -> $0.2738.
-        assertEquals(2_738L, fresh.ingredientsTt)
+        assertEquals(5_475L, fresh.ingredientsTt) // $0.5475
         assertEquals(1_500L, fresh.packingTt) // $0.15, one piece per packet
-        // 2% wastage on the ingredients only, not on packing: 2,738 x 2% = 54.76 -> 55.
-        assertEquals(55L, fresh.wastageTt)
-        assertEquals(2_738L + 55L + 1_500L, fresh.directTt)
-        // $300 over 12,000 net chapathis = $0.025 each, so 6 chapathis carry $0.15.
+        assertEquals(0L, fresh.wastageTt)
+        assertEquals(6_975L, fresh.directTt) // $0.6975
         assertEquals(1_500L, fresh.indirectTt)
+        assertEquals(8_475L, fresh.fullTt) // $0.8475
+    }
+
+    @Test fun theStandardPacketAddsTwoPercentWastageOnTheIngredientsOnly() {
+        val fresh = ServerLogic.costing(fullyPriced(), september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        assertEquals(5_475L, fresh.ingredientsTt)
+        assertEquals(1_500L, fresh.packingTt)
+        assertEquals(110L, fresh.wastageTt) // 5,475 x 2% = 109.5, a half rounds up
+        assertEquals(5_475L + 110L + 1_500L, fresh.directTt)
         assertEquals(fresh.directTt + fresh.indirectTt, fresh.fullTt)
     }
 
@@ -290,10 +297,16 @@ class StockCostingTest {
         assertEquals(6_975L, twelve.directTt)
     }
 
-    @Test fun aSixChapathiPacketGivesAboutTwentySevenCentsOfIngredientsAndFortyTwoCentsDirect() {
-        val six = costedAt(fullyPriced().copy(wastageBp = 0), SeedIds.FRESH, 6)
+    @Test fun aCustomPacketOfSixGivesTheHalfPacketVectors() {
+        val s = fullyPriced().copy(
+            wastageBp = 0,
+            expenses = listOf(Expense("e1", SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT, LocalDate.of(2026, 9, 28), 15_000, "", "x")),
+        )
+        val six = costedAt(s, SeedIds.FRESH, 6)
         assertEquals(2_738L, six.ingredientsTt) // $0.2738
         assertEquals(4_238L, six.directTt) // $0.4238 = ingredients + one packing piece
+        assertEquals(750L, six.indirectTt) // half of the standard packet's $0.15
+        assertEquals(4_988L, six.fullTt) // $0.4988
     }
 
     @Test fun aCustomPacketCostsPerChapathiTimesNPlusOnePackingPiece() {
@@ -326,19 +339,19 @@ class StockCostingTest {
 
     @Test fun packingHasNoWastageEvenAtFivePercent() {
         val s = fullyPriced().copy(wastageBp = 500)
-        assertEquals(Figure.Known(2_000_000L), row(ServerLogic.stock(s, september), SeedIds.PACKING).usedMb)
+        assertEquals(Figure.Known(1_000_000L), row(ServerLogic.stock(s, september), SeedIds.PACKING).usedMb)
         val fresh = ServerLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
         assertEquals(1_500L, fresh.packingTt)
-        assertEquals(137L, fresh.wastageTt) // 2,738 x 5% = 136.9
+        assertEquals(274L, fresh.wastageTt) // 5,475 x 5% = 273.75
     }
 
     // --- usage in chapathis (change set C2) ---
 
     @Test fun mixedPacketSizesAreCountedInChapathis() {
-        // 10 packets of 6 and 5 packets of 10 = 110 chapathis.
+        // 10 packets of 12 and 5 packets of 10 = 170 chapathis.
         val s = golden().copy(invoices = listOf(invoice(10, n = 1), invoice(5, n = 2, size = 10)))
         val wheat = row(ServerLogic.stock(s, september), SeedIds.WHEAT)
-        assertEquals(Figure.Known(110L * 1_000_000 * 102 / 100 / 32), wheat.usedMb) // 3.5062... kg, rounded once
+        assertEquals(Figure.Known(170L * 1_000_000 * 102 / 100 / 32), wheat.usedMb) // 5.41875 kg, rounded once
         // Packing is one piece per PACKET: 15 packets, whatever their size.
         assertEquals(Figure.Known(15_000L), row(ServerLogic.stock(s, september), SeedIds.PACKING).usedMb)
     }
@@ -362,14 +375,14 @@ class StockCostingTest {
     @Test fun theIndirectShareIsSpreadOverNetChapathisSoPacketsOfAnySizeCarryTheirShare() {
         val s = fullyPriced().copy(
             expenses = listOf(Expense("e1", SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT, LocalDate.of(2026, 9, 28), 12_000, "", "x")),
-            returns = listOf(returnOf(ReturnResolution.CREDIT, 100)), // 600 chapathis credited: net 11,400
+            returns = listOf(returnOf(ReturnResolution.CREDIT, 100)), // 1,200 chapathis credited: net 10,800
         )
         val report = ServerLogic.costing(s, september)
-        assertEquals(11_400L, report.netChapathis)
+        assertEquals(10_800L, report.netChapathis)
         val six = costedAt(s, SeedIds.FRESH, 6)
         val twelve = costedAt(s, SeedIds.FRESH, 12)
-        assertEquals(ServerLogic.divHalfUp(12_000L * 100 * 6, 11_400), six.indirectTt)
-        assertEquals(ServerLogic.divHalfUp(12_000L * 100 * 12, 11_400), twelve.indirectTt)
+        assertEquals(ServerLogic.divHalfUp(12_000L * 100 * 6, 10_800), six.indirectTt)
+        assertEquals(ServerLogic.divHalfUp(12_000L * 100 * 12, 10_800), twelve.indirectTt)
     }
 
     private fun divHalfUp(a: Long, b: Long) = ServerLogic.divHalfUp(a, b)

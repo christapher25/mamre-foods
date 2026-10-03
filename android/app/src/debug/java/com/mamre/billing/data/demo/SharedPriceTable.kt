@@ -33,7 +33,7 @@ data class SharedProductRow(
     val id: String,
     val code: String,
     val name: String,
-    /** Chapathis in a standard packet (6). Editable by the Admin (change set C2). */
+    /** Chapathis in a standard packet (12). Editable by the Admin (change set C2). */
     val standardPacketSize: Int,
     val isActive: Boolean,
     val syncVersion: Long,
@@ -256,8 +256,8 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
             return Seed(types, products, customers, prices, overrides)
         }
 
-        /** The standard packet: 6 chapathis (owner decision, change set C2). */
-        const val STANDARD_PACKET_SIZE = 6
+        /** The standard packet: 12 chapathis (owner decision, change set C2, corrected in change set E). */
+        const val STANDARD_PACKET_SIZE = 12
 
         private fun defaultBase(): Long = maxOf(STATIC_CATALOG_VERSION, Instant.now().epochSecond)
     }

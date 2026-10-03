@@ -22,6 +22,7 @@ import com.mamre.billing.domain.admin.DEFAULT_WASTAGE_BP
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.customerLabel
 import com.mamre.billing.domain.worker.InvoiceStatus
+import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
 import com.mamre.billing.domain.worker.customPacketPriceCents
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.ReturnReason
@@ -296,7 +297,7 @@ object AdminSeed {
                     .sumOf { inv -> inv.items.filter { it.productId == p.id }.sumOf { it.chapathis } }
                 if (sold == 0) continue
                 val date = minOf(month.atDay(10), today)
-                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(6, sold * 15 / 1000), "Burnt in the oven", "Test Admin")
+                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(DEFAULT_PACKET_SIZE, sold * 15 / 1000), "Burnt in the oven", "Test Admin")
             }
             month = month.plusMonths(1)
         }

@@ -11,9 +11,9 @@ Customer: Spice Garden
           Irving
 --------------------------------
 Item Desc     Qty  Price     Amt
-MAMRE CHAPATHI 6NOS
+MAMRE CHAPATHI 12NOS
                10   2.50   25.00
-MAMRE FRESH CHAPATHI 6NOS
+MAMRE FRESH CHAPATHI 12NOS
                20   2.80   56.00
 --------------------------------
 TOTAL (USD)                81.00

@@ -88,7 +88,7 @@ data class PricedProduct(
     val name: String,
     /** The price of a standard packet, or null when no price is set. */
     val unitPriceCents: Long?,
-    /** Chapathis in this product's standard packet (6 by default, set by the Admin). */
+    /** Chapathis in this product's standard packet (12 by default, set by the Admin). */
     val standardPacketSize: Int = DEFAULT_PACKET_SIZE,
 )
 

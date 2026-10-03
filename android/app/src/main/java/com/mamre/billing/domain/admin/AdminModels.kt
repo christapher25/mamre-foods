@@ -1,6 +1,7 @@
 package com.mamre.billing.domain.admin
 
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
 import com.mamre.billing.domain.worker.InvoiceStatus
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.ReturnReason
@@ -35,7 +36,7 @@ data class AdminProduct(
     val id: String,
     val code: String,
     val name: String,
-    /** Chapathis in a standard packet (6). Synced to workers; the Admin edits it on the Costing screen. */
+    /** Chapathis in a standard packet (12). Synced to workers; the Admin edits it on the Costing screen. */
     val unitsPerPacket: Int,
     val packingCostCents: Long,
     /** Chapathis made from 1 kg of wheat (32). Admin only: recipe quantities are per 1 kg of wheat. */
@@ -89,8 +90,8 @@ data class InvoiceItem(
     /** The price charged per packet. */
     val unitPriceCents: Long,
     val lineTotalCents: Long,
-    /** Chapathis in each packet: 6 for a standard packet, 1 to 200 for a custom one (change set C2). */
-    val chapathisPerPacket: Int = 6,
+    /** Chapathis in each packet: 12 for a standard packet, 1 to 200 for a custom one (change set C2). */
+    val chapathisPerPacket: Int = DEFAULT_PACKET_SIZE,
     /** What the price list says per packet of this size; differs from [unitPriceCents] when a worker changed the price (C3). */
     val listPriceCents: Long = unitPriceCents,
     val isCustomPacket: Boolean = false,
@@ -247,7 +248,7 @@ data class ProductRecipe(
     val lines: List<RecipeLine>,
     /** Chapathis from 1 kg of wheat. Recipe quantities are per 1 kg of wheat, except packing (one piece per packet). */
     val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,
-    val standardPacketSize: Int = 6,
+    val standardPacketSize: Int = DEFAULT_PACKET_SIZE,
 )
 
 /** A purchase of a material. Add only: never edited or deleted (Doc 3 N3). */

@@ -73,7 +73,7 @@ class InvoiceFlowViewModelTest {
     @Test fun aCorporateCustomerShowsNoBalanceStateAndTheInvoiceKeepsTheFlagTheNameAndTheLocation() = runTest {
         val vm = newFlow()
         vm.pick(DemoIds.FRESHMART_DOWNTOWN)
-        vm.setQuantity(PacketKey(DemoIds.CHAPATHI, 6), 70)
+        vm.setQuantity(PacketKey(DemoIds.CHAPATHI, 12), 70)
         vm.noAmount()
         val ui = vm.ui.value
         assertTrue(ui.isCorporate)
@@ -93,7 +93,7 @@ class InvoiceFlowViewModelTest {
     @Test fun aNormalCustomerIsNotCorporateAndKeepsItsBalanceState() = runTest {
         val vm = newFlow()
         vm.pick(DemoIds.RESTAURANT)
-        vm.setQuantity(PacketKey(DemoIds.CHAPATHI, 6), 10)
+        vm.setQuantity(PacketKey(DemoIds.CHAPATHI, 12), 10)
         vm.noAmount()
         val ui = vm.ui.value
         assertFalse(ui.isCorporate)
@@ -107,7 +107,7 @@ class InvoiceFlowViewModelTest {
     @Test fun aWalkInHasNoLocationAndIsNotCorporate() = runTest {
         val vm = newFlow()
         vm.selectWalkIn()
-        vm.setQuantity(PacketKey(DemoIds.FRESH, 6), 2)
+        vm.setQuantity(PacketKey(DemoIds.FRESH, 12), 2)
         vm.preparePayment()
         val ui = vm.ui.value
         assertFalse(ui.isCorporate)

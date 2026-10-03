@@ -10,7 +10,7 @@ Salesman: Rajesh
 Customer: Walk-in
 --------------------------------
 Item Desc     Qty  Price     Amt
-MAMRE FRESH CHAPATHI 6NOS
+MAMRE FRESH CHAPATHI 12NOS
                 3   3.50   10.50
 MAMRE CHAPATHI 10NOS
                 2   4.00    8.00

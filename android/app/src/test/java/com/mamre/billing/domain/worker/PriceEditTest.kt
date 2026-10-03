@@ -8,7 +8,7 @@ import org.junit.Test
 /** Change set C3: a worker may change a line's price only when the customer type's flag allows it. */
 class PriceEditTest {
     private val fresh = PricedProduct("p1", "Mamre Fresh Chapathi", 280)
-    private val key = PacketKey("p1", 6)
+    private val key = PacketKey("p1", 12)
 
     private fun rejected(allowed: Boolean, text: String, list: Long = 280) =
         (checkPriceEdit(allowed, text, list) as PriceEditResult.Rejected).problem
@@ -76,9 +76,9 @@ class PriceEditTest {
 
     @Test fun aChangedPriceOnACustomPacketKeepsTheCustomListPrice() {
         val custom = PacketKey("p1", 10)
-        val line = buildPacketLines(listOf(fresh), listOf(PacketEntry(custom, 1, 400)), priceEditAllowed = true).single()
-        assertEquals(467L, line.listPriceCents) // 280 x 10 / 6
-        assertEquals(400L, line.unitPriceCents)
+        val line = buildPacketLines(listOf(fresh), listOf(PacketEntry(custom, 1, 200)), priceEditAllowed = true).single()
+        assertEquals(233L, line.listPriceCents) // 280 x 10 / 12 = 233.33
+        assertEquals(200L, line.unitPriceCents)
         assertTrue(line.priceOverridden && line.isCustomPacket)
     }
 

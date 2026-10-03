@@ -1,9 +1,9 @@
 package com.mamre.billing.domain.worker
 
-// Packets and custom packets (change set C2). A standard packet holds a per-product number of chapathis (6);
+// Packets and custom packets (change set C2). A standard packet holds a per-product number of chapathis (12);
 // a custom packet holds 1 to 200. Money is Long cents and all rounding is half up in integer arithmetic.
 
-const val DEFAULT_PACKET_SIZE = 6
+const val DEFAULT_PACKET_SIZE = 12
 const val MAX_PACKET_SIZE = 200
 
 fun isValidPacketSize(chapathis: Int): Boolean = chapathis in 1..MAX_PACKET_SIZE

@@ -12,6 +12,7 @@ import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.Purchase
 import com.mamre.billing.domain.admin.WorkerAccount
+import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
 import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnResolution
 import java.time.LocalDate
@@ -34,7 +35,7 @@ data class ReturnRow(
     val productName: String,
     val qtyPackets: Int,
     /** Chapathis in each returned packet; a replacement is made of this many chapathis per packet. */
-    val chapathisPerPacket: Int = 6,
+    val chapathisPerPacket: Int = DEFAULT_PACKET_SIZE,
     val reason: ReturnReason,
     val resolution: ReturnResolution,
     val unitPriceCents: Long,

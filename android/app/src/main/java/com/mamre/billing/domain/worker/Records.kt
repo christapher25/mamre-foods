@@ -25,7 +25,7 @@ data class InvoiceLine(
     val qtyPackets: Int,
     /** The price charged per packet. Equals [listPriceCents] unless a worker changed it (change set C3). */
     val unitPriceCents: Long,
-    /** Chapathis in each packet: 6 for a standard packet, 1 to 200 for a custom one (change set C2). */
+    /** Chapathis in each packet: 12 for a standard packet, 1 to 200 for a custom one (change set C2). */
     val chapathisPerPacket: Int = DEFAULT_PACKET_SIZE,
     /** The price list says this per packet of this size; the default is the charged price. */
     val listPriceCents: Long = unitPriceCents,

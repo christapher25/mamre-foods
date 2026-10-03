@@ -40,6 +40,7 @@ import com.mamre.billing.domain.admin.validateRecipeQuantity
 import com.mamre.billing.domain.admin.validateWastage
 import com.mamre.billing.domain.admin.wastageProblemMessage
 import com.mamre.billing.domain.money.formatCents
+import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
 import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
 import com.mamre.billing.domain.worker.isValidPacketSize
 import com.mamre.billing.domain.money.formatMilli
@@ -205,7 +206,7 @@ fun CostingContent(
                     cost = cost,
                     standardSize = product?.standardPacketSize,
                     yieldPerKg = product?.yieldPerKg,
-                    onEditSize = { editNumber = NumberEdit.Size(cost.productId, cost.productName, product?.standardPacketSize ?: 6) },
+                    onEditSize = { editNumber = NumberEdit.Size(cost.productId, cost.productName, product?.standardPacketSize ?: DEFAULT_PACKET_SIZE) },
                     onEditYield = { editNumber = NumberEdit.Yield(cost.productId, cost.productName, product?.yieldPerKg ?: 32) },
                 )
             }

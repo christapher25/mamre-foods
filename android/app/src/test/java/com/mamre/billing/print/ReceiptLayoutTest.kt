@@ -47,7 +47,7 @@ class ReceiptLayoutTest {
         salesmanName = "Rajesh",
         customerName = "Spice Garden",
         customerLocation = "Irving",
-        items = listOf(ReceiptItem("Mamre Chapathi", 10, 250, 2_500, 6), ReceiptItem("Mamre Fresh Chapathi", 20, 280, 5_600, 6)),
+        items = listOf(ReceiptItem("Mamre Chapathi", 10, 250, 2_500, 12), ReceiptItem("Mamre Fresh Chapathi", 20, 280, 5_600, 12)),
         totalCents = 8_100,
         paidNowCents = 3_000,
         method = PaymentMethod.CASH,
@@ -73,7 +73,7 @@ class ReceiptLayoutTest {
         issuedAt = LocalDateTime.of(2026, 10, 10, 14, 25),
         salesmanName = "Rajesh",
         customerName = "Walk-in",
-        items = listOf(ReceiptItem("Mamre Fresh Chapathi", 3, 350, 1_050, 6), ReceiptItem("Mamre Chapathi", 2, 400, 800, 10)),
+        items = listOf(ReceiptItem("Mamre Fresh Chapathi", 3, 350, 1_050, 12), ReceiptItem("Mamre Chapathi", 2, 400, 800, 10)),
         totalCents = 1_850,
         paidNowCents = 1_850,
         method = PaymentMethod.CASH,
@@ -159,9 +159,9 @@ class ReceiptLayoutTest {
 
     @Test fun theItemNameIsInCapitalsWithTheChapathisPerPacketForStandardAndCustomPackets() {
         val lines = layoutInvoiceReceipt(walkIn)
-        assertTrue(lines.contains("MAMRE FRESH CHAPATHI 6NOS")) // a standard packet
+        assertTrue(lines.contains("MAMRE FRESH CHAPATHI 12NOS")) // a standard packet
         assertTrue(lines.contains("MAMRE CHAPATHI 10NOS")) // a custom packet
-        assertEquals("Item Desc     Qty  Price     Amt", lines[lines.indexOf("MAMRE FRESH CHAPATHI 6NOS") - 1])
+        assertEquals("Item Desc     Qty  Price     Amt", lines[lines.indexOf("MAMRE FRESH CHAPATHI 12NOS") - 1])
     }
 
     @Test fun qtyPriceAndAmountAreRightAlignedWithNoDollarSign() {

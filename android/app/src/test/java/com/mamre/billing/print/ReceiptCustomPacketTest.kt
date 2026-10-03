@@ -18,7 +18,7 @@ class ReceiptCustomPacketTest {
         salesmanName = "Rajesh",
         customerName = "Royal Banquets",
         customerLocation = "Addison",
-        items = listOf(ReceiptItem("Mamre Fresh Chapathi", 2, 280, 560, 6)),
+        items = listOf(ReceiptItem("Mamre Fresh Chapathi", 2, 280, 560, 12)),
         totalCents = 560,
         paidNowCents = 560,
         method = PaymentMethod.CASH,
@@ -28,7 +28,7 @@ class ReceiptCustomPacketTest {
 
     @Test fun aStandardPacketLineShowsItsSizeInTheSameStyleAsACustomOne() {
         val lines = layoutInvoiceReceipt(base)
-        assertTrue(lines.contains("MAMRE FRESH CHAPATHI 6NOS"))
+        assertTrue(lines.contains("MAMRE FRESH CHAPATHI 12NOS"))
         assertTrue(lines.none { it.contains("pcs") })
     }
 
@@ -49,7 +49,7 @@ class ReceiptCustomPacketTest {
     }
 
     @Test fun theReceiptShowsTheChargedPriceOnlyAndNotTheListPrice() {
-        val line = InvoiceLine("p", "Mamre Fresh Chapathi", 1, 400, 6, 450)
+        val line = InvoiceLine("p", "Mamre Fresh Chapathi", 1, 400, 12, 450)
         val item = ReceiptItem(line.productName, line.qtyPackets, line.unitPriceCents, line.lineTotalCents, line.chapathisPerPacket)
         val text = layoutInvoiceReceipt(base.copy(items = listOf(item), totalCents = 400, paidNowCents = 400)).joinToString("\n")
         assertTrue(text.contains("4.00"))
