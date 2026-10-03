@@ -17,7 +17,7 @@ Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent
 
 ### 1.1 Business context
 
-Mamre Foods is a small US-based food business. It makes half-cooked chapathi, packs it in packets (a standard packet is 6 chapathis), and sells to restaurants, shops, retail and catering customers. Some customers pay once a month, some pay in parts. The business owner (the Admin) reviews everything on a laptop. A field Worker creates invoices on an Android handheld device that has a built-in thermal printer. All money is in US dollars. Tax handling is out of scope.
+Mamre Foods is a small US-based food business. It makes half-cooked chapathi, packs it in packets of 12 (the standard packet), and sells to restaurants, shops, retail and catering customers. Some customers pay once a month, some pay in parts. The business owner (the Admin) reviews everything on a laptop. A field Worker creates invoices on an Android handheld device that has a built-in thermal printer. All money is in US dollars. Tax handling is out of scope.
 
 ### 1.2 Goals
 
@@ -70,11 +70,11 @@ Two products at launch, both sold half-cooked. Adding a new product must be a si
 
 | Product | Description | Standard packet |
 |---|---|---|
-| Mamre Fresh Chapathi | Half-cooked chapathi, no preservative | 6 chapathis (editable) |
-| Mamre Chapathi | Half-cooked chapathi with potassium sorbate as preservative | 6 chapathis (editable) |
+| Mamre Fresh Chapathi | Half-cooked chapathi, no preservative | 12 chapathis (editable) |
+| Mamre Chapathi | Half-cooked chapathi with potassium sorbate as preservative | 12 chapathis (editable) |
 
 - Product fields: name, code, standard packet size, yield per kg of wheat (32), active flag. Packing is a material (section 9), not a product field.
-- The sales unit is the packet. A packet is standard (6 chapathis, A-19) or custom (1 to 200 chapathis, available for every customer type). Each invoice line stores its packets and the chapathis per packet, so one invoice can mix sizes of the same product on separate lines (A-1).
+- The sales unit is the packet. A packet is standard (12 chapathis, A-19) or custom (1 to 200 chapathis, available for every customer type). Each invoice line stores its packets and the chapathis per packet, so one invoice can mix sizes of the same product on separate lines (A-1).
 - A new product can be sold as soon as it has prices. Its cost shows as incomplete until a recipe exists.
 
 ==============================================================================
@@ -91,7 +91,7 @@ Customer types: Restaurant, Shop, Retail and Catering. The Admin may add types. 
 2. Otherwise the default price for that customer type and product.
 3. Otherwise no price: the product cannot be invoiced. The app shows "No price set - contact admin". Never default to zero.
 
-Price of a custom packet (unless changed by the worker where allowed) = list price per standard packet x N chapathis / standard packet size, rounded half up, integer arithmetic only. Examples: 250 cents per standard packet of 6 gives 417 cents for 10 chapathis; 230 cents gives 383 cents.
+Price of a custom packet (unless changed by the worker where allowed) = list price per standard packet x N chapathis / standard packet size, rounded half up, integer arithmetic only. Examples: 250 cents per standard packet of 12 gives 208 cents for 10 chapathis and 188 cents for 9 (a half rounds up); 230 cents gives 192 cents for 10 chapathis.
 
 ### 4.3 Price rules
 
@@ -111,7 +111,7 @@ Price of a custom packet (unless changed by the worker where allowed) = list pri
 ### 5.1 Worker flow
 
 1. Choose the customer type (Restaurant, Shop, Retail, Catering), then the customer, or Walk-in under Retail.
-2. Add products. For each line choose Standard (6) or a Custom packet (1 to 200 chapathis) and the number of packets. Prices and the total appear automatically; the price can be changed only where the type allows it.
+2. Add products. For each line choose Standard (12) or a Custom packet (1 to 200 chapathis) and the number of packets. Prices and the total appear automatically; the price can be changed only where the type allows it.
 3. Payment step: amount received now (may be $0 for credit customers) and method.
 4. Worker confirms. The invoice is saved on the device, printed, and queued for sync.
 
@@ -219,15 +219,15 @@ Batch records and finished-goods stock are not part of v1 (A-8 withdrawn). The a
 | Yield | 32 chapathis per kg (editable) | Yes | Yes |
 | Packing | 1 piece per packet, bought like any material | Yes | Yes |
 
-### 9.3 Quantities per chapathi and per standard packet of 6
+### 9.3 Quantities per chapathi and per standard packet of 12
 
-| Material | Per chapathi | Standard packet (6) |
+| Material | Per chapathi | Standard packet (12) |
 |---|---|---|
-| Whole wheat flour | 31.25 g | 187.5 g |
-| Oil | 2.5 ml | 15 ml |
-| Sugar | 0.625 g | 3.75 g |
-| Salt | 0.46875 g | 2.8125 g |
-| Baking powder | 0.0625 g | 0.375 g |
+| Whole wheat flour | 31.25 g | 375 g |
+| Oil | 2.5 ml | 30 ml |
+| Sugar | 0.625 g | 7.5 g |
+| Salt | 0.46875 g | 5.625 g |
+| Baking powder | 0.0625 g | 0.75 g |
 | Potassium sorbate (Mamre Chapathi only) | PENDING (P-2) | PENDING (P-2) |
 | Packing | n/a | 1 piece |
 
@@ -266,7 +266,7 @@ Stock example. In a month 12,000 chapathis are invoiced, replaced or damaged. Wa
 | Cost consumed (382.5 kg x $1.10) | $420.75 |
 | Closing stock (400 - 382.5) | 17.5 kg |
 
-Cost of a packet of 12 chapathis (Mamre Fresh Chapathi, before wastage). Invented prices: wheat $1.10/kg, oil $4.00/L, sugar $1.00/kg, salt $0.80/kg, baking powder $4.00/kg; monthly indirect expenses $900 over 72,000 net chapathis ($0.0125 each).
+Cost of a standard packet of 12 chapathis (Mamre Fresh Chapathi, before wastage). Invented prices: wheat $1.10/kg, oil $4.00/L, sugar $1.00/kg, salt $0.80/kg, baking powder $4.00/kg; monthly indirect expenses $900 over 72,000 net chapathis ($0.0125 each).
 
 | Item | Quantity | Price | Cost |
 |---|---|---|---|
@@ -281,7 +281,7 @@ Cost of a packet of 12 chapathis (Mamre Fresh Chapathi, before wastage). Invente
 | Indirect share (12 x $0.0125) |  |  | $0.1500 |
 | Full cost per packet |  |  | $0.8475 |
 
-A standard packet of 6 at the same prices and no wastage: ingredients $0.27375, direct cost $0.42375, indirect share $0.075, full cost $0.49875 (shown to four decimals as $0.2738, $0.4238 and $0.4988). With 2% wastage on ingredients, the 12-chapathi direct cost is $0.5475 x 1.02 + $0.15 = $0.70845 (shown as $0.7085).
+A custom packet of 6 chapathis at the same prices and no wastage: ingredients $0.27375, direct cost $0.42375, indirect share $0.075, full cost $0.49875 (shown to four decimals as $0.2738, $0.4238 and $0.4988). With 2% wastage on ingredients, the standard packet's direct cost is $0.5475 x 1.02 + $0.15 = $0.70845 (shown as $0.7085).
 
 ==============================================================================
 ## 10. Expenses
@@ -331,7 +331,7 @@ Each assumption stands until the owner changes it. An agent must not silently ch
 
 | ID | Assumption |
 |---|---|
-| A-1 | Sales are in whole packets. A packet is standard (6 chapathis, per product) or custom (1 to 200 chapathis). |
+| A-1 | Sales are in whole packets. A packet is standard (12 chapathis, per product) or custom (1 to 200 chapathis). |
 | A-2 | WITHDRAWN. Replaced by section 4.3: workers may edit the price only for customer types whose switch is on. |
 | A-3 | Accepted methods: Cash, Zelle, Check, Card, Other. |
 | A-4 | Overpayment is allowed and shown as credit on account. |
@@ -349,7 +349,7 @@ Each assumption stands until the owner changes it. An agent must not silently ch
 | A-16 | A receipt prints when the worker confirms a payment. |
 | A-17 | Confirmed invoices are immutable. Void or credit is the only correction. |
 | A-18 | Purchases, expenses and production damage are add-only. A mistake is corrected by a linked reversing entry with a reason. |
-| A-19 | The standard packet is 6 chapathis (changed from 12), editable per product. |
+| A-19 | The standard packet is 12 chapathis (owner confirmed on 3 October 2026), editable per product. |
 | A-20 | Wastage defaults to 2%, adjustable from 0% to 5%, applied to ingredients only. |
 | A-21 | The Android app also has an Admin view. It is built on demo data and needs real Admin endpoints and a PIN lock before real use. |
 | A-22 | Packing is counted once per packet, for invoiced and replacement packets. |
@@ -372,7 +372,6 @@ The business must supply these. Until then the build uses clearly marked placeho
 | P-7 | Business time zone | Month boundaries. Default to a setting the Admin edits. |
 | P-8 | Existing customers and opening balances | Optional import. Start empty otherwise. |
 | P-9 | Confirm both products share the same base recipe and yield | Recipe screen defaults. |
-| P-10 | Confirm the standard packet is 6 chapathis for both products | Packet size defaults. |
 | P-11 | Decide whether to enforce a minimum price per product where workers can edit prices | Under-charging control. |
 
 ==============================================================================
@@ -382,7 +381,7 @@ The business must supply these. Until then the build uses clearly marked placeho
 | Term | Meaning |
 |---|---|
 | Chapathi | One half-cooked chapathi. Material usage is calculated per chapathi. |
-| Packet | The sales unit: a standard packet (6 chapathis) or a custom packet (1 to 200). |
+| Packet | The sales unit: a standard packet (12 chapathis) or a custom packet (1 to 200). |
 | Custom packet | A packet with a chosen number of chapathis, available for every customer type. |
 | Credit customer | A customer billed monthly who may carry a balance. |
 | Walk-in | An anonymous Retail sale paid in full at once, with no ledger. |
@@ -402,5 +401,5 @@ The business must supply these. Until then the build uses clearly marked placeho
 
 | Version | Changes |
 |---|---|
-| 1.1 (3 Oct 2026) | Fourth customer type, Catering. Worker price editing by customer-type switch (amends A-2 and Doc 3 N4). Standard packet 6 chapathis and custom packets. Costing rebuilt on material purchases, calculated usage, wastage and weighted-average price (A-11 withdrawn). Net profit = gross profit - indirect expenses. Add-only entries with reversing entries. Production damage in chapathis; batches and finished stock dropped (A-8 withdrawn). Admin view in the Android app. Customers shared to workers at sync. |
+| 1.1 (3 Oct 2026) | Fourth customer type, Catering. Worker price editing by customer-type switch (amends A-2 and Doc 3 N4). Custom packets of 1 to 200 chapathis (the standard packet stays 12). Costing rebuilt on material purchases, calculated usage, wastage and weighted-average price (A-11 withdrawn). Net profit = gross profit - indirect expenses. Add-only entries with reversing entries. Production damage in chapathis; batches and finished stock dropped (A-8 withdrawn). Admin view in the Android app. Customers shared to workers at sync. |
 | 1.0 (1 Oct 2026) | First baseline. |

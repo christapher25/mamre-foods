@@ -114,7 +114,7 @@ mamre/
 |---|---|---|
 | accounts User | id, username, full_name, role (admin or worker), is_active | Role enforced on every endpoint. |
 | Device | id, code (W1), name, user_id, last_sync_at, app_version | One code per device. Code appears in invoice numbers. |
-| catalog Product | id, code, name, standard_packet_size (default 6), yield_per_kg (default 32), is_active | Adding a product needs no code change. Packing cost comes from the packing material. |
+| catalog Product | id, code, name, standard_packet_size (default 12), yield_per_kg (default 32), is_active | Adding a product needs no code change. Packing cost comes from the packing material. |
 | CustomerType | id, name, worker_can_edit_price, is_active | Restaurant, Shop, Retail, Catering. Flag defaults: Retail and Catering ON, others OFF. Synced to workers. Changes are audited. |
 | Customer | id, name, type_id, phone, address, payment_mode (cash or credit), opening_balance_cents, notes, is_active | Walk-in is not a row; it is a null customer. |
 | PriceDefault | id, product_id, customer_type_id, unit_price_cents (per standard packet), effective_from | History kept. Latest effective row wins. |
@@ -184,9 +184,9 @@ POST /api/v1/sync/push
     "customer_id": "a93b...10",           // null for walk-in
     "issued_at": "2026-10-10T14:20:11-05:00",
     "items": [
-      {"id": "...", "product_id": "...", "qty_packets": 10, "chapathis_per_packet": 6,
+      {"id": "...", "product_id": "...", "qty_packets": 10, "chapathis_per_packet": 12,
        "unit_price_cents": 250, "list_price_cents": 250, "price_overridden": false},
-      {"id": "...", "product_id": "...", "qty_packets": 20, "chapathis_per_packet": 6,
+      {"id": "...", "product_id": "...", "qty_packets": 20, "chapathis_per_packet": 12,
        "unit_price_cents": 280, "list_price_cents": 280, "price_overridden": false}
     ],
     "total_cents": 8100
@@ -314,7 +314,7 @@ There are two Admin surfaces on the same server and rules: the laptop dashboard 
 | Login | Username, password, Mamre logo | Remembers session. PIN lock after inactivity (planned). |
 | Home | New invoice, Record payment, Return, Today's invoices, Sync status | Shows count of unsynced records. Count only, never totals. |
 | Select customer | Four type tiles (Restaurant, Shop, Retail, Catering) with counts, then that type's customers with search. Walk-in under Retail. Shows balance for the selected customer | Cannot add customers (A-13). New customers appear after Sync now. |
-| Invoice builder | Product cards. Each line is Standard (6) or Custom (1 to 200 chapathis) with a packet stepper, a running total, and Edit price where the type allows | Price read-only unless the type's switch is on. A changed price shows a "Price changed" chip. Blocks any product with no price. |
+| Invoice builder | Product cards. Each line is Standard (12) or Custom (1 to 200 chapathis) with a packet stepper, a running total, and Edit price where the type allows | Price read-only unless the type's switch is on. A changed price shows a "Price changed" chip. Blocks any product with no price. |
 | Edit price sheet | Price per packet, list price, Reset to list price | Above $0 and at most 10 times the list price. Only when allowed. |
 | Payment step | Amount received now, method | Walk-in must pay in full. Credit customers may pay $0. |
 | Confirm and print | Summary, Confirm button | Confirm saves, queues sync, prints. Back never loses data. |
@@ -356,7 +356,7 @@ indirect_per_chapathi(month):
 
 - Missing material price, missing recipe item or missing sorbate quantity: result is INCOMPLETE with a list of what is missing. Never treat as zero.
 - Compute in integers. Round only once per figure and only where Doc 2 section 4.1 says.
-- Golden tests: (1) 12,000 chapathis, wastage 2%: wheat used 382.5 kg; 400 kg bought for $440.00 gives $1.10 per kg, cost consumed $420.75, closing stock 17.5 kg. (2) A 12-chapathi packet at the Doc 1 section 9.7 prices gives $0.5475, $0.6975 and $0.8475. (3) A standard 6-chapathi packet gives $0.2738 ingredients and $0.4238 direct.
+- Golden tests: (1) 12,000 chapathis, wastage 2%: wheat used 382.5 kg; 400 kg bought for $440.00 gives $1.10 per kg, cost consumed $420.75, closing stock 17.5 kg. (2) A standard 12-chapathi packet at the Doc 1 section 9.7 prices gives $0.5475, $0.6975 and $0.8475. (3) A custom 6-chapathi packet gives $0.2738 ingredients and $0.4238 direct.
 
 ==============================================================================
 ## 12. Testing and Acceptance
@@ -364,7 +364,7 @@ indirect_per_chapathi(month):
 
 | Area | Required tests |
 |---|---|
-| Pricing | Override beats default. Missing price blocks the invoice. Snapshot survives a later price change. Custom packet price rounds half up (250 per 6 gives 417 for 10; 230 gives 383). Walk-in uses Retail. |
+| Pricing | Override beats default. Missing price blocks the invoice. Snapshot survives a later price change. Custom packet price rounds half up (250 per standard packet of 12 gives 208 for 10 chapathis and 188 for 9; 230 gives 192 for 10). Walk-in uses Retail. |
 | Price editing | A locked type cannot change a price even if the screen is bypassed. An editable type stores list price and price_overridden. Reset returns to the list price. The 10 times cap holds. |
 | Ledger | Doc 1 section 6.5 example: Invoice 1 paid, Invoice 2 has $60 left, closing $120. Void invoices are excluded. Return credit reduces balance. Overpayment becomes credit. |
 | Sync | Push the same batch twice: one record. Kill the app between save and sync: nothing lost. Mixed good and bad records: good ones accepted. A customer added by the Admin appears on the worker only after Sync now. |

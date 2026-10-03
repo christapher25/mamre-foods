@@ -31,7 +31,7 @@ Status: Process rules, amended 3 October 2026 to match Doc 1 version 1.1 (rule N
 ==============================================================================
 
 - What: billing and accounting for Mamre Foods, a US half-cooked chapathi business. Products: Mamre Chapathi and Mamre Fresh Chapathi. Currency USD. No tax.
-- Packets: a standard packet is 6 chapathis (editable per product). A custom packet holds 1 to 200 chapathis and is available for every customer type. Material usage is counted in chapathis.
+- Packets: a standard packet is 12 chapathis (editable per product). A custom packet holds 1 to 200 chapathis and is available for every customer type. Material usage is counted in chapathis.
 - Who: one Worker on an Android handheld with a 58 mm printer (invoices, payments, returns), and an Admin on a laptop dashboard and in an Admin view inside the Android app (prices, customers, purchases, expenses, reports).
 - Customers: Restaurant, Shop, Retail and Catering (a walk-in follows Retail). Credit customers are billed per calendar month with part-payments. Payments clear the oldest invoice first. A customer the Admin adds reaches workers at their next sync.
 - Prices: default per customer type and product, plus an Admin override per customer. The worker can change a line's price only for customer types whose switch "Worker can edit price" is on (Retail and Catering by default). A changed price is stored with the list price and flagged.
@@ -311,7 +311,7 @@ Review branch [BRANCH] against main:
 | AT-3 | Pushing the same invoice batch twice stores exactly one invoice. | Doc 2 I-11 |
 | AT-4 | No worker API response contains a key with cost, profit or expense. | Doc 2 I-8 |
 | AT-5 | Receipt layout matches the 32-column golden file for standard packets. | Doc 2 s7 |
-| AT-6 | Materials golden case: 12,000 chapathis with 2% wastage use 382.5 kg of wheat; 400 kg bought for $440.00 gives $1.10 per kg, cost consumed $420.75, closing stock 17.5 kg. A 12-chapathi packet at the Doc 1 s9.7 prices costs $0.5475 ingredients, $0.6975 direct, $0.8475 full. | Doc 1 s9.7 |
+| AT-6 | Materials golden case: 12,000 chapathis with 2% wastage use 382.5 kg of wheat; 400 kg bought for $440.00 gives $1.10 per kg, cost consumed $420.75, closing stock 17.5 kg. A standard 12-chapathi packet at the Doc 1 s9.7 prices costs $0.5475 ingredients, $0.6975 direct, $0.8475 full. | Doc 1 s9.7 |
 | AT-7 | A voided invoice is excluded from the balance and keeps its number. | Doc 1 s5.4 |
 | AT-8 | A back-dated entry into a locked month is refused. | Doc 1 s6.4 |
 | AT-9 | A return credit reduces the balance; a replacement does not. | Doc 1 s7.1 |
@@ -319,7 +319,7 @@ Review branch [BRANCH] against main:
 | AT-11 | A print failure does not lose the invoice, and Reprint works. | Doc 1 s5.4 |
 | AT-12 | Airplane mode invoice later appears once in Admin; balances match the receipt. | Doc 2 s12 |
 | AT-13 | A worker can change a price only for a type whose switch is on; the line stores the list price and price_overridden; a locked type refuses even if the screen is bypassed. | Doc 1 s4.3 |
-| AT-14 | Custom packet default price rounds half up: 250 per 6 gives 417 for 10 chapathis; 230 gives 383. | Doc 1 s4.2 |
+| AT-14 | Custom packet default price rounds half up: 250 per standard packet of 12 gives 208 for 10 chapathis and 188 for 9; 230 gives 192 for 10. | Doc 1 s4.2 |
 | AT-15 | A reversing entry nets a purchase or expense out; the original stays visible; a reversal cannot be reversed. | Doc 1 s9.4 |
 | AT-16 | A customer added by the Admin reaches the worker only after Sync now. | Doc 1 s4.1 |
 | AT-17 | The release package contains no fake API, no demo logins and no demo seed data. | Doc 2 s13 |
