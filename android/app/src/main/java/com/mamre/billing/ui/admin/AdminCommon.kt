@@ -27,6 +27,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.mamre.billing.data.demo.DEMO_DATA_LABEL
 import com.mamre.billing.domain.admin.AdminCustomer
@@ -80,7 +81,9 @@ fun DateField(
             modifier = Modifier.fillMaxWidth().heightIn(min = Sizes.primaryButton),
         )
         // A read-only field does not receive taps, so a transparent layer on top opens the picker.
-        Box(Modifier.matchParentSize().clickable { open = true })
+        Box(
+            Modifier.matchParentSize().clickable(onClickLabel = "Choose $label", role = Role.Button) { open = true },
+        )
     }
     if (open) {
         val state = rememberDatePickerState(initialSelectedDateMillis = date?.let(::dateToPickerMillis))
