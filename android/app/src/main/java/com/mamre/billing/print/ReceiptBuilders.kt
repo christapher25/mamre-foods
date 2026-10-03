@@ -84,7 +84,8 @@ fun paymentReceiptOf(
     customerLocation = payment.customerLocation,
     amountCents = payment.amountCents,
     method = payment.method,
-    balanceAfterCents = balanceAfterCents,
+    // A corporate account never gets a balance on paper: it is not even built (change set D4, review finding 3).
+    balanceAfterCents = if (isCorporate) null else balanceAfterCents,
     note = payment.note,
     isCorporate = isCorporate,
     duplicate = duplicate,

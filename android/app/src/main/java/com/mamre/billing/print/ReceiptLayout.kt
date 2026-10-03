@@ -88,7 +88,8 @@ data class PaymentReceipt(
     val customerLocation: String = "",
     val amountCents: Long,
     val method: PaymentMethod,
-    val balanceAfterCents: Long,
+    /** Null for a corporate account: the builder does not build it at all (change set D4, review finding 3). */
+    val balanceAfterCents: Long?,
     val note: String,
     /** A corporate account never gets a balance on paper (change set D4). */
     val isCorporate: Boolean = false,
@@ -144,7 +145,7 @@ fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
     addAll(customerLines(r.customerName, r.customerLocation))
     add(rule())
     add(leftRight("Payment received (${r.method.label})", centsToPlain(r.amountCents)))
-    if (!r.isCorporate) add(leftRight("Balance after", centsToPlain(r.balanceAfterCents)))
+    if (!r.isCorporate) r.balanceAfterCents?.let { add(leftRight("Balance after", centsToPlain(it))) }
     if (r.note.isNotBlank()) addAll(labelled("Note: ", r.note))
     add(rule())
     addFooter(r.header.footer)
