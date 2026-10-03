@@ -68,40 +68,40 @@ class BusinessHeaderSyncTest {
         val lines = billLines(header)
         assertTrue(lines.contains(center("(business name pending)")))
         assertTrue(lines.contains(center("(address / phone pending)")))
-        assertFalse(lines.any { it.contains("Carrollton") || it.contains("Hollow") || it.contains("Ph:") })
+        assertFalse(lines.any { it.contains("Example") || it.contains("Anytown") || it.contains("Ph:") })
     }
 
     @Test fun afterTheFirstSyncTheHeaderIsTheDebugSeedOfTheBusinessSettings() = runTest {
         repo.refresh()
         val header = repo.businessHeader()
         assertEquals("MAMRE FOODS", header.name)
-        assertEquals(listOf("1461 E Branch Hollow Dr", "Carrollton , Texas , 75007"), header.addressLines)
-        assertEquals("+1 (972) 927-2119", header.phone)
+        assertEquals(listOf("123 Example Street", "Anytown, TX 00000"), header.addressLines)
+        assertEquals("+1 (000) 000-0000", header.phone)
         assertEquals("Thank you!", header.footer)
         // The Admin's Settings screen starts from the very same values.
         val s = admin.settings()
-        assertEquals("1461 E Branch Hollow Dr\nCarrollton , Texas , 75007", s.address)
+        assertEquals("123 Example Street\nAnytown, TX 00000", s.address)
         assertEquals(header.phone, s.phone)
         val lines = billLines(header)
-        assertEquals(center("1461 E Branch Hollow Dr"), lines[1])
-        assertEquals(center("Ph: +1 (972) 927-2119"), lines[3])
+        assertEquals(center("123 Example Street"), lines[1])
+        assertEquals(center("Ph: +1 (000) 000-0000"), lines[3])
     }
 
     @Test fun anAddressChangedByTheAdminReachesTheBillOnlyAfterSyncNow() = runTest {
         repo.refresh()
         val old = admin.settings()
-        admin.saveSettings(old.copy(address = "9 Oak Lane\nPlano , Texas , 75024", phone = "+1 (469) 555-0100", footerText = "Come again!"), "Test Admin")
+        admin.saveSettings(old.copy(address = "9 Sample Road\nOtherville, TX 11111", phone = "+1 (111) 111-1111", footerText = "Come again!"), "Test Admin")
         // Not yet: the salesman still prints the old header.
         val before = billLines(repo.businessHeader())
-        assertTrue(before.any { it.contains("Branch Hollow") })
-        assertFalse(before.any { it.contains("Oak Lane") })
+        assertTrue(before.any { it.contains("Example Street") })
+        assertFalse(before.any { it.contains("Sample Road") })
         repo.refresh() // Sync now
         val after = billLines(repo.businessHeader())
-        assertTrue(after.any { it.trim() == "9 Oak Lane" })
-        assertTrue(after.any { it.trim() == "Plano , Texas , 75024" })
-        assertTrue(after.any { it.trim() == "Ph: +1 (469) 555-0100" })
+        assertTrue(after.any { it.trim() == "9 Sample Road" })
+        assertTrue(after.any { it.trim() == "Otherville, TX 11111" })
+        assertTrue(after.any { it.trim() == "Ph: +1 (111) 111-1111" })
         assertTrue(after.any { it.trim() == "Come again!" })
-        assertFalse(after.any { it.contains("Branch Hollow") || it.contains("Carrollton") || it.contains("Thank you") })
+        assertFalse(after.any { it.contains("Example Street") || it.contains("Anytown") || it.contains("Thank you") })
     }
 
     @Test fun aClearedAddressPrintsThePlaceholderAfterSyncNow() = runTest {
@@ -112,7 +112,7 @@ class BusinessHeaderSyncTest {
         assertTrue(header.addressLines.isEmpty() && header.phone.isEmpty())
         val lines = billLines(header)
         assertTrue(lines.contains(center("(address / phone pending)")))
-        assertFalse(lines.any { it.contains("Carrollton") || it.contains("Hollow") })
+        assertFalse(lines.any { it.contains("Example") || it.contains("Anytown") })
     }
 
     @Test fun anUnchangedSaveRaisesNoNewVersionAndAChangeIsLogged() = runTest {

@@ -2,7 +2,6 @@ package com.mamre.billing.print
 
 import com.mamre.billing.domain.model.BusinessHeader
 import com.mamre.billing.domain.money.centsToPlain
-import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.worker.PaymentMethod
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -144,8 +143,8 @@ fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
     addAll(labelled("Salesman: ", r.salesmanName))
     addAll(customerLines(r.customerName, r.customerLocation))
     add(rule())
-    add(leftRight("Payment received (${r.method.label})", formatCents(r.amountCents)))
-    if (!r.isCorporate) add(leftRight("Balance after", formatCents(r.balanceAfterCents)))
+    add(leftRight("Payment received (${r.method.label})", centsToPlain(r.amountCents)))
+    if (!r.isCorporate) add(leftRight("Balance after", centsToPlain(r.balanceAfterCents)))
     if (r.note.isNotBlank()) addAll(labelled("Note: ", r.note))
     add(rule())
     addFooter(r.header.footer)

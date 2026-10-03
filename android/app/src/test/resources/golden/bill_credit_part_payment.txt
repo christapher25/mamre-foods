@@ -1,7 +1,7 @@
           MAMRE FOODS
-    1461 E Branch Hollow Dr
-   Carrollton , Texas , 75007
-     Ph: +1 (972) 927-2119
+       123 Example Street
+       Anytown, TX 00000
+     Ph: +1 (000) 000-0000
 --------------------------------
 Bill No:  MAM-W1-0042
 Date:     10/10/2026

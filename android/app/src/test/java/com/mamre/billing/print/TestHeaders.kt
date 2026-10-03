@@ -12,8 +12,8 @@ import com.mamre.billing.domain.worker.PaymentRecord
 object TestHeaders {
     val full = BusinessHeader(
         name = "MAMRE FOODS",
-        addressLines = listOf("1461 E Branch Hollow Dr", "Carrollton , Texas , 75007"),
-        phone = "+1 (972) 927-2119",
+        addressLines = listOf("123 Example Street", "Anytown, TX 00000"),
+        phone = "+1 (000) 000-0000",
         footer = "Thank you!",
     )
 }

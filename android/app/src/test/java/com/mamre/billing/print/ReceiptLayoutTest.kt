@@ -148,7 +148,7 @@ class ReceiptLayoutTest {
 
     @Test fun theHeaderComesFromTheBusinessSettingsGivenToTheBill() {
         val lines = layoutInvoiceReceipt(credit)
-        assertEquals(listOf("MAMRE FOODS", "1461 E Branch Hollow Dr", "Carrollton , Texas , 75007", "Ph: +1 (972) 927-2119").map(::center), lines.take(4))
+        assertEquals(listOf("MAMRE FOODS", "123 Example Street", "Anytown, TX 00000", "Ph: +1 (000) 000-0000").map(::center), lines.take(4))
         val other = layoutInvoiceReceipt(credit.copy(header = BusinessHeader("Other Bakery", listOf("12 Main St"), "555-0100", "See you soon")))
         assertEquals(listOf("Other Bakery", "12 Main St", "Ph: 555-0100").map(::center), other.take(3))
         assertEquals(center("See you soon"), other.last())
@@ -161,14 +161,14 @@ class ReceiptLayoutTest {
         // A bill printed before the first sync has no settings at all.
         val empty = layoutInvoiceReceipt(credit.copy(header = BusinessHeader()))
         assertEquals(listOf("(business name pending)", "(address / phone pending)").map(::center), empty.take(2))
-        assertFalse(empty.any { it.contains("Carrollton") || it.contains("Branch Hollow") })
+        assertFalse(empty.any { it.contains("Example") || it.contains("Anytown") })
     }
 
     @Test fun oneMissingValueGetsItsOwnPlaceholderAndTheOtherIsStillPrinted() {
         val noPhone = layoutInvoiceReceipt(credit.copy(header = TestHeaders.full.copy(phone = "")))
-        assertEquals(listOf("MAMRE FOODS", "1461 E Branch Hollow Dr", "Carrollton , Texas , 75007", "(phone pending)").map(::center), noPhone.take(4))
+        assertEquals(listOf("MAMRE FOODS", "123 Example Street", "Anytown, TX 00000", "(phone pending)").map(::center), noPhone.take(4))
         val noAddress = layoutInvoiceReceipt(credit.copy(header = TestHeaders.full.copy(addressLines = emptyList())))
-        assertEquals(listOf("MAMRE FOODS", "(address pending)", "Ph: +1 (972) 927-2119").map(::center), noAddress.take(3))
+        assertEquals(listOf("MAMRE FOODS", "(address pending)", "Ph: +1 (000) 000-0000").map(::center), noAddress.take(3))
     }
 
     @Test fun theFooterIsTheSettingAndNothingIsPrintedWhenThereIsNone() {
@@ -330,9 +330,9 @@ class ReceiptLayoutTest {
     @Test fun thePaymentReceiptHasTheSameHeaderBlockAndNoTypeLine() {
         val expected = listOf(
             "          MAMRE FOODS",
-            "    1461 E Branch Hollow Dr",
-            "   Carrollton , Texas , 75007",
-            "     Ph: +1 (972) 927-2119",
+            "       123 Example Street",
+            "       Anytown, TX 00000",
+            "     Ph: +1 (000) 000-0000",
             "--------------------------------",
             "Receipt:  RCP-W1-0001",
             "Date:     10/10/2026",
@@ -341,8 +341,8 @@ class ReceiptLayoutTest {
             "Customer: Spice Garden",
             "          Irving",
             "--------------------------------",
-            "Payment received (Zelle)  \$50.00",
-            "Balance after             \$70.00",
+            lr("Payment received (Zelle)", "50.00"),
+            lr("Balance after", "70.00"),
             "--------------------------------",
             "           Thank you!",
         )
@@ -353,9 +353,24 @@ class ReceiptLayoutTest {
         for (line in dup) assertTrue(line.length <= RECEIPT_WIDTH)
     }
 
+
+    @Test fun thePaymentReceiptHasNoDollarSignEitherAmountsArePlainNumbers() {
+        for (r in listOf(payment, payment.copy(isCorporate = true), payment.copy(duplicate = true, note = "Paid at the door"))) {
+            val dollar = layoutPaymentReceipt(r).filter { it.contains("$") }
+            assertTrue("a payment receipt line has a dollar sign: $dollar", dollar.isEmpty())
+        }
+        val big = layoutPaymentReceipt(payment.copy(amountCents = 123_456, balanceAfterCents = -2_500))
+        assertTrue(big.contains(lr("Payment received (Zelle)", "1234.56")))
+        assertTrue(big.contains(lr("Balance after", "-25.00")))
+        assertTrue(big.all { it.length <= RECEIPT_WIDTH })
+    }
+
+    @Test fun thePaymentReceiptMatchesItsGoldenFile() {
+        assertEquals(golden("payment_receipt_zelle.txt"), layoutPaymentReceipt(payment.copy(note = "Paid at the door")))
+    }
     @Test fun aCorporatePaymentReceiptShowsNoBalance() {
         val lines = layoutPaymentReceipt(payment.copy(isCorporate = true))
         assertTrue(lines.none { it.contains("Balance") })
-        assertTrue(lines.contains("Payment received (Zelle)  \$50.00"))
+        assertTrue(lines.contains(lr("Payment received (Zelle)", "50.00")))
     }
 }

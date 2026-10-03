@@ -238,7 +238,7 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
                 customer("c-curry-house", "Curry House", "Plano", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
                 customer("c-taj-kitchen", "Taj Kitchen", "Frisco", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
                 customer("c-masala-bistro", "Masala Bistro", "Allen", DemoIds.RESTAURANT_TYPE, PaymentMode.CASH),
-                customer(DemoIds.SHOP, "Patel Mart", "Carrollton", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
+                customer(DemoIds.SHOP, "Patel Mart", "Mesquite", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
                 customer("c-corner-shop", "Corner Shop", "Richardson", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
                 customer("c-desi-grocers", "Desi Grocers", "Garland", DemoIds.SHOP_TYPE, PaymentMode.CASH),
                 customer(DemoIds.RETAIL_CUSTOMER, "Rao Family", "Coppell", DemoIds.RETAIL_TYPE, PaymentMode.CASH),
@@ -277,8 +277,8 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
             // reference bill of change set D3 (docs: none, Doc 1 P-6 is pending); they exist only here, never in main.
             val settings = listOf(
                 SharedSettingRow(SettingKeys.BUSINESS_NAME, "MAMRE FOODS", v),
-                SharedSettingRow(SettingKeys.ADDRESS, "1461 E Branch Hollow Dr\nCarrollton , Texas , 75007", v),
-                SharedSettingRow(SettingKeys.PHONE, "+1 (972) 927-2119", v),
+                SharedSettingRow(SettingKeys.ADDRESS, "123 Example Street\nAnytown, TX 00000", v),
+                SharedSettingRow(SettingKeys.PHONE, "+1 (000) 000-0000", v),
                 SharedSettingRow(SettingKeys.FOOTER, "Thank you!", v),
             )
             return Seed(types, products, customers, prices, overrides, settings)
