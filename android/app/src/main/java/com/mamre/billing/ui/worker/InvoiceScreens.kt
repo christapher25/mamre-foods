@@ -324,7 +324,7 @@ private fun CustomPacketDialog(productName: String, onAdd: (Int) -> CustomPacket
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Text(productName, style = MaterialTheme.typography.bodyMedium)
                 LabeledTextField(
-                    label = "Chapathis per packet (1 to 200)",
+                    label = "Chapathis (1 to 200)",
                     value = text,
                     onValueChange = {
                         text = it.filter(Char::isDigit).take(3)
