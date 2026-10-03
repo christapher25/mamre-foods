@@ -470,6 +470,32 @@ class FakeAdminApiTest {
         assertTrue(api.workers().any { it.deviceCode == "W1" && it.isActive })
     }
 
+
+    @Test fun anAdminCanAddASalesmanAndItIsChangeLogged() = runTest {
+        val added = api.addSalesman("  Anil   Kumar ", "anil1", "Test Admin")
+        assertEquals("Anil Kumar", added.fullName)
+        assertEquals("W3", added.deviceCode) // the next free device code
+        assertEquals(3, api.workers().size)
+        val entry = api.changeLog.value.single()
+        assertEquals("Add salesman Anil Kumar", entry.what)
+        assertEquals("Test Admin", entry.who)
+    }
+
+    @Test fun aDuplicateSalesmanNameIsRefusedIgnoringCaseWithAClearMessage() = runTest {
+        val e = expectRefused { api.addSalesman("rajesh", "raj2", "Test Admin") }
+        assertTrue(e.message!!, e.message!!.contains("already exists"))
+        expectRefused { api.addSalesman("Second  SALESMAN", "sec2", "Test Admin") }
+        assertEquals(2, api.workers().size)
+        assertTrue(api.changeLog.value.isEmpty())
+    }
+
+    @Test fun aSalesmanLoginAlreadyUsedByAnyDemoAccountIsRefused() = runTest {
+        expectRefused { api.addSalesman("New Person", "USER1", "Test Admin") }
+        expectRefused { api.addSalesman("New Person", "admin", "Test Admin") }
+        expectRefused { api.addSalesman("New Person", "ab", "Test Admin") }
+        expectRefused { api.addSalesman("N3w", "newp", "Test Admin") }
+        assertEquals(2, api.workers().size)
+    }
     @Test fun theChangeLogIsNewestFirstAndEveryEntryHasWhoWhatBeforeAfter() = runTest {
         api.addExpense(SeedIds.CAT_LABOUR, LocalDate.of(2026, 9, 30), 100, "", "Test Admin")
         api.setDefaultPrice(SeedIds.FRESH, SeedIds.SHOP, 310, LocalDate.of(2026, 11, 1), "Test Admin")

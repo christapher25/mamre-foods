@@ -44,7 +44,7 @@ enum class HomeTile(val title: String) {
     SYNC_STATUS("Sync status"),
 }
 
-/** W1 Home: the worker's name and device code on top, a large New invoice tile, a 2x2 grid. */
+/** W1 Home: the salesman's name and device code on top, a large New invoice tile, a 2x2 grid. */
 @Composable
 fun HomeScreen(
     onTile: (HomeTile) -> Unit,
@@ -55,7 +55,7 @@ fun HomeScreen(
         AppTopBar(
             title = state.workerName ?: "Mamre Foods",
             showLogo = true,
-            subtitle = state.deviceCode?.let { "Device $it" },
+            subtitle = state.deviceCode?.let { "Salesman - device $it" } ?: "Salesman",
             actions = {
                 StatusChip(DEMO_DATA_LABEL, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm))
             },

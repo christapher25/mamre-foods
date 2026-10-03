@@ -40,6 +40,10 @@ import com.mamre.billing.domain.admin.formatQuantity
 import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.admin.cleanVoidReason
 import com.mamre.billing.domain.admin.priceProblemMessage
+import com.mamre.billing.data.api.FakeCredentials
+import com.mamre.billing.domain.admin.SalesmanCheck
+import com.mamre.billing.domain.admin.salesmanProblemMessage
+import com.mamre.billing.domain.admin.validateNewSalesman
 import com.mamre.billing.domain.admin.validateCustomerForm
 import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validateNewPrice
@@ -146,7 +150,7 @@ class FakeAdminApi(
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive, openingBalanceCents = form.openingBalanceCents,
         )
-        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0)) // workers get it at their next sync
+        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0)) // salesmen get it at their next sync
         changed(by, "Add customer ${c.name}", "-", describe(c)) { it.copy(customers = it.customers + c) }
         return c
     }
@@ -183,7 +187,7 @@ class FakeAdminApi(
         val check = validateNewPrice(centsToPlain(priceCents), from, latest?.effectiveFrom)
         if (check is PriceCheck.Invalid) refuse(check.problems.joinToString { priceProblemMessage(it, latest?.effectiveFrom) })
         val before = latest?.let { "${formatCents(it.unitPriceCents)} from ${it.effectiveFrom}" } ?: "no price"
-        prices.add(productId, typeId, priceCents, from) // workers receive it at their next sync
+        prices.add(productId, typeId, priceCents, from) // salesmen receive it at their next sync
         changed(by, "Price ${product.name} / ${type.name}", before, "${formatCents(priceCents)} from $from") { it }
     }
 
@@ -195,8 +199,8 @@ class FakeAdminApi(
     override suspend fun setWorkerCanEditPrice(typeId: String, allowed: Boolean, by: String) {
         val type = s.types.firstOrNull { it.id == typeId } ?: refuse("Unknown customer type")
         if (type.workerCanEditPrice == allowed) refuse("${type.name} already has that setting")
-        prices.setWorkerCanEditPrice(typeId, allowed) // workers receive it at their next sync
-        fun d(b: Boolean) = if (b) "workers can edit price" else "workers cannot edit price"
+        prices.setWorkerCanEditPrice(typeId, allowed) // salesmen receive it at their next sync
+        fun d(b: Boolean) = if (b) "salesmen can edit price" else "salesmen cannot edit price"
         changed(by, "Price rule ${type.name}", d(type.workerCanEditPrice), d(allowed)) { st ->
             st.copy(types = st.types.map { if (it.id == typeId) it.copy(workerCanEditPrice = allowed) else it })
         }
@@ -212,7 +216,7 @@ class FakeAdminApi(
         val check = validateNewPrice(centsToPlain(priceCents), from, latest?.effectiveFrom)
         if (check is PriceCheck.Invalid) refuse(check.problems.joinToString { priceProblemMessage(it, latest?.effectiveFrom) })
         val before = latest?.let { "${formatCents(it.unitPriceCents)} from ${it.effectiveFrom}" } ?: "no override"
-        val row = prices.addOverride(customerId, productId, priceCents, from) // workers receive it at their next sync
+        val row = prices.addOverride(customerId, productId, priceCents, from) // salesmen receive it at their next sync
         changed(by, "Override ${customer.name} / ${product.name}", before, "${formatCents(priceCents)} from $from") { st ->
             st.copy(overrideNotes = st.overrideNotes + (row.id to note.trim()))
         }
@@ -321,7 +325,7 @@ class FakeAdminApi(
         val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
         if (!isValidPacketSize(chapathis)) refuse("A packet holds 1 to $MAX_PACKET_SIZE chapathis")
         if (chapathis == product.unitsPerPacket) refuse("That is already the standard packet size")
-        prices.setStandardPacketSize(productId, chapathis) // workers receive it at their next sync
+        prices.setStandardPacketSize(productId, chapathis) // salesmen receive it at their next sync
         changed(by, "Standard packet ${product.name}", "${product.unitsPerPacket} chapathis", "$chapathis chapathis") { st ->
             st.copy(products = st.products.map { if (it.id == productId) it.copy(unitsPerPacket = chapathis) else it })
         }
@@ -393,4 +397,17 @@ class FakeAdminApi(
     }
 
     override suspend fun workers(): List<WorkerAccount> = s.workers
+
+    override suspend fun addSalesman(fullName: String, username: String, by: String): WorkerAccount {
+        val logins = s.workers.map { it.username } + FakeCredentials.accounts.map { it.username }
+        val ok = when (val check = validateNewSalesman(fullName, username, s.workers.map { it.fullName }, logins)) {
+            is SalesmanCheck.Invalid -> refuse(salesmanProblemMessage(check.problem))
+            is SalesmanCheck.Ok -> check
+        }
+        // The next free device code W<n>: invoice numbers need one, and codes are never reused.
+        val nextDevice = "W${(s.workers.mapNotNull { it.deviceCode.removePrefix("W").toIntOrNull() }.maxOrNull() ?: 0) + 1}"
+        val account = WorkerAccount("w-${s.workers.size + 1}", ok.name, ok.login, nextDevice, true)
+        changed(by, "Add salesman ${ok.name}", "-", "${ok.name}, login ${ok.login}, device $nextDevice") { it.copy(workers = it.workers + account) }
+        return account
+    }
 }

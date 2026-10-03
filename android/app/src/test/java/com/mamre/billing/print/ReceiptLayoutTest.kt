@@ -16,7 +16,7 @@ class ReceiptLayoutTest {
         addressLine = null,
         number = "MAM-W1-0042",
         issuedAt = LocalDateTime.of(2026, 10, 10, 14, 20),
-        deviceCode = "W1",
+        salesmanName = "Rajesh",
         customerName = "Spice Garden",
         customerTypeName = "Restaurant",
         items = listOf(
@@ -70,6 +70,17 @@ class ReceiptLayoutTest {
         assertEquals(layoutInvoiceReceipt(sample), lines.filter { it.trim() != "DUPLICATE COPY" })
     }
 
+
+    @Test fun theReceiptPrintsTheSalesmansNameAndNeverTheDeviceCode() {
+        val lines = layoutInvoiceReceipt(sample)
+        assertTrue(lines.contains("Salesman: Rajesh"))
+        assertTrue(lines.none { it.startsWith("Worker") })
+        assertTrue(lines.none { it.contains("W1") && !it.contains("MAM-W1-") }) // the device code appears only inside the number
+        val long = layoutInvoiceReceipt(sample.copy(salesmanName = "Rajesh Thomas Kuruvilla Mathew Panicker"))
+        assertTrue(long.all { it.length <= RECEIPT_WIDTH })
+        val at = long.indexOfFirst { it.startsWith("Salesman: ") }
+        assertEquals(listOf("Salesman: Rajesh Thomas", "          Kuruvilla Mathew", "          Panicker"), long.subList(at, at + 3))
+    }
     @Test fun aVoidInvoiceIsMarkedVoidAndKeepsItsNumber() {
         val lines = layoutInvoiceReceipt(sample.copy(isVoid = true))
         assertTrue(lines.any { it.trim() == "*** VOID ***" })
@@ -127,7 +138,7 @@ class ReceiptLayoutTest {
             addressLine = null,
             receiptNumber = "RCP-W1-0001",
             paidAt = LocalDateTime.of(2026, 10, 10, 14, 25),
-            deviceCode = "W1",
+            salesmanName = "Rajesh",
             customerName = "Spice Garden",
             customerTypeName = "Restaurant",
             amountCents = 5000,
@@ -141,7 +152,7 @@ class ReceiptLayoutTest {
             "--------------------------------",
             "Receipt: RCP-W1-0001",
             "Date:    10/10/2026 14:25",
-            "Worker:  W1",
+            "Salesman: Rajesh",
             "Customer: Spice Garden",
             "Type:     Restaurant",
             "--------------------------------",

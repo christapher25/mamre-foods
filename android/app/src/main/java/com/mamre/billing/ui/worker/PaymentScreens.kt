@@ -88,7 +88,7 @@ private data class PaymentInput(
 class PaymentFlowViewModel @Inject constructor(
     private val catalog: WorkerCatalog,
     private val store: DemoStore,
-    session: SessionManager,
+    private val session: SessionManager,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
     private val deviceCode = session.profile?.deviceCode
@@ -135,9 +135,10 @@ class PaymentFlowViewModel @Inject constructor(
         val ok = u.check as? PaymentCheck.Ok ?: return null
         val customer = u.customer ?: return null
         val device = u.deviceCode ?: return null
+        val salesman = session.profile?.fullName ?: return null
         if (!u.canRecord) return null
         return store.recordPayment(
-            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note),
+            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note, salesman),
         )
     }
 }

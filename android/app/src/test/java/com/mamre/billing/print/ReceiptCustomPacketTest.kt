@@ -14,7 +14,7 @@ class ReceiptCustomPacketTest {
         addressLine = null,
         number = "MAM-W1-0043",
         issuedAt = LocalDateTime.of(2026, 10, 10, 14, 20),
-        deviceCode = "W1",
+        salesmanName = "Rajesh",
         customerName = "Royal Banquets",
         customerTypeName = "Catering",
         items = listOf(ReceiptItem("Mamre Fresh Chapathi", 2, 280, 560)),

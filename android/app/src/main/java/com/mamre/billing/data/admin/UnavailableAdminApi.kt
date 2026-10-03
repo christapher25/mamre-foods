@@ -85,6 +85,7 @@ class UnavailableAdminApi : AdminApi {
     override suspend fun settings(): BusinessSettings = unavailable()
     override suspend fun saveSettings(settings: BusinessSettings, by: String) = unavailable()
     override suspend fun workers(): List<WorkerAccount> = unavailable()
+    override suspend fun addSalesman(fullName: String, username: String, by: String): WorkerAccount = unavailable()
 
     private fun unavailable(): Nothing = throw AdminRuleException(ADMIN_NOT_AVAILABLE_MESSAGE)
 }

@@ -30,6 +30,7 @@ object DemoIds {
  * Prices are the invented test prices in FakeApi's catalog (Doc 1 P-4 is pending).
  */
 object DemoSeed {
+    private const val SALESMAN = "Rajesh"
     private const val RESTAURANT_NAME = "Spice Garden"
     private const val RESTAURANT_TYPE_NAME = "Restaurant"
     private const val CHAPATHI_PRICE_CENTS = 250L
@@ -51,6 +52,7 @@ object DemoSeed {
                 amountCents = 15000,
                 method = PaymentMethod.CASH,
                 note = "",
+                salesmanName = SALESMAN,
             ),
         ),
     )
@@ -76,6 +78,7 @@ object DemoSeed {
             paidNowCents = 0,
             method = null,
             balanceAfterCents = balanceAfter,
+            salesmanName = SALESMAN,
         )
     }
 }

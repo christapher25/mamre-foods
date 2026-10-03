@@ -106,7 +106,7 @@ fun MoreScreen(onOpen: (String) -> Unit) {
             MoreItem("Expenses", "Material purchases and other expenses", AdminRoutes.EXPENSES, onOpen)
             MoreItem("Returns and damage", "Customer returns and production damage", AdminRoutes.RETURNS, onOpen)
             MoreItem("Balances", "Who owes what, with ageing", AdminRoutes.BALANCES, onOpen)
-            MoreItem("Settings", "Business details, workers, log out", AdminRoutes.SETTINGS, onOpen)
+            MoreItem("Settings", "Business details, salesmen, log out", AdminRoutes.SETTINGS, onOpen)
         }
     }
 }

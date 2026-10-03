@@ -37,6 +37,10 @@ class FakeApiTest {
         assertEquals("W1", me.deviceCode)
     }
 
+
+    @Test fun theDemoSalesmanIsCalledRajesh() = runTest {
+        assertEquals("Rajesh", api.me(workerToken()).fullName)
+    }
     @Test fun adminLoginReturnsRoleAdminFromMeNotFromTheUsername() = runTest {
         val me = api.me(api.login("admin", "admin5").access)
         assertEquals("admin", me.role)

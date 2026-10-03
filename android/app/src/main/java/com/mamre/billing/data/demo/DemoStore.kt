@@ -41,6 +41,8 @@ data class InvoiceDraft(
     val method: PaymentMethod?,
     /** The customer type's "worker can edit price" flag when the invoice was built (change set C3). */
     val priceEditAllowed: Boolean = false,
+    /** The signed-in salesman's name, printed on the bill (change set D1). */
+    val salesmanName: String = "",
 )
 
 /** Everything the worker screens read. Immutable: a new state replaces the old one. */
@@ -81,6 +83,7 @@ data class PaymentDraft(
     val amountCents: Long,
     val method: PaymentMethod,
     val note: String,
+    val salesmanName: String = "",
 )
 
 /** What the worker confirmed on the Return screen (Doc 1 s7.1). */
@@ -144,6 +147,7 @@ class DemoStore(
             paidNowCents = draft.paidNowCents,
             method = draft.method,
             balanceAfterCents = previous + total - draft.paidNowCents,
+            salesmanName = draft.salesmanName,
         )
         _state.update { it.copy(invoices = it.invoices + record, pendingCount = it.pendingCount + 1) }
         return record
@@ -168,6 +172,7 @@ class DemoStore(
             amountCents = draft.amountCents,
             method = draft.method,
             note = draft.note.trim(),
+            salesmanName = draft.salesmanName,
         )
         _state.update { it.copy(payments = it.payments + record, pendingCount = it.pendingCount + 1) }
         return record

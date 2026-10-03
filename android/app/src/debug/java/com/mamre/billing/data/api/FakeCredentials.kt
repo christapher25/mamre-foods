@@ -19,7 +19,7 @@ object FakeCredentials {
 
     val accounts = listOf(
         Account("admin", "admin5", Role.ADMIN, "Test Admin", null),
-        Account("user1", "user1", Role.WORKER, "Test Worker", "W1"),
+        Account("user1", "user1", Role.WORKER, "Rajesh", "W1"),
     )
 
     /** Exact, case-sensitive match on both fields; anything else is null. */

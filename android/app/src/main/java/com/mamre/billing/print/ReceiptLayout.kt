@@ -47,7 +47,8 @@ data class InvoiceReceipt(
     val addressLine: String?,
     val number: String,
     val issuedAt: LocalDateTime,
-    val deviceCode: String,
+    /** Printed as "Salesman:"; the device code is never printed (change set D1). */
+    val salesmanName: String,
     val customerName: String,
     val customerTypeName: String,
     val items: List<ReceiptItem>,
@@ -67,7 +68,8 @@ data class PaymentReceipt(
     val addressLine: String?,
     val receiptNumber: String,
     val paidAt: LocalDateTime,
-    val deviceCode: String,
+    /** Printed as "Salesman:"; the device code is never printed (change set D1). */
+    val salesmanName: String,
     val customerName: String,
     val customerTypeName: String,
     val amountCents: Long,
@@ -86,7 +88,7 @@ fun layoutInvoiceReceipt(r: InvoiceReceipt): List<String> = buildList {
     addHeader(r.businessName, r.addressLine, r.duplicate, r.isVoid)
     add("Invoice: ${r.number}")
     add("Date:    ${r.issuedAt.format(DATE_TIME)}")
-    add("Worker:  ${r.deviceCode}")
+    addAll(labelled("Salesman: ", r.salesmanName))
     addAll(labelled("Customer: ", r.customerName))
     addAll(labelled("Type:     ", r.customerTypeName))
     add(rule())
@@ -122,7 +124,7 @@ fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
     addHeader(r.businessName, r.addressLine, r.duplicate, isVoid = false)
     add("Receipt: ${r.receiptNumber}")
     add("Date:    ${r.paidAt.format(DATE_TIME)}")
-    add("Worker:  ${r.deviceCode}")
+    addAll(labelled("Salesman: ", r.salesmanName))
     addAll(labelled("Customer: ", r.customerName))
     addAll(labelled("Type:     ", r.customerTypeName))
     add(rule())

@@ -116,7 +116,7 @@ private data class Input(
 class InvoiceFlowViewModel @Inject constructor(
     private val catalog: WorkerCatalog,
     private val store: DemoStore,
-    session: SessionManager,
+    private val session: SessionManager,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
     private val deviceCode = session.profile?.deviceCode
@@ -245,6 +245,7 @@ class InvoiceFlowViewModel @Inject constructor(
         val u = ui.value
         val ok = u.check as? PaymentCheck.Ok ?: return null
         val device = u.deviceCode ?: return null
+        val salesman = session.profile?.fullName ?: return null
         if (u.lines.isEmpty()) return null
         return store.confirmInvoice(
             InvoiceDraft(
@@ -257,6 +258,7 @@ class InvoiceFlowViewModel @Inject constructor(
                 paidNowCents = ok.amountCents,
                 method = if (ok.amountCents > 0) u.method else null,
                 priceEditAllowed = u.priceEditAllowed,
+                salesmanName = salesman,
             ),
         )
     }

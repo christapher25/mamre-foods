@@ -64,6 +64,8 @@ data class InvoiceRecord(
     val balanceAfterCents: Long,
     val status: InvoiceStatus = InvoiceStatus.ACTIVE,
     val voidReason: String? = null,
+    /** The salesman's name when the bill was made; the receipt prints it, never the device code (change set D1). */
+    val salesmanName: String = "",
 ) {
     init {
         require(totalCents == invoiceTotal(lines)) { "invoice total must equal the sum of its lines (I-2)" }
@@ -85,6 +87,7 @@ data class PaymentRecord(
     val amountCents: Long,
     val method: PaymentMethod,
     val note: String,
+    val salesmanName: String = "",
 ) {
     init {
         require(amountCents > 0) { "a payment must be more than zero" }

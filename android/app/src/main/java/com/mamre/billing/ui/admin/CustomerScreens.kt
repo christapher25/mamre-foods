@@ -303,7 +303,7 @@ fun CustomerDetailContent(
 
             SectionHeader("Override prices")
             Text(
-                "An override beats the customer type price for this customer only. Workers receive it at their next sync.",
+                "An override beats the customer type price for this customer only. Salesmen receive it at their next sync.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -445,7 +445,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
                 }
             }
             Text(
-                "Workers receive this at their next sync.",
+                "Salesmen receive this at their next sync.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -547,7 +547,7 @@ fun OverrideContent(ui: OverrideUi, onBack: () -> Unit, onSave: (Long, LocalDate
             )
             LabeledTextField("Note (optional)", note, { note = it })
             Text(
-                "Workers receive this at their next sync.",
+                "Salesmen receive this at their next sync.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

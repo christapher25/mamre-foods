@@ -401,8 +401,8 @@ object AdminSeed {
             settings = BusinessSettings("Mamre Foods", "Address pending (Doc 1 P-6)", "Phone pending", "Thank you!"),
             overrideNotes = overrideNotes,
             workers = listOf(
-                WorkerAccount("w-1", "Test Worker", "user1", "W1", true),
-                WorkerAccount("w-2", "Second Worker", "user2", "W2", false),
+                WorkerAccount("w-1", "Rajesh", "user1", "W1", true),
+                WorkerAccount("w-2", "Second Salesman", "user2", "W2", false),
             ),
             today = today,
         )

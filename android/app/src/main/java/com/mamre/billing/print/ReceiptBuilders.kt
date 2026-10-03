@@ -36,7 +36,7 @@ fun invoiceReceiptOf(
         addressLine = addressLine,
         number = invoice.number,
         issuedAt = invoice.issuedAt,
-        deviceCode = invoice.deviceCode,
+        salesmanName = invoice.salesmanName,
         customerName = invoice.customerName,
         customerTypeName = invoice.customerTypeName,
         items = invoice.lines.map { ReceiptItem(
@@ -81,7 +81,7 @@ fun paymentReceiptOf(
     addressLine = addressLine,
     receiptNumber = payment.receiptNumber,
     paidAt = payment.paidAt,
-    deviceCode = payment.deviceCode,
+    salesmanName = payment.salesmanName,
     customerName = payment.customerName,
     customerTypeName = customerTypeName,
     amountCents = payment.amountCents,

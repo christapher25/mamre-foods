@@ -69,7 +69,7 @@ interface AdminApi {
     suspend fun priceMatrix(): PriceMatrix
     suspend fun setDefaultPrice(productId: String, typeId: String, priceCents: Long, from: LocalDate, by: String)
 
-    /** The "Worker can edit price" flag of a customer type (change set C3). Change-logged; workers get it at their next sync. */
+    /** The "Salesman can edit price" flag of a customer type (change set C3). Change-logged; salesmen get it at their next sync. */
     suspend fun setWorkerCanEditPrice(typeId: String, allowed: Boolean, by: String)
 
     /** Every override row of a customer, with history. */
@@ -121,5 +121,12 @@ interface AdminApi {
 
     suspend fun settings(): BusinessSettings
     suspend fun saveSettings(settings: BusinessSettings, by: String)
+    /** The salesman accounts (UI text "Salesmen"; the role is still "worker" in code and API). */
     suspend fun workers(): List<WorkerAccount>
+
+    /**
+     * Adds a salesman (change set D1). Demo only: the real accounts are managed on the server (QUESTIONS). The name
+     * and login name follow the rules in SalesmanRules; the server refuses a duplicate name or login, ignoring case.
+     */
+    suspend fun addSalesman(fullName: String, username: String, by: String): WorkerAccount
 }

@@ -35,6 +35,15 @@ class ReceiptBuildersTest {
         assertEquals(invoice.balanceAfterCents, month.totalDueCents) // the receipt agrees with itself
     }
 
+
+    @Test fun theReceiptCarriesTheSalesmansNameOfTheInvoice() {
+        val invoice = store.confirmInvoice(draft(DemoIds.RESTAURANT, 2, 0, null).copy(salesmanName = "Rajesh"))
+        assertEquals("Rajesh", invoice.salesmanName)
+        val lines = layoutInvoiceReceipt(invoiceReceiptOf(invoice, store.state.value.ledgerOf(DemoIds.RESTAURANT), true))
+        assertTrue(lines.contains("Salesman: Rajesh"))
+        // The seeded September invoices were made by the demo salesman too.
+        assertTrue(store.state.value.invoices.filter { it.deviceCode == "DEMO" }.all { it.salesmanName == "Rajesh" })
+    }
     @Test fun theSeptemberLedgerShowsOnTheSeptemberInvoicesOwnReceipt() {
         val third = store.state.value.invoices.single { it.number == "MAM-DEMO-0003" }
         val month = invoiceReceiptOf(third, store.state.value.ledgerOf(DemoIds.RESTAURANT), true).month!!

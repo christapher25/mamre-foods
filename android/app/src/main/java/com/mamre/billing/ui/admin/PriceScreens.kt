@@ -58,7 +58,7 @@ import kotlinx.coroutines.launch
 // B4 Prices (Doc 1 s4.3; Doc 2 s9). A price is added with a later effective-from date and never rewritten.
 // The shared price table (DECISIONS 2026-10-03) carries the change to the worker's next sync.
 
-const val WORKERS_SYNC_NOTE = "Workers receive this at their next sync."
+const val SALESMEN_SYNC_NOTE = "Salesmen receive this at their next sync."
 
 data class PricesUi(
     val loading: Boolean = true,
@@ -81,7 +81,7 @@ class PricesViewModel @Inject constructor(
         }
     }
 
-    /** Switches "Worker can edit price" for a customer type; the change is logged and synced to workers. */
+    /** Switches "Salesman can edit price" for a customer type; the change is logged and synced to salesmen. */
     fun setWorkerCanEdit(typeId: String, allowed: Boolean) {
         viewModelScope.launch {
             try {
@@ -112,14 +112,14 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCa
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(
-                "Price per packet by product and customer type. $WORKERS_SYNC_NOTE",
+                "Price per packet by product and customer type. $SALESMEN_SYNC_NOTE",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             SectionHeader("Price rules")
             AppCard {
                 Text(
-                    "Worker can edit price: when on, a worker may change a line's price for customers of this type. When off the price is read-only.",
+                    "Salesman can edit price: when on, a salesman may change a line's price for customers of this type. When off the price is read-only.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -132,7 +132,7 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCa
                         Column(Modifier.weight(1f).padding(end = Spacing.sm)) {
                             Text(type.name, style = MaterialTheme.typography.titleSmall)
                             Text(
-                                if (type.workerCanEditPrice) "Worker can edit price" else "Price is read-only",
+                                if (type.workerCanEditPrice) "Salesman can edit price" else "Price is read-only",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -140,12 +140,12 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCa
                         Switch(
                             checked = type.workerCanEditPrice,
                             onCheckedChange = { onWorkerCanEdit(type.id, it) },
-                            modifier = Modifier.semantics { contentDescription = "Worker can edit price for ${type.name}" },
+                            modifier = Modifier.semantics { contentDescription = "Salesman can edit price for ${type.name}" },
                         )
                     }
                 }
                 Text(
-                    WORKERS_SYNC_NOTE,
+                    SALESMEN_SYNC_NOTE,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = Spacing.md),
@@ -276,7 +276,7 @@ fun PriceSetContent(ui: PriceSetUi, onBack: () -> Unit, onSave: (Long, LocalDate
                 "Effective from", date, { date = it },
                 errorText = messages(PriceProblem.DATE_REQUIRED, PriceProblem.DATE_NOT_LATER),
             )
-            Text(WORKERS_SYNC_NOTE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(SALESMEN_SYNC_NOTE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             PrimaryButton("Save price", onClick = {
                 tried = true
