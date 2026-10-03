@@ -1,18 +1,22 @@
 package com.mamre.billing.data.api
 
 import com.mamre.billing.data.demo.DemoIds
+import com.mamre.billing.data.demo.SharedPriceTable
+import java.time.LocalDate
 
 /**
  * Stand-in for the server while none is hosted, chosen by BuildConfig.USE_FAKE_API.
  *
- * TEST DATA ONLY. Doc 1 P-4 (selling prices) is pending: the prices below are invented
- * placeholders so the app can be exercised, never real prices. The fake accepts only the
+ * TEST DATA ONLY. Doc 1 P-4 (selling prices) is pending: the prices come from the shared demo
+ * table and are invented placeholders so the app can be exercised, never real prices. The fake accepts only the
  * accounts in [FakeCredentials] and answers 401 invalid_credentials for anything else. It
  * issues tokens that look like the real ones in behaviour (an access token and a refresh
  * token) so the 401 then refresh path can run. The role is carried inside the token and
  * comes back from /me.
  */
-class FakeApi : BackendApi {
+class FakeApi(
+    private val prices: SharedPriceTable = SharedPriceTable.seeded(LocalDate.now()),
+) : BackendApi {
     private var counter = 0
 
     override suspend fun login(username: String, password: String): TokenPair {
@@ -42,43 +46,43 @@ class FakeApi : BackendApi {
         )
     }
 
+    /**
+     * Static catalog (products, types, customers) on the first pull; selling prices come from the table
+     * shared with the Admin's server stand-in, so a price the Admin sets reaches the worker at the next pull
+     * from an older cursor. The cursor is the highest sync version: nothing newer means an empty answer.
+     */
     override suspend fun catalog(accessToken: String, cursor: Long): CatalogPull {
         requireAccess(accessToken)
-        if (cursor >= CATALOG_CURSOR) return CatalogPull(cursor = cursor)
+        val version = maxOf(SharedPriceTable.STATIC_CATALOG_VERSION, prices.version)
+        if (cursor >= version) return CatalogPull(cursor = cursor)
+        val first = cursor < SharedPriceTable.STATIC_CATALOG_VERSION
         return CatalogPull(
-            cursor = CATALOG_CURSOR,
-            products = listOf(
+            cursor = version,
+            products = if (first) listOf(
                 ProductDto(FRESH, "FRESH", "Mamre Fresh Chapathi", 12, true),
                 ProductDto(CHAPATHI, "CHAPATHI", "Mamre Chapathi", 12, true),
-            ),
-            customerTypes = listOf(
+            ) else emptyList(),
+            customerTypes = if (first) listOf(
                 CustomerTypeDto(RESTAURANT, "Restaurant", true),
                 CustomerTypeDto(SHOP, "Shop", true),
                 CustomerTypeDto(RETAIL, "Retail", true),
-            ),
-            customers = listOf(
+            ) else emptyList(),
+            customers = if (first) listOf(
                 CustomerDto(DemoIds.RESTAURANT, "Test Restaurant", RESTAURANT, "", "", "credit", true),
                 CustomerDto(DemoIds.SHOP, "Test Shop", SHOP, "", "", "credit", true),
                 CustomerDto(DemoIds.RETAIL_CUSTOMER, "Test Retail Customer", RETAIL, "", "", "cash", true),
-            ),
-            priceDefaults = listOf(
-                priceDefault("d1", FRESH, RESTAURANT, 280),
-                priceDefault("d2", CHAPATHI, RESTAURANT, 250),
-                priceDefault("d3", FRESH, SHOP, 300),
-                priceDefault("d4", CHAPATHI, SHOP, 270),
-                priceDefault("d5", FRESH, RETAIL, 350),
-                priceDefault("d6", CHAPATHI, RETAIL, 320),
-            ),
+            ) else emptyList(),
+            priceDefaults = prices.entriesAfter(cursor).map {
+                PriceDefaultDto(
+                    id = it.id,
+                    productId = it.productId,
+                    customerTypeId = it.customerTypeId,
+                    unitPriceCents = it.unitPriceCents,
+                    effectiveFrom = it.effectiveFrom.toString(),
+                )
+            },
         )
     }
-
-    private fun priceDefault(n: String, product: String, type: String, cents: Long) = PriceDefaultDto(
-        id = "00000000-0000-4000-8000-0000000000$n",
-        productId = product,
-        customerTypeId = type,
-        unitPriceCents = cents,
-        effectiveFrom = "2026-01-01",
-    )
 
     private fun requireAccess(token: String) {
         accountFor(token)
@@ -100,7 +104,6 @@ class FakeApi : BackendApi {
     private companion object {
         const val ACCESS_PREFIX = "fake-access-"
         const val REFRESH_PREFIX = "fake-refresh-"
-        const val CATALOG_CURSOR = 2L
         const val FRESH = DemoIds.FRESH
         const val CHAPATHI = DemoIds.CHAPATHI
         const val RESTAURANT = DemoIds.RESTAURANT_TYPE

@@ -65,3 +65,35 @@ fun formatCompactCents(cents: Long): String {
     val fraction = tenths % 10
     return sign + "$" + whole + (if (fraction == 0L) "" else ".$fraction") + "k"
 }
+
+private const val MILLI = 1000L
+private const val MAX_MILLI_DECIMALS = 3
+
+/**
+ * Parses a quantity into thousandths without floating point: "375" -> 375000, "7.5" -> 7500,
+ * "5.625" -> 5625. Null for anything else: blank, letters, a second dot, more than three decimals or
+ * more than nine whole digits. Negative numbers parse (callers refuse them).
+ */
+fun parseMilli(text: String): Long? {
+    val s = text.trim()
+    val negative = s.startsWith("-")
+    val body = if (negative) s.substring(1) else s
+    val parts = body.split(".")
+    if (parts.size > 2) return null
+    val whole = parts[0]
+    val frac = parts.getOrElse(1) { "" }
+    if (whole.isEmpty() && frac.isEmpty()) return null
+    if (!whole.all { it in '0'..'9' } || !frac.all { it in '0'..'9' }) return null
+    if (whole.length > MAX_WHOLE_DIGITS || frac.length > MAX_MILLI_DECIMALS) return null
+    val milli = whole.ifEmpty { "0" }.toLong() * MILLI + frac.padEnd(MAX_MILLI_DECIMALS, '0').toLong()
+    return if (negative) -milli else milli
+}
+
+/** 17500 -> "17.5", 5625 -> "5.625", 375000 -> "375": thousandths shown without trailing zeros. */
+fun formatMilli(milli: Long): String {
+    val sign = if (milli < 0) "-" else ""
+    val whole = Math.abs(milli / MILLI)
+    val frac = Math.abs(milli % MILLI)
+    if (frac == 0L) return "$sign$whole"
+    return sign + whole + "." + frac.toString().padStart(MAX_MILLI_DECIMALS, '0').trimEnd('0')
+}

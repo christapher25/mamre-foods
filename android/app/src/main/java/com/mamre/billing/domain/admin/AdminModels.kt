@@ -173,24 +173,84 @@ data class PriceMatrix(
         history(productId, typeId).firstOrNull { !it.effectiveFrom.isAfter(today) }
 }
 
-data class IngredientPrice(val id: String, val priceCents: Long, val effectiveFrom: LocalDate)
+/** One way to enter a quantity of a material: a label and how many thousandths of the base unit one is. */
+data class MaterialUnit(val label: String, val mbPerUnit: Long)
 
-data class Ingredient(
+/**
+ * One entry of the shared materials list (owner decision): wheat, oil, sugar, salt, baking powder,
+ * potassium sorbate and packing. Quantities are Long thousandths of the base unit ("mb"): 375 g of
+ * wheat is 375,000 and 1 packing piece is 1,000. Prices come from purchases, not from a price list.
+ */
+data class Material(
     val id: String,
     val name: String,
-    /** g or ml. */
+    /** g, ml or piece: the unit recipes are written in. */
     val baseUnit: String,
-    /** kg or L. */
+    /** kg, L or piece: the unit stock and prices are shown in. */
     val purchaseUnit: String,
-    val basePerPurchaseUnit: Int,
-    val prices: List<IngredientPrice>,
+    val isPacking: Boolean,
+    val units: List<MaterialUnit>,
 ) {
-    /** The price in effect on [date], or null when there is none (cost is then INCOMPLETE). */
-    fun priceOn(date: LocalDate): IngredientPrice? =
-        prices.filter { !it.effectiveFrom.isAfter(date) }.maxByOrNull { it.effectiveFrom }
+    val purchaseMbPerUnit: Long get() = units.first { it.label == purchaseUnit }.mbPerUnit
 }
 
-/** Cost per packet from the server. Values are ten-thousandths of a dollar (Doc 1 s9.4). */
+/** One line of a product's recipe: the quantity per packet in thousandths of the base unit, or null while unset. */
+data class RecipeLine(
+    val materialId: String,
+    val materialName: String,
+    val baseUnit: String,
+    val qtyMb: Long?,
+)
+
+data class ProductRecipe(val productId: String, val productName: String, val lines: List<RecipeLine>)
+
+/** A purchase of a material. Add only: never edited or deleted (Doc 3 N3). */
+data class Purchase(
+    val id: String,
+    val date: LocalDate,
+    val materialId: String,
+    val materialName: String,
+    val qtyMb: Long,
+    val totalCents: Long,
+    val note: String,
+    val enteredBy: String,
+)
+
+/**
+ * One material for one month (B6 Materials tab). The server calculates every figure; [Figure.Incomplete]
+ * says what is missing (no price, an unset recipe quantity). Price is per purchase unit in
+ * ten-thousandths of a dollar.
+ */
+data class StockRow(
+    val material: Material,
+    val openingQtyMb: Figure,
+    val openingValueCents: Figure,
+    val boughtQtyMb: Long,
+    val boughtCents: Long,
+    val usedMb: Figure,
+    val closingQtyMb: Figure,
+    val closingValueCents: Figure,
+    val avgPriceTt: Figure,
+    val costConsumedCents: Figure,
+) {
+    /** More was used than was held: shown with a warning chip. */
+    val negativeStock: Boolean get() = ((closingQtyMb as? Figure.Known)?.value ?: 0L) < 0L
+}
+
+data class StockReport(
+    val month: YearMonth,
+    val rows: List<StockRow>,
+    val boughtTotalCents: Long,
+    val openingValueTotal: Figure,
+    /** Month direct expense: cost consumed of every material including packing. */
+    val costConsumedTotal: Figure,
+    val closingValueTotal: Figure,
+)
+
+/** One material's share of the cost of one packet, in ten-thousandths of a dollar. */
+data class CostLine(val materialId: String, val materialName: String, val tt: Long)
+
+/** Cost per packet from the server, in ten-thousandths of a dollar (6975 is $0.6975). */
 sealed interface ProductCost {
     val productId: String
     val productName: String
@@ -198,8 +258,11 @@ sealed interface ProductCost {
     data class Complete(
         override val productId: String,
         override val productName: String,
-        val ingredientsTt: Long,
+        /** One line per ingredient material, packing and wastage not included. */
+        val lines: List<CostLine>,
         val packingTt: Long,
+        /** Wastage on the ingredients and the packing. */
+        val wastageTt: Long,
         val directTt: Long,
         val indirectTt: Long,
         val fullTt: Long,
@@ -214,6 +277,7 @@ sealed interface ProductCost {
 
 data class CostingReport(
     val month: YearMonth,
+    val wastageBp: Int,
     val products: List<ProductCost>,
     val indirectTotalCents: Long,
     val netPackets: Int,
@@ -240,8 +304,8 @@ data class ExpensesReport(
     val month: YearMonth,
     val categories: List<CategoryTotal>,
     val indirectTotalCents: Long,
-    /** Direct cost is computed from recipe x price x batch, never typed (Doc 1 A-11). */
-    val directCost: Figure,
+    /** Direct expense: the cost of the materials consumed, calculated by the server, never typed. */
+    val directExpense: Figure,
 )
 
 data class AdminReturn(
@@ -253,16 +317,19 @@ data class AdminReturn(
     val reason: ReturnReason,
     val resolution: ReturnResolution,
     val creditCents: Long,
-    /** Cost of replacement packets reported as a loss (Doc 1 s7.1); zero for a Credit. */
+    /** Information only: what the replacement packets cost. It is already inside direct expense. */
     val replacementCost: Figure,
 )
 
+/** Packets damaged in production, entered by the Admin. Add only; it counts as usage of materials. */
 data class ProductionDamage(
     val id: String,
     val date: LocalDate,
+    val productId: String,
     val productName: String,
-    val packetsPacked: Int,
-    val packetsDamaged: Int,
+    val packets: Int,
+    val note: String,
+    val enteredBy: String,
 )
 
 data class ReturnsReport(
@@ -271,7 +338,6 @@ data class ReturnsReport(
     val damage: List<ProductionDamage>,
     val creditsTotalCents: Long,
     val replacementPackets: Int,
-    val replacementCost: Figure,
     val damagedPackets: Int,
 )
 
@@ -319,7 +385,6 @@ data class DashboardReport(
     val directCost: Figure,
     val grossProfit: Figure,
     val indirectExpensesCents: Long,
-    val replacementCost: Figure,
     val netProfit: Figure,
     val sixMonthSales: List<MonthSales>,
     val salesByProduct: List<NamedAmount>,

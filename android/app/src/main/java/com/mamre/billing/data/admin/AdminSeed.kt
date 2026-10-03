@@ -14,6 +14,8 @@ import com.mamre.billing.domain.admin.IngredientPrice
 import com.mamre.billing.domain.admin.InvoiceItem
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceEntry
+import com.mamre.billing.data.demo.DemoIds
+import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.worker.InvoiceStatus
@@ -26,11 +28,12 @@ import java.time.YearMonth
 
 /** Ids the tests and screens refer to. DEMO DATA. */
 object SeedIds {
-    const val FRESH = "p-fresh"
-    const val CHAPATHI = "p-chapathi"
-    const val RESTAURANT = "t-restaurant"
-    const val SHOP = "t-shop"
-    const val RETAIL = "t-retail"
+    // Products and customer types use the worker's ids because the price table is shared (DECISIONS 2026-10-03).
+    const val FRESH = DemoIds.FRESH
+    const val CHAPATHI = DemoIds.CHAPATHI
+    const val RESTAURANT = DemoIds.RESTAURANT_TYPE
+    const val SHOP = DemoIds.SHOP_TYPE
+    const val RETAIL = DemoIds.RETAIL_TYPE
     const val WHEAT = "i-wheat"
     const val OIL = "i-oil"
     const val SUGAR = "i-sugar"
@@ -87,7 +90,7 @@ object AdminSeed {
         CustomerSeed("c-sharma-family", "Sharma Family", SeedIds.RETAIL, PaymentMode.CREDIT, 16, 10, 5, payPercent = 40),
     )
 
-    fun build(today: LocalDate): ServerState {
+    fun build(today: LocalDate, prices: SharedPriceTable = SharedPriceTable.seeded(today)): ServerState {
         val last = YearMonth.from(today)
         val first = last.minusMonths(6)
         val start = first.atDay(1)
@@ -112,17 +115,7 @@ object AdminSeed {
             )
         }
 
-        val priceEntries = buildList {
-            fun add(id: String, p: String, t: String, cents: Long, from: LocalDate) =
-                add(PriceEntry("pe-$id", p, t, cents, from))
-            add("f-r1", SeedIds.FRESH, SeedIds.RESTAURANT, 270, start)
-            add("f-r2", SeedIds.FRESH, SeedIds.RESTAURANT, 280, first.plusMonths(3).atDay(1))
-            add("f-s1", SeedIds.FRESH, SeedIds.SHOP, 300, start)
-            add("f-t1", SeedIds.FRESH, SeedIds.RETAIL, 350, start)
-            add("c-r1", SeedIds.CHAPATHI, SeedIds.RESTAURANT, 250, launch)
-            add("c-s1", SeedIds.CHAPATHI, SeedIds.SHOP, 270, launch)
-            add("c-t1", SeedIds.CHAPATHI, SeedIds.RETAIL, 320, launch)
-        }
+        val priceEntries = prices.all().map { PriceEntry(it.id, it.productId, it.customerTypeId, it.unitPriceCents, it.effectiveFrom) }
         val overrides = listOf(
             OverridePrice("po-1", SeedIds.SPICE_GARDEN, SeedIds.CHAPATHI, 240, launch, true, "Volume customer"),
             OverridePrice("po-2", SeedIds.PATEL_MART, SeedIds.FRESH, 285, start, true, "Agreed at signup"),
@@ -317,7 +310,6 @@ object AdminSeed {
             batches = batches.toList(),
             categories = categories,
             expenses = expenses.toList(),
-            priceEntries = priceEntries,
             overrides = overrides,
             ingredients = ingredients,
             recipes = recipes,

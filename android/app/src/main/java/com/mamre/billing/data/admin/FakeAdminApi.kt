@@ -1,5 +1,6 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminCustomerType
 import com.mamre.billing.domain.admin.AdminInvoice
@@ -52,7 +53,9 @@ import kotlinx.coroutines.flow.update
  */
 class FakeAdminApi(
     private val clock: Clock = Clock.systemDefaultZone(),
-    seed: ServerState = AdminSeed.build(LocalDate.now(clock)),
+    /** The one price table shared with the worker's FakeApi (DECISIONS 2026-10-03). */
+    private val prices: SharedPriceTable = SharedPriceTable.seeded(LocalDate.now(clock)),
+    seed: ServerState = AdminSeed.build(LocalDate.now(clock), prices),
 ) : AdminApi {
     private val state = MutableStateFlow(seed)
     private val _revision = MutableStateFlow(0L)
@@ -151,18 +154,20 @@ class FakeAdminApi(
     // ------------------------------------------------------------------ prices
 
     override suspend fun products(): List<AdminProduct> = s.products
-    override suspend fun priceMatrix() = PriceMatrix(s.products, s.types, s.priceEntries)
+    override suspend fun priceMatrix() = PriceMatrix(
+        s.products, s.types,
+        prices.all().map { PriceEntry(it.id, it.productId, it.customerTypeId, it.unitPriceCents, it.effectiveFrom) },
+    )
 
     override suspend fun setDefaultPrice(productId: String, typeId: String, priceCents: Long, from: LocalDate, by: String) {
         val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
         val type = s.types.firstOrNull { it.id == typeId } ?: refuse("Unknown customer type")
-        val latest = s.priceEntries.filter { it.productId == productId && it.typeId == typeId }.maxByOrNull { it.effectiveFrom }
+        val latest = prices.all().filter { it.productId == productId && it.customerTypeId == typeId }.maxByOrNull { it.effectiveFrom }
         val check = validateNewPrice(centsToPlain(priceCents), from, latest?.effectiveFrom)
         if (check is PriceCheck.Invalid) refuse(check.problems.joinToString { priceProblemMessage(it, latest?.effectiveFrom) })
         val before = latest?.let { "${formatCents(it.unitPriceCents)} from ${it.effectiveFrom}" } ?: "no price"
-        changed(by, "Price ${product.name} / ${type.name}", before, "${formatCents(priceCents)} from $from") { st ->
-            st.copy(priceEntries = st.priceEntries + PriceEntry("pe-${st.priceEntries.size + 1}", productId, typeId, priceCents, from))
-        }
+        prices.add(productId, typeId, priceCents, from) // workers receive it at their next sync
+        changed(by, "Price ${product.name} / ${type.name}", before, "${formatCents(priceCents)} from $from") { it }
     }
 
     override suspend fun overrides(customerId: String): List<OverridePrice> =

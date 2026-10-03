@@ -8,9 +8,9 @@ import com.mamre.billing.domain.admin.AdminProduct
 import com.mamre.billing.domain.admin.BusinessSettings
 import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseCategory
-import com.mamre.billing.domain.admin.Ingredient
+import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
-import com.mamre.billing.domain.admin.PriceEntry
+import com.mamre.billing.domain.admin.Purchase
 import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnResolution
@@ -18,7 +18,9 @@ import java.time.LocalDate
 
 // DEMO DATA. This is the stand-in for the server database (Doc 2 s1.1: the server is the source of
 // truth for prices, costing and reports). It is the Admin's own data set and is not linked to the
-// worker's DemoStore (owner decision). Nothing here is real: prices, quantities and names are invented.
+// worker's DemoStore (owner decision); the only link is the shared selling price table. Nothing here
+// is real: prices, quantities and names are invented. Selling prices are not stored here: they live
+// in the shared table.
 
 /** A customer return as the server stores it (Doc 2 s4.2 ReturnRecord). */
 data class ReturnRow(
@@ -37,20 +39,21 @@ data class ReturnRow(
     val creditCents: Long,
 )
 
-/** One production batch (Doc 2 s4.2). Its ingredient cost is recomputed from recipe x price, never typed. */
-data class BatchRow(
+/** Packets damaged in production, entered by the Admin (add only). */
+data class DamageRow(
     val id: String,
     val date: LocalDate,
     val productId: String,
-    val wheatKg: Int,
-    val packetsPacked: Int,
-    val packetsDamaged: Int,
-) {
-    val goodPackets: Int get() = packetsPacked - packetsDamaged
-}
+    val packets: Int,
+    val note: String,
+    val enteredBy: String,
+)
 
-/** Quantity of one ingredient per 1 kg of wheat, in thousandths of the base unit; null while pending (Doc 1 P-2). */
-data class RecipeLine(val ingredientId: String, val milliPerKgWheat: Long?)
+/** One material of a product's recipe: thousandths of the base unit per packet, or null while unset (Doc 1 P-2). */
+data class RecipeEntry(val materialId: String, val qtyMb: Long?)
+
+/** Stock held before the first month of data, with the money it was worth. */
+data class OpeningStock(val qtyMb: Long, val valueCents: Long)
 
 data class ServerState(
     val types: List<AdminCustomerType>,
@@ -61,13 +64,18 @@ data class ServerState(
     /** Invoice a payment was taken with, when it was (Doc 2 s4.2 Payment.invoice_id). */
     val paymentInvoiceIds: Map<String, String>,
     val returns: List<ReturnRow>,
-    val batches: List<BatchRow>,
     val categories: List<ExpenseCategory>,
     val expenses: List<Expense>,
-    val priceEntries: List<PriceEntry>,
     val overrides: List<OverridePrice>,
-    val ingredients: List<Ingredient>,
-    val recipes: Map<String, List<RecipeLine>>,
+    /** The shared materials list: wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. */
+    val materials: List<Material>,
+    /** Quantity of each material per packet, per product. One recipe applies to every month. */
+    val recipes: Map<String, List<RecipeEntry>>,
+    val purchases: List<Purchase>,
+    val damage: List<DamageRow>,
+    val openingStock: Map<String, OpeningStock>,
+    /** Wastage in basis points (200 is 2%), 0 to 500. */
+    val wastageBp: Int,
     val settings: BusinessSettings,
     val workers: List<WorkerAccount>,
     val today: LocalDate,

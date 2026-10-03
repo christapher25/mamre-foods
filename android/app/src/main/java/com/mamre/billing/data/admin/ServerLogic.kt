@@ -5,6 +5,7 @@ import com.mamre.billing.domain.admin.AdminReturn
 import com.mamre.billing.domain.admin.AppliedPayment
 import com.mamre.billing.domain.admin.BalanceRow
 import com.mamre.billing.domain.admin.CategoryTotal
+import com.mamre.billing.domain.admin.CostLine
 import com.mamre.billing.domain.admin.CostingReport
 import com.mamre.billing.domain.admin.CustomerMonthSummary
 import com.mamre.billing.domain.admin.DashboardReport
@@ -13,11 +14,14 @@ import com.mamre.billing.domain.admin.ExpensesReport
 import com.mamre.billing.domain.admin.Figure
 import com.mamre.billing.domain.admin.InvoiceCredit
 import com.mamre.billing.domain.admin.InvoiceDetail
+import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.MonthSales
 import com.mamre.billing.domain.admin.NamedAmount
 import com.mamre.billing.domain.admin.ProductCost
 import com.mamre.billing.domain.admin.ProductionDamage
 import com.mamre.billing.domain.admin.ReturnsReport
+import com.mamre.billing.domain.admin.StockReport
+import com.mamre.billing.domain.admin.StockRow
 import com.mamre.billing.domain.admin.monthWindow
 import com.mamre.billing.domain.worker.CreditEntry
 import com.mamre.billing.domain.worker.InvoiceEntry
@@ -36,19 +40,28 @@ import java.time.temporal.ChronoUnit
  * the device never recomputes them. These functions exist only so [FakeAdminApi] can give the Admin
  * screens figures that agree with each other; a real server replaces them with API calls, and the
  * release build, which has no fake, does not contain them. Nothing in domain/admin or ui/admin
- * computes cost, profit or balances.
+ * computes cost, usage, profit or balances.
  *
- * Money is Long cents. Cost per packet is a Long in ten-thousandths of a dollar (Doc 1 s9.4); the
- * integer arithmetic reproduces the Doc 1 s9.5 example exactly ($0.5475, $0.6975, $0.8475).
+ * Money is Long cents. Cost per packet is a Long in ten-thousandths of a dollar. Material quantities
+ * are Long thousandths of the base unit ("mb"). All integer arithmetic, rounding half up.
+ *
+ * Direct expense (owner change, supersedes Doc 1 A-11): a material's price in a month is the weighted
+ * average of opening stock and that month's purchases; usage is (gross invoiced packets + replacement
+ * packets + production-damaged packets) x recipe quantity x (1 + wastage); direct expense is the cost
+ * consumed of every material, packing included.
  */
 object ServerLogic {
     private const val TT_PER_CENT = 100L
     private const val DAYS_30 = 30L
     private const val DAYS_60 = 60L
-    const val SORBATE_NOTE = "(Doc 1 P-2)"
+    private const val BP = 10_000L
+    private const val SORBATE_NOTE = " (Doc 1 P-2)"
 
-    /** a / b rounded half up, for non-negative numbers. */
+    /** a / b rounded half up, for non-negative a and positive b. */
     fun divHalfUp(a: Long, b: Long): Long = (a * 2 + b) / (b * 2)
+
+    /** a / b rounded half away from zero, for any sign of a. */
+    private fun divRound(a: Long, b: Long): Long = if (a < 0) -divHalfUp(-a, b) else divHalfUp(a, b)
 
     // ------------------------------------------------------------------ ledger and allocation
 
@@ -178,37 +191,30 @@ object ServerLogic {
         BalanceRow(c.id, c.name, c.typeName, bal, current, over30, over60)
     }.sortedByDescending { it.balanceCents }
 
-    // ------------------------------------------------------------------ costing
+    // ------------------------------------------------------------------ packets
 
-    private fun recipeFor(s: ServerState, productId: String) = s.recipes[productId].orEmpty()
+    /** Packets invoiced (gross, void excluded) in the month, per product. Usage uses this, not net of credits. */
+    fun invoicedPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+        s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
+            .flatMap { it.items }.groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
 
-    /** Cost of the ingredients in 1 kg of wheat on [date], in ten-thousandths of a dollar, or what is missing. */
-    private fun perKgTt(s: ServerState, productId: String, date: LocalDate): Pair<Long?, List<String>> {
-        var total = 0L
-        val missing = mutableListOf<String>()
-        for (line in recipeFor(s, productId)) {
-            val ing = s.ingredients.first { it.id == line.ingredientId }
-            val qty = line.milliPerKgWheat
-            val price = ing.priceOn(date)
-            if (qty == null) {
-                missing += "${ing.name} quantity per kg of wheat" + if (ing.id == SeedIds.SORBATE) " $SORBATE_NOTE" else ""
-            }
-            if (price == null) missing += "${ing.name} price"
-            if (qty != null && price != null) {
-                total += divHalfUp(qty * price.priceCents * TT_PER_CENT, ing.basePerPurchaseUnit.toLong() * 1000)
-            }
-        }
-        return if (missing.isEmpty()) total to emptyList() else null to missing
+    private fun replacementPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+        s.returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }
+            .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
+
+    private fun damagedPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+        s.damage.filter { YearMonth.from(it.date) == month }
+            .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.packets.toLong() } }
+
+    /** Everything made in the month per product: invoiced + replacement + damaged packets. */
+    fun packetsMade(s: ServerState, month: YearMonth): Map<String, Long> {
+        val a = invoicedPackets(s, month)
+        val b = replacementPackets(s, month)
+        val c = damagedPackets(s, month)
+        return (a.keys + b.keys + c.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) + (c[it] ?: 0L) }
     }
 
-    /** Cost of the ingredients per packet before any damage: the Doc 1 s9.5 table. */
-    fun ingredientsPerPacketTt(s: ServerState, productId: String, date: LocalDate): Long? {
-        val product = s.products.first { it.id == productId }
-        val perKg = perKgTt(s, productId, date).first ?: return null
-        // A packet of 12 uses 12 / 32 kg of wheat (Doc 1 s9.3).
-        return divHalfUp(perKg * product.unitsPerPacket, 32)
-    }
-
+    /** Net packets sold: invoiced less credited by returns (Doc 1 s9.4, A-9). Used for the indirect share only. */
     fun netPackets(s: ServerState, productId: String?, month: YearMonth): Int {
         val sold = s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
             .sumOf { inv -> inv.items.filter { productId == null || it.productId == productId }.sumOf { it.qtyPackets } }
@@ -220,66 +226,177 @@ object ServerLogic {
     fun indirectTotalCents(s: ServerState, month: YearMonth): Long =
         s.expenses.filter { it.kind == ExpenseKind.INDIRECT && YearMonth.from(it.date) == month }.sumOf { it.amountCents }
 
-    /** Direct cost per good packet for a month: batch ingredient cost over good packets, plus packing (Doc 1 s9.4). */
-    fun directTt(s: ServerState, productId: String, month: YearMonth): Pair<Long?, List<String>> {
-        val product = s.products.first { it.id == productId }
-        val inMonth = s.batches.filter { it.productId == productId && YearMonth.from(it.date) == month }
-        val batches = inMonth.ifEmpty {
-            // No batch this month: use the most recent one (average cost, Doc 1 A-10).
-            listOfNotNull(s.batches.filter { it.productId == productId && YearMonth.from(it.date).isBefore(month) }.maxByOrNull { it.date })
-        }
-        if (batches.isEmpty()) return null to listOf("A production batch for ${product.name}")
-        var batchTotalTt = 0L
-        val missing = linkedSetOf<String>()
-        for (b in batches) {
-            val (perKg, m) = perKgTt(s, productId, b.date)
-            if (perKg == null) missing += m else batchTotalTt += perKg * b.wheatKg
-        }
-        if (missing.isNotEmpty()) return null to missing.toList()
-        val good = batches.sumOf { it.goodPackets }.toLong()
-        if (good == 0L) return null to listOf("Good packets for ${product.name}")
-        return divHalfUp(batchTotalTt, good) + product.packingCostCents * TT_PER_CENT to emptyList()
-    }
+    // ------------------------------------------------------------------ materials: usage, stock, price
 
-    fun productCost(s: ServerState, productId: String, month: YearMonth): ProductCost {
-        val product = s.products.first { it.id == productId }
-        val (direct, missing) = directTt(s, productId, month)
-        val net = netPackets(s, null, month)
-        if (direct == null) return ProductCost.Incomplete(productId, product.name, missing)
-        if (net <= 0) return ProductCost.Incomplete(productId, product.name, listOf("Packets sold this month"))
-        val indirect = divHalfUp(indirectTotalCents(s, month) * TT_PER_CENT, net.toLong())
-        val packing = product.packingCostCents * TT_PER_CENT
-        return ProductCost.Complete(productId, product.name, direct - packing, packing, direct, indirect, direct + indirect)
-    }
+    private data class Price(val valueCents: Long, val qtyMb: Long)
 
-    fun costing(s: ServerState, month: YearMonth) = CostingReport(
-        month = month,
-        products = s.products.map { productCost(s, it.id, month) },
-        indirectTotalCents = indirectTotalCents(s, month),
-        netPackets = netPackets(s, null, month),
+    /** One material for one month, before it is turned into display figures. A null means unknown. */
+    private class MonthMaterial(
+        val material: Material,
+        val openingQty: Long?,
+        val openingValue: Long?,
+        val boughtQty: Long,
+        val boughtCents: Long,
+        val used: Long?,
+        val usedMissing: List<String>,
+        val price: Price?,
+        val cost: Long?,
+        val costMissing: List<String>,
+        val closingQty: Long?,
+        val closingValue: Long?,
     )
 
-    /** Direct cost of the packets sold in the month, or INCOMPLETE naming the missing inputs. */
-    fun directCostCents(s: ServerState, month: YearMonth): Figure {
-        var totalTt = 0L
-        val missing = linkedSetOf<String>()
-        for (p in s.products) {
-            val net = netPackets(s, p.id, month)
-            if (net <= 0) continue
-            val (tt, m) = directTt(s, p.id, month)
-            if (tt == null) missing += m else totalTt += tt * net
-        }
-        return if (missing.isEmpty()) Figure.Known(divHalfUp(totalTt, TT_PER_CENT)) else Figure.Incomplete(missing.toList())
+    private fun missingQuantity(material: Material, product: String?): String {
+        val note = if (material.id == SeedIds.SORBATE) SORBATE_NOTE else ""
+        return if (product == null) "${material.name} quantity per packet$note" else "${material.name} quantity per packet of $product$note"
     }
 
-    fun replacementCost(s: ServerState, month: YearMonth): Figure {
-        var totalTt = 0L
-        val missing = linkedSetOf<String>()
-        for (r in s.returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }) {
-            val (tt, m) = directTt(s, r.productId, month)
-            if (tt == null) missing += m else totalTt += tt * r.qtyPackets
+    /** Usage of one material in a month in thousandths of its base unit, or what is missing to know it. */
+    private fun usage(s: ServerState, material: Material, packets: Map<String, Long>): Pair<Long?, List<String>> {
+        var sum = 0L
+        val missing = mutableListOf<String>()
+        for (p in s.products) {
+            val line = s.recipes[p.id]?.firstOrNull { it.materialId == material.id } ?: continue
+            val made = packets[p.id] ?: 0L
+            if (made == 0L) continue
+            val q = line.qtyMb
+            if (q == null) missing += missingQuantity(material, p.name) else sum += made * q
         }
-        return if (missing.isEmpty()) Figure.Known(divHalfUp(totalTt, TT_PER_CENT)) else Figure.Incomplete(missing.toList())
+        if (missing.isNotEmpty()) return null to missing
+        return divHalfUp(sum * (BP + s.wastageBp), BP) to emptyList()
+    }
+
+    private fun chainStart(s: ServerState): YearMonth {
+        val months = s.invoices.map { YearMonth.from(it.issuedAt) } + s.purchases.map { YearMonth.from(it.date) } +
+            s.damage.map { YearMonth.from(it.date) } + s.returns.map { YearMonth.from(it.date) }
+        return months.minOrNull() ?: YearMonth.from(s.today)
+    }
+
+    private data class Carry(val qty: Long?, val value: Long?, val price: Price?)
+
+    /** Walks the months from the first one of data to [target], carrying stock and value forward. */
+    private fun materialsFor(s: ServerState, target: YearMonth): List<MonthMaterial> {
+        val carry = s.materials.associate { m ->
+            val o = s.openingStock[m.id]
+            m.id to Carry(o?.qtyMb ?: 0L, o?.valueCents ?: 0L, null)
+        }.toMutableMap()
+        var month = minOf(chainStart(s), target)
+        while (true) {
+            val packets = packetsMade(s, month)
+            val results = s.materials.map { m -> monthOf(s, m, month, packets, carry.getValue(m.id)) }
+            if (month == target) return results
+            results.forEach { r -> carry[r.material.id] = Carry(r.closingQty, r.closingValue, r.price) }
+            month = month.plusMonths(1)
+        }
+    }
+
+    private fun monthOf(s: ServerState, m: Material, month: YearMonth, packets: Map<String, Long>, c: Carry): MonthMaterial {
+        val bought = s.purchases.filter { it.materialId == m.id && YearMonth.from(it.date) == month }
+        val bQty = bought.sumOf { it.qtyMb }
+        val bCents = bought.sumOf { it.totalCents }
+        val (used, usedMissing) = usage(s, m, packets)
+        val purchaseOnly = if (bQty > 0) Price(bCents, bQty) else null
+
+        // A shortage (stock at or below zero) whose value is unknown is valued at this month's purchase price.
+        var openingValue = c.value
+        if (c.qty != null && openingValue == null && c.qty <= 0) {
+            openingValue = (purchaseOnly ?: c.price)?.let { divRound(c.qty * it.valueCents, it.qtyMb) }
+        }
+        val openKnown = c.qty != null && openingValue != null
+        val totalQty = if (openKnown) c.qty!! + bQty else null
+        val totalValue = if (openKnown) openingValue!! + bCents else null
+        val price = when {
+            openKnown && totalQty!! > 0 && totalValue!! > 0 -> Price(totalValue, totalQty)
+            purchaseOnly != null -> purchaseOnly
+            else -> c.price
+        }
+        val costMissing = mutableListOf<String>()
+        val cost: Long? = when {
+            used == null -> { costMissing += usedMissing; null }
+            !openKnown -> { costMissing += "${m.name} stock (an earlier month is incomplete)"; null }
+            used == 0L -> 0L
+            price == null -> { costMissing += "${m.name} price"; null }
+            else -> divHalfUp(used * price.valueCents, price.qtyMb)
+        }
+        val closingQty = if (openKnown && used != null) totalQty!! - used else null
+        val closingValue = if (cost != null && totalValue != null) totalValue - cost else null
+        return MonthMaterial(m, c.qty, openingValue, bQty, bCents, used, usedMissing, price, cost, costMissing, closingQty, closingValue)
+    }
+
+    private fun figure(value: Long?, missing: List<String>): Figure =
+        if (value != null) Figure.Known(value) else Figure.Incomplete(missing.distinct())
+
+    /** The month's materials: opening stock, bought, used, closing stock, average price, cost consumed (B6). */
+    fun stock(s: ServerState, month: YearMonth): StockReport {
+        val rows = materialsFor(s, month).map { r ->
+            val m = r.material
+            val openMissing = listOf("${m.name} stock (an earlier month is incomplete)")
+            StockRow(
+                material = m,
+                openingQtyMb = figure(r.openingQty, openMissing),
+                openingValueCents = figure(r.openingValue, openMissing),
+                boughtQtyMb = r.boughtQty,
+                boughtCents = r.boughtCents,
+                usedMb = figure(r.used, r.usedMissing),
+                closingQtyMb = figure(r.closingQty, r.usedMissing.ifEmpty { openMissing }),
+                closingValueCents = figure(r.closingValue, r.costMissing),
+                avgPriceTt = figure(
+                    r.price?.let { divHalfUp(it.valueCents * TT_PER_CENT * m.purchaseMbPerUnit, it.qtyMb) },
+                    listOf("${m.name} price"),
+                ),
+                costConsumedCents = figure(r.cost, r.costMissing),
+            )
+        }
+        fun total(pick: (StockRow) -> Figure): Figure {
+            val missing = rows.mapNotNull { (pick(it) as? Figure.Incomplete)?.missing }.flatten()
+            return if (missing.isEmpty()) Figure.Known(rows.sumOf { (pick(it) as Figure.Known).value }) else Figure.Incomplete(missing.distinct())
+        }
+        return StockReport(
+            month = month,
+            rows = rows,
+            boughtTotalCents = rows.sumOf { it.boughtCents },
+            openingValueTotal = total { it.openingValueCents },
+            costConsumedTotal = total { it.costConsumedCents },
+            closingValueTotal = total { it.closingValueCents },
+        )
+    }
+
+    /** Month direct expense: the cost of all the materials consumed, packing included. */
+    fun directExpense(s: ServerState, month: YearMonth): Figure = stock(s, month).costConsumedTotal
+
+    // ------------------------------------------------------------------ costing per packet
+
+    fun costing(s: ServerState, month: YearMonth): CostingReport {
+        val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
+        val net = netPackets(s, null, month)
+        val indirectCents = indirectTotalCents(s, month)
+        val products = s.products.map { p ->
+            val recipe = s.recipes[p.id].orEmpty()
+            val missing = mutableListOf<String>()
+            val lines = mutableListOf<CostLine>()
+            var packing = 0L
+            for (entry in recipe) {
+                val mm = monthMaterials.getValue(entry.materialId)
+                val q = entry.qtyMb
+                val price = mm.price
+                if (q == null) missing += missingQuantity(mm.material, null)
+                if (price == null) missing += "${mm.material.name} price"
+                if (q == null || price == null) continue
+                val tt = divHalfUp(q * price.valueCents * TT_PER_CENT, price.qtyMb)
+                if (mm.material.isPacking) packing += tt else lines += CostLine(mm.material.id, mm.material.name, tt)
+            }
+            if (net <= 0) missing += "Packets sold this month"
+            if (missing.isNotEmpty()) {
+                ProductCost.Incomplete(p.id, p.name, missing.distinct())
+            } else {
+                val subtotal = lines.sumOf { it.tt } + packing
+                val wastage = divHalfUp(subtotal * s.wastageBp, BP)
+                val direct = subtotal + wastage
+                val indirect = divHalfUp(indirectCents * TT_PER_CENT, net.toLong())
+                ProductCost.Complete(p.id, p.name, lines, packing, wastage, direct, indirect, direct + indirect)
+            }
+        }
+        return CostingReport(month, s.wastageBp, products, indirectCents, net)
     }
 
     // ------------------------------------------------------------------ reports
@@ -288,20 +405,21 @@ object ServerLogic {
         s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }.sumOf { it.totalCents } -
             s.returns.filter { YearMonth.from(it.date) == month }.sumOf { it.creditCents }
 
+    /**
+     * One month at a glance. Gross profit = net sales - direct expense; net profit = gross profit -
+     * indirect expenses (owner change: damage, wastage and replacements are already inside direct expense).
+     * A month whose direct expense is incomplete has no gross or net profit, never a partial number.
+     */
     fun dashboard(s: ServerState, month: YearMonth, earliest: YearMonth): DashboardReport {
         val netSales = netSalesCents(s, month)
         val end = month.atEndOfMonth()
         val cash = s.payments.filter { YearMonth.from(it.date) == month }.sumOf { it.amountCents }
         // Outstanding: what customers still owe at month end (credit on account is not a receivable).
         val outstanding = s.customers.sumOf { maxOf(balance(s, it.id, end), 0L) }
-        val direct = directCostCents(s, month)
+        val direct = directExpense(s, month)
         val indirect = indirectTotalCents(s, month)
-        val replacement = replacementCost(s, month)
         val gross: Figure = if (direct is Figure.Known) Figure.Known(netSales - direct.value) else direct
-        val net: Figure = when {
-            gross is Figure.Known && replacement is Figure.Known -> Figure.Known(gross.value - indirect - replacement.value)
-            else -> Figure.Incomplete(((gross as? Figure.Incomplete)?.missing.orEmpty() + (replacement as? Figure.Incomplete)?.missing.orEmpty()).distinct())
-        }
+        val net: Figure = if (gross is Figure.Known) Figure.Known(gross.value - indirect) else gross
         val byProduct = s.products.map { p ->
             val revenue = s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
                 .sumOf { inv -> inv.items.filter { it.productId == p.id }.sumOf { it.lineTotalCents } }
@@ -313,7 +431,6 @@ object ServerLogic {
             val credits = s.returns.filter { it.typeName == t.name && YearMonth.from(it.date) == month }.sumOf { it.creditCents }
             NamedAmount(t.name, revenue - credits)
         }
-        val missing = (((direct as? Figure.Incomplete)?.missing.orEmpty()) + ((replacement as? Figure.Incomplete)?.missing.orEmpty())).distinct()
         return DashboardReport(
             month = month,
             inProgress = month == YearMonth.from(s.today),
@@ -323,12 +440,11 @@ object ServerLogic {
             directCost = direct,
             grossProfit = gross,
             indirectExpensesCents = indirect,
-            replacementCost = replacement,
             netProfit = net,
             sixMonthSales = monthWindow(month, 6, earliest).map { MonthSales(it, netSalesCents(s, it)) },
             salesByProduct = byProduct,
             salesByCustomerType = byType,
-            missingInputs = missing,
+            missingInputs = (direct as? Figure.Incomplete)?.missing.orEmpty(),
         )
     }
 
@@ -341,22 +457,26 @@ object ServerLogic {
                 CategoryTotal(c, entries.sumOf { it.amountCents }, entries)
             },
             indirectTotalCents = indirectTotalCents(s, month),
-            directCost = directCostCents(s, month),
+            directExpense = directExpense(s, month),
         )
     }
 
     fun returnsReport(s: ServerState, month: YearMonth): ReturnsReport {
+        val costing = costing(s, month)
         val rows = s.returns.filter { YearMonth.from(it.date) == month }.sortedByDescending { it.date }.map { r ->
+            // Information only: the replacement is already inside direct expense (owner change).
             val cost: Figure = if (r.resolution == ReturnResolution.REPLACEMENT) {
-                val (tt, m) = directTt(s, r.productId, month)
-                if (tt == null) Figure.Incomplete(m) else Figure.Known(divHalfUp(tt * r.qtyPackets, TT_PER_CENT))
+                when (val p = costing.products.first { it.productId == r.productId }) {
+                    is ProductCost.Complete -> Figure.Known(divHalfUp(p.directTt * r.qtyPackets, TT_PER_CENT))
+                    is ProductCost.Incomplete -> Figure.Incomplete(p.missing)
+                }
             } else {
                 Figure.Known(0L)
             }
             AdminReturn(r.id, r.date, r.customerName, r.productName, r.qtyPackets, r.reason, r.resolution, r.creditCents, cost)
         }
-        val damage = s.batches.filter { YearMonth.from(it.date) == month && it.packetsDamaged > 0 }.sortedByDescending { it.date }.map { b ->
-            ProductionDamage(b.id, b.date, s.products.first { it.id == b.productId }.name, b.packetsPacked, b.packetsDamaged)
+        val damage = s.damage.filter { YearMonth.from(it.date) == month }.sortedByDescending { it.date }.map { d ->
+            ProductionDamage(d.id, d.date, d.productId, s.products.first { it.id == d.productId }.name, d.packets, d.note, d.enteredBy)
         }
         return ReturnsReport(
             month = month,
@@ -364,8 +484,7 @@ object ServerLogic {
             damage = damage,
             creditsTotalCents = rows.sumOf { it.creditCents },
             replacementPackets = rows.filter { it.resolution == ReturnResolution.REPLACEMENT }.sumOf { it.qtyPackets },
-            replacementCost = replacementCost(s, month),
-            damagedPackets = damage.sumOf { it.packetsDamaged },
+            damagedPackets = damage.sumOf { it.packets },
         )
     }
 

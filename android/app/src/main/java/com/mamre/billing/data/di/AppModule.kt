@@ -8,6 +8,7 @@ import com.mamre.billing.data.admin.FakeAdminApi
 import com.mamre.billing.data.api.AppVersionInterceptor
 import com.mamre.billing.data.api.BackendApi
 import com.mamre.billing.data.api.FakeApi
+import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.data.api.MamreService
 import com.mamre.billing.data.api.RetrofitBackendApi
 import com.mamre.billing.data.auth.EncryptedTokenStore
@@ -42,10 +43,14 @@ object AppModule {
         explicitNulls = false
     }
 
+    /** DEMO DATA: the one price table linking the Admin stand-in and the worker's FakeApi (DECISIONS 2026-10-03). */
+    @Provides @Singleton
+    fun sharedPrices(): SharedPriceTable = SharedPriceTable.seeded(java.time.LocalDate.now())
+
     /** FakeApi or the real server, chosen by the USE_FAKE_API build flag (Doc 2 s2). */
     @Provides @Singleton
-    fun backendApi(json: Json): BackendApi {
-        if (BuildConfig.USE_FAKE_API) return FakeApi()
+    fun backendApi(json: Json, prices: SharedPriceTable): BackendApi {
+        if (BuildConfig.USE_FAKE_API) return FakeApi(prices)
         val client = OkHttpClient.Builder()
             .addInterceptor(AppVersionInterceptor(BuildConfig.VERSION_NAME))
             .build()
@@ -72,8 +77,8 @@ object AppModule {
      * endpoints yet (QUESTIONS), so a real build has nothing to offer and admin sign-in is refused there.
      */
     @Provides @Singleton
-    fun adminApi(): AdminApi {
-        if (BuildConfig.USE_FAKE_API) return FakeAdminApi()
+    fun adminApi(prices: SharedPriceTable): AdminApi {
+        if (BuildConfig.USE_FAKE_API) return FakeAdminApi(prices = prices)
         error("The server has no admin API yet")
     }
 
