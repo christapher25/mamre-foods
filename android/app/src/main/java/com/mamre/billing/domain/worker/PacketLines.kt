@@ -52,7 +52,8 @@ fun buildPacketLines(
             val standardPrice = p.unitPriceCents ?: return@mapNotNull null
             val size = e.key.chapathisPerPacket
             val list = customPacketPriceCents(standardPrice, size, p.standardPacketSize)
-            val charged = e.chargedCents?.takeIf { priceEditAllowed && it > 0 } ?: list
+            // The one shared rule (priceLimitProblem): an illegal price is never applied, the list price stays.
+            val charged = e.chargedCents?.takeIf { priceEditAllowed && priceLimitProblem(it, list) == null } ?: list
             InvoiceLine(
                 productId = p.productId,
                 productName = p.name,

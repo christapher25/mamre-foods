@@ -22,17 +22,24 @@ sealed interface PriceEditResult {
 }
 
 /**
+ * THE rule for a charged price (change set C3, review finding 2): above zero and at most [MAX_PRICE_FACTOR] times the
+ * list price of that packet. One function, called by [checkPriceEdit] (typed text), [buildPacketLines] and
+ * DemoStore.confirmInvoice, so no layer can accept a price another layer would refuse. Null means the price is fine.
+ */
+fun priceLimitProblem(chargedCents: Long, listCents: Long): PriceEditProblem? = when {
+    chargedCents <= 0 -> PriceEditProblem.NOT_POSITIVE
+    chargedCents > listCents * MAX_PRICE_FACTOR -> PriceEditProblem.TOO_HIGH
+    else -> null
+}
+
+/**
  * Checks a typed price per packet. [allowed] is the customer type's flag: when it is off nothing is accepted,
  * whatever is typed, so a screen that skips its own check still cannot change a price.
  */
 fun checkPriceEdit(allowed: Boolean, text: String, listCents: Long): PriceEditResult {
     if (!allowed) return PriceEditResult.Rejected(PriceEditProblem.NOT_ALLOWED)
     val cents = parseCents(text) ?: return PriceEditResult.Rejected(PriceEditProblem.NOT_AN_AMOUNT)
-    return when {
-        cents <= 0 -> PriceEditResult.Rejected(PriceEditProblem.NOT_POSITIVE)
-        cents > listCents * MAX_PRICE_FACTOR -> PriceEditResult.Rejected(PriceEditProblem.TOO_HIGH)
-        else -> PriceEditResult.Ok(cents)
-    }
+    return priceLimitProblem(cents, listCents)?.let { PriceEditResult.Rejected(it) } ?: PriceEditResult.Ok(cents)
 }
 
 fun priceEditMessage(problem: PriceEditProblem, listCents: Long): String = when (problem) {

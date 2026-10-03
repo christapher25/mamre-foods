@@ -5,6 +5,7 @@ import com.mamre.billing.domain.worker.InvoiceEntry
 import com.mamre.billing.domain.worker.InvoiceLine
 import com.mamre.billing.domain.worker.InvoiceRecord
 import com.mamre.billing.domain.worker.LedgerEntry
+import com.mamre.billing.domain.worker.MAX_PRICE_FACTOR
 import com.mamre.billing.domain.worker.PaymentEntry
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.PaymentRecord
@@ -16,6 +17,7 @@ import com.mamre.billing.domain.worker.receiptSequenceOf
 import com.mamre.billing.domain.worker.returnCreditCents
 import com.mamre.billing.domain.worker.invoiceNumber
 import com.mamre.billing.domain.worker.invoiceTotal
+import com.mamre.billing.domain.worker.priceLimitProblem
 import com.mamre.billing.domain.worker.ledgerBalance
 import com.mamre.billing.domain.worker.sequenceOf
 import java.time.Clock
@@ -136,6 +138,11 @@ class DemoStore(
         // A worker may change a price only for a type whose flag allows it, even if a screen skipped its own check (C3).
         require(draft.priceEditAllowed || draft.lines.none { it.priceOverridden }) {
             "the price of this customer type cannot be changed by a worker"
+        }
+        // The same limits as the typed price (priceLimitProblem): above zero and at most 10 times the line's list price.
+        for (line in draft.lines.filter { it.priceOverridden }) {
+            val problem = priceLimitProblem(line.unitPriceCents, line.listPriceCents)
+            require(problem == null) { "a changed price must be above zero and at most $MAX_PRICE_FACTOR times the list price ($problem)" }
         }
         val total = invoiceTotal(draft.lines)
         val previous = draft.customerId?.let { _state.value.balanceOf(it) } ?: 0L
