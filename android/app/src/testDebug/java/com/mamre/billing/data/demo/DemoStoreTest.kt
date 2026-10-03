@@ -15,7 +15,7 @@ import org.junit.Test
 
 class DemoStoreTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-02T14:00:00Z"), ZoneOffset.UTC)
-    private val store = DemoStore(clock)
+    private val store = DemoStore(clock, DemoSeed.state())
 
     private fun draft(
         id: String = "draft-1",

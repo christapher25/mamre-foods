@@ -12,7 +12,7 @@ import org.junit.Test
 /** Change set C3: the use case that saves an invoice refuses a changed price for a type that may not change it. */
 class DemoStorePriceEditTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-02T14:00:00Z"), ZoneOffset.UTC)
-    private val store = DemoStore(clock)
+    private val store = DemoStore(clock, DemoSeed.state())
 
     private fun draft(line: InvoiceLine, allowed: Boolean) = InvoiceDraft(
         "draft-${line.unitPriceCents}-$allowed", DemoIds.RETAIL_CUSTOMER, "Rao Family", "Retail", "W1",

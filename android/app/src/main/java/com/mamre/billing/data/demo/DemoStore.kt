@@ -104,7 +104,7 @@ data class ReturnDraft(
  */
 class DemoStore(
     private val clock: Clock = Clock.systemDefaultZone(),
-    seed: DemoState = DemoSeed.state(),
+    seed: DemoState = DemoState(),
 ) {
     private val _state = MutableStateFlow(seed)
     val state: StateFlow<DemoState> = _state.asStateFlow()

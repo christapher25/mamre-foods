@@ -10,6 +10,7 @@ import com.mamre.billing.data.FakeTransactionRunner
 import com.mamre.billing.data.admin.FakeAdminApi
 import com.mamre.billing.data.api.FakeApi
 import com.mamre.billing.data.demo.DemoIds
+import com.mamre.billing.data.demo.DemoSeed
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.pricing.PriceResult
@@ -46,7 +47,7 @@ class WorkerSyncTest {
             api.catalog(api.login("user1", "user1").access, cursor)
         },
     )
-    private val store = DemoStore()
+    private val store = DemoStore(seed = DemoSeed.state())
     private val sync = WorkerSync(repo, store)
 
     private suspend fun shopFreshPrice(date: LocalDate): Long {
@@ -111,7 +112,7 @@ class SharedCatalogSyncTest {
         FakeSyncStateDao(), FakeTransactionRunner(),
         CatalogRemote { cursor -> api.catalog(api.login("user1", "user1").access, cursor) },
     )
-    private val sync = WorkerSync(repo, DemoStore())
+    private val sync = WorkerSync(repo, DemoStore(seed = DemoSeed.state()))
 
     private fun form(name: String, type: String = DemoIds.CATERING_TYPE) = com.mamre.billing.domain.admin.CustomerForm(
         name, type, "555-0100", "1 Main St", com.mamre.billing.domain.model.PaymentMode.CREDIT, "", true,

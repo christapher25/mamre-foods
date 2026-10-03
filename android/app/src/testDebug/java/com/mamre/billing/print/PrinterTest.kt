@@ -1,6 +1,7 @@
 package com.mamre.billing.print
 
 import com.mamre.billing.data.demo.DemoIds
+import com.mamre.billing.data.demo.DemoSeed
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.InvoiceDraft
 import com.mamre.billing.domain.worker.InvoiceLine
@@ -42,7 +43,7 @@ class PrinterTest {
 
     /** AT-11 (Doc 3 s10.2): a print failure does not lose the invoice, and a retry works. */
     @Test fun aPrintFailureKeepsTheInvoiceAndRetryWorks() = runTest {
-        val store = DemoStore()
+        val store = DemoStore(seed = DemoSeed.state())
         val invoice = store.confirmInvoice(
             InvoiceDraft(
                 "draft", DemoIds.RESTAURANT, "Test Restaurant", "Restaurant", "W1",

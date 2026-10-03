@@ -1,6 +1,7 @@
 package com.mamre.billing.print
 
 import com.mamre.billing.data.demo.DemoIds
+import com.mamre.billing.data.demo.DemoSeed
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.InvoiceDraft
 import com.mamre.billing.domain.worker.InvoiceLine
@@ -15,7 +16,7 @@ import org.junit.Test
 
 class ReceiptBuildersTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-02T14:20:00Z"), ZoneOffset.UTC)
-    private val store = DemoStore(clock)
+    private val store = DemoStore(clock, DemoSeed.state())
 
     private fun draft(customerId: String?, packets: Int, paid: Long, method: PaymentMethod?) = InvoiceDraft(
         "d-$customerId-$packets", customerId, "Test Restaurant", "Restaurant", "W1",

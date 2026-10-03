@@ -9,6 +9,7 @@ import com.mamre.billing.data.FakeSyncStateDao
 import com.mamre.billing.data.FakeTransactionRunner
 import com.mamre.billing.data.api.FakeApi
 import com.mamre.billing.data.demo.DemoIds
+import com.mamre.billing.data.demo.DemoSeed
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.data.repository.CatalogRemote
@@ -39,7 +40,7 @@ class PriceRulesTest {
         FakeSyncStateDao(), FakeTransactionRunner(),
         CatalogRemote { cursor -> api.catalog(api.login("user1", "user1").access, cursor) },
     )
-    private val sync = WorkerSync(repo, DemoStore())
+    private val sync = WorkerSync(repo, DemoStore(seed = DemoSeed.state()))
 
     private suspend fun flags() = repo.priceBook().customerTypes.associate { it.name to it.workerCanEditPrice }
 

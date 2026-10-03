@@ -4,11 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.admin.AdminApi
-import com.mamre.billing.data.admin.FakeAdminApi
+import com.mamre.billing.data.admin.UnavailableAdminApi
 import com.mamre.billing.data.api.AppVersionInterceptor
 import com.mamre.billing.data.api.BackendApi
-import com.mamre.billing.data.api.FakeApi
-import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.data.api.MamreService
 import com.mamre.billing.data.api.RetrofitBackendApi
 import com.mamre.billing.data.auth.EncryptedTokenStore
@@ -27,6 +25,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.util.Optional
 import javax.inject.Singleton
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -43,14 +42,13 @@ object AppModule {
         explicitNulls = false
     }
 
-    /** DEMO DATA: the one price table linking the Admin stand-in and the worker's FakeApi (DECISIONS 2026-10-03). */
+    /**
+     * The real server client, or the demo stand-in when this is a debug build (USE_FAKE_API) and the debug source
+     * set bound one. A release build has no demo classes at all, so [demo] is empty there (Doc 2 s2).
+     */
     @Provides @Singleton
-    fun sharedPrices(): SharedPriceTable = SharedPriceTable.seeded(java.time.LocalDate.now())
-
-    /** FakeApi or the real server, chosen by the USE_FAKE_API build flag (Doc 2 s2). */
-    @Provides @Singleton
-    fun backendApi(json: Json, prices: SharedPriceTable): BackendApi {
-        if (BuildConfig.USE_FAKE_API) return FakeApi(prices)
+    fun backendApi(json: Json, @DemoImpl demo: Optional<BackendApi>): BackendApi {
+        if (BuildConfig.USE_FAKE_API && demo.isPresent) return demo.get()
         val client = OkHttpClient.Builder()
             .addInterceptor(AppVersionInterceptor(BuildConfig.VERSION_NAME))
             .build()
@@ -66,21 +64,19 @@ object AppModule {
     fun tokenStore(@ApplicationContext context: Context): TokenStore = EncryptedTokenStore(context)
 
     @Provides @Singleton
-    fun sessionManager(api: BackendApi, store: TokenStore) = SessionManager(api, store, adminSignInAvailable = BuildConfig.USE_FAKE_API)
+    fun sessionManager(api: BackendApi, store: TokenStore) = SessionManager(api, store, adminSignInAvailable = BuildConfig.USE_FAKE_API && BuildConfig.DEBUG)
 
-    /** In-memory DEMO DATA for the worker screens until Room and the outbox arrive (P2). */
+    /** The worker's in-memory records until Room and the outbox arrive (P2); a debug build starts it with demo data. */
     @Provides @Singleton
-    fun demoStore() = DemoStore()
+    fun demoStore(@DemoImpl demo: Optional<DemoStore>): DemoStore = demo.orElseGet { DemoStore() }
 
     /**
-     * The Admin's server stand-in with DEMO DATA, its own data set (owner decision). There are no admin
-     * endpoints yet (QUESTIONS), so a real build has nothing to offer and admin sign-in is refused there.
+     * The Admin API. There are no admin endpoints yet (QUESTIONS), so a release build gets the stub that always
+     * answers "Admin sign-in is not available on the server yet"; a debug build uses the demo server stand-in.
      */
     @Provides @Singleton
-    fun adminApi(prices: SharedPriceTable): AdminApi {
-        if (BuildConfig.USE_FAKE_API) return FakeAdminApi(prices = prices)
-        error("The server has no admin API yet")
-    }
+    fun adminApi(@DemoImpl demo: Optional<AdminApi>): AdminApi =
+        if (BuildConfig.USE_FAKE_API && demo.isPresent) demo.get() else UnavailableAdminApi()
 
     /** MockPrinter until the Symcode printer SDK arrives (Doc 2 s7, P3). */
     @Provides @Singleton
