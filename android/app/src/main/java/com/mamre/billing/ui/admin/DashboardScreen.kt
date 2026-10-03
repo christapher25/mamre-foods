@@ -182,9 +182,8 @@ private fun NetProfitCard(r: DashboardReport) {
                 StatusChip(INCOMPLETE, kind = ChipKind.WARNING, modifier = Modifier.padding(top = Spacing.sm))
             }
         }
-        val replacement = (r.replacementCost as? Figure.Known)?.let { " Replacement loss ${formatCents(it.value)}." }.orEmpty()
         Text(
-            "Gross profit less indirect expenses and replacement cost.$replacement",
+            "Gross profit less indirect expenses. Wastage, damage and replacements are already in direct expense.",
             style = MaterialTheme.typography.bodySmall,
             color = ink,
             modifier = Modifier.padding(top = Spacing.xs),

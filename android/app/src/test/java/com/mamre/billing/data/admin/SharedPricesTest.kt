@@ -42,7 +42,7 @@ class SharedPricesTest {
         val token = worker.login("user1", "user1").access
         val first = worker.catalog(token, 0)
         try {
-            admin.setDefaultPrice(DemoIds.FRESH, DemoIds.SHOP_TYPE, 333, LocalDate.of(2026, 1, 1), "Test Admin")
+            admin.setDefaultPrice(DemoIds.FRESH, DemoIds.SHOP_TYPE, 333, LocalDate.of(2025, 10, 1), "Test Admin")
             org.junit.Assert.fail("expected the date rule")
         } catch (_: AdminRuleException) {
         }

@@ -9,14 +9,16 @@ import com.mamre.billing.domain.admin.BusinessSettings
 import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseCategory
 import com.mamre.billing.domain.admin.ExpenseKind
-import com.mamre.billing.domain.admin.Ingredient
-import com.mamre.billing.domain.admin.IngredientPrice
 import com.mamre.billing.domain.admin.InvoiceItem
+import com.mamre.billing.domain.admin.Material
+import com.mamre.billing.domain.admin.MaterialUnit
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceEntry
+import com.mamre.billing.domain.admin.Purchase
 import com.mamre.billing.data.demo.DemoIds
 import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.WorkerAccount
+import com.mamre.billing.domain.admin.DEFAULT_WASTAGE_BP
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.worker.InvoiceStatus
 import com.mamre.billing.domain.worker.PaymentMethod
@@ -40,6 +42,7 @@ object SeedIds {
     const val SALT = "i-salt"
     const val BAKING_POWDER = "i-baking-powder"
     const val SORBATE = "i-sorbate"
+    const val PACKING = "i-packing"
     const val SPICE_GARDEN = "c-spice-garden"
     const val PATEL_MART = "c-patel-mart"
     const val CORNER_SHOP = "c-corner-shop"
@@ -49,7 +52,6 @@ object SeedIds {
 }
 
 private const val UNIT_PACKET = 12
-private const val YIELD_PER_KG = 32 // chapathis per kg of wheat (Doc 1 s9.2)
 private const val PACKING_CENTS = 15L
 private const val LAUNCH_AFTER_MONTHS = 2L // Mamre Chapathi is sold from the third month of the demo data
 
@@ -70,12 +72,12 @@ private data class CustomerSeed(
 
 /**
  * Builds the Admin's demo data deterministically from [today]: seven months of invoices, payments,
- * returns, production batches and expenses that obey the ledger rules of Doc 1 s6 and s11.
+ * returns, purchases, production damage and expenses that obey the ledger rules of Doc 1 s6 and s11.
  * No random numbers: the same day always gives the same data, so tests can pin it.
  *
  * Demo choices (not in the docs): Mamre Chapathi is sold from the third month, so the first two
  * months have complete costs and the later ones show INCOMPLETE (potassium sorbate quantity,
- * Doc 1 P-2); the ingredient prices are the invented ones of Doc 1 s9.5 (P-3 is pending).
+ * Doc 1 P-2); the material prices are the invented ones of Doc 1 s9.5 (P-3 is pending).
  */
 object AdminSeed {
     private val customerSeeds = listOf(
@@ -224,44 +226,90 @@ object AdminSeed {
             )
         }
 
-        // --- ingredients and recipes (Doc 1 s9.2; prices are the invented ones of s9.5) ---
-        fun ingredient(id: String, name: String, base: String, purchase: String, vararg prices: Pair<Long, LocalDate>) =
-            Ingredient(id, name, base, purchase, 1000, prices.mapIndexed { i, (c, d) -> IngredientPrice("ip-$id-$i", c, d) })
-        val ingredients = listOf(
-            ingredient(SeedIds.WHEAT, "Whole wheat flour", "g", "kg", 100L to start, 110L to first.plusMonths(3).atDay(1)),
-            ingredient(SeedIds.OIL, "Oil", "ml", "L", 400L to start),
-            ingredient(SeedIds.SUGAR, "Sugar", "g", "kg", 100L to start),
-            ingredient(SeedIds.SALT, "Salt", "g", "kg", 80L to start),
-            ingredient(SeedIds.BAKING_POWDER, "Baking powder", "g", "kg", 400L to start),
-            ingredient(SeedIds.SORBATE, "Potassium sorbate", "g", "kg"), // no price and no quantity yet (P-2, P-3)
+        // --- shared materials and recipes (owner costing spec; the quantities are the owner's seed values) ---
+        val kg = MaterialUnit("kg", 1_000_000)
+        val g = MaterialUnit("g", 1_000)
+        val litre = MaterialUnit("L", 1_000_000)
+        val ml = MaterialUnit("ml", 1_000)
+        val piece = MaterialUnit("piece", 1_000)
+        val materials = listOf(
+            Material(SeedIds.WHEAT, "Whole wheat flour", "g", "kg", false, listOf(g, kg)),
+            Material(SeedIds.OIL, "Oil", "ml", "L", false, listOf(ml, litre)),
+            Material(SeedIds.SUGAR, "Sugar", "g", "kg", false, listOf(g, kg)),
+            Material(SeedIds.SALT, "Salt", "g", "kg", false, listOf(g, kg)),
+            Material(SeedIds.BAKING_POWDER, "Baking powder", "g", "kg", false, listOf(g, kg)),
+            Material(SeedIds.SORBATE, "Potassium sorbate", "g", "kg", false, listOf(g, kg)),
+            Material(SeedIds.PACKING, "Packing", "piece", "piece", true, listOf(piece)),
         )
         val base = listOf(
-            RecipeLine(SeedIds.WHEAT, 1_000_000), RecipeLine(SeedIds.OIL, 80_000), RecipeLine(SeedIds.SUGAR, 20_000),
-            RecipeLine(SeedIds.SALT, 15_000), RecipeLine(SeedIds.BAKING_POWDER, 2_000),
+            RecipeEntry(SeedIds.WHEAT, 375_000), RecipeEntry(SeedIds.OIL, 30_000), RecipeEntry(SeedIds.SUGAR, 7_500),
+            RecipeEntry(SeedIds.SALT, 5_625), RecipeEntry(SeedIds.BAKING_POWDER, 750),
         )
+        val packingLine = RecipeEntry(SeedIds.PACKING, 1_000)
         val recipes = mapOf(
-            SeedIds.FRESH to base,
-            SeedIds.CHAPATHI to base + RecipeLine(SeedIds.SORBATE, null),
+            SeedIds.FRESH to base + packingLine,
+            // Potassium sorbate applies to Mamre Chapathi only; its quantity is not decided yet (Doc 1 P-2).
+            SeedIds.CHAPATHI to base + RecipeEntry(SeedIds.SORBATE, null) + packingLine,
         )
 
-        // --- production batches: about 3% more than was sold, four a month, ~2% damaged ---
-        val batches = mutableListOf<BatchRow>()
+        // --- production damage: about 1.5% of the packets sold, one entry a month per product ---
+        val damage = mutableListOf<DamageRow>()
         var month = first
         while (!month.isAfter(last)) {
-            val monthEnd = if (month == last) today else month.atEndOfMonth()
             for (p in products) {
-                if (p.id == SeedIds.CHAPATHI && month.atEndOfMonth().isBefore(launch)) continue
                 val sold = invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
                     .sumOf { inv -> inv.items.filter { it.productId == p.id }.sumOf { it.qtyPackets } }
                 if (sold == 0) continue
-                val count = if (month == last) 1 else 4
-                val perBatch = (sold * 103 / 100 + count - 1) / count
-                val kg = (perBatch * UNIT_PACKET + YIELD_PER_KG - 1) / YIELD_PER_KG
-                val packed = kg * YIELD_PER_KG / UNIT_PACKET
-                for (i in 0 until count) {
-                    val date = minOf(month.atDay(3 + i * 7), monthEnd)
-                    batches += BatchRow("b-${p.id}-$month-$i", date, p.id, kg, packed, maxOf(1, packed * 22 / 1000))
+                val date = minOf(month.atDay(10), today)
+                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(1, sold * 15 / 1000), "Burnt in the oven", "Test Admin")
+            }
+            month = month.plusMonths(1)
+        }
+
+        // --- stock before the first month, and one purchase of each priced material a month ---
+        // Invented prices (Doc 1 s9.5 / P-3): wheat $1.00 per kg, $1.10 from the fourth month.
+        val openingStock = mapOf(
+            SeedIds.WHEAT to OpeningStock(100_000_000, 10_000), // 100 kg at $1.00
+            SeedIds.OIL to OpeningStock(20_000_000, 8_000), // 20 L at $4.00
+            SeedIds.SUGAR to OpeningStock(25_000_000, 2_500),
+            SeedIds.SALT to OpeningStock(25_000_000, 2_000),
+            SeedIds.BAKING_POWDER to OpeningStock(5_000_000, 2_000),
+            SeedIds.PACKING to OpeningStock(1_000_000, 15_000), // 1,000 pieces at 15 cents
+        )
+        // material -> bag size in thousandths of the base unit, and price in cents per bag
+        class Bag(val sizeMb: Long, val centsAt: (YearMonth) -> Long)
+        val bags = mapOf(
+            SeedIds.WHEAT to Bag(25_000_000) { m -> if (m.isBefore(first.plusMonths(3))) 2_500L else 2_750L }, // 25 kg bag
+            SeedIds.OIL to Bag(20_000_000) { 8_000L }, // 20 L can at $4.00 per L
+            SeedIds.SUGAR to Bag(25_000_000) { 2_500L },
+            SeedIds.SALT to Bag(25_000_000) { 2_000L },
+            SeedIds.BAKING_POWDER to Bag(5_000_000) { 2_000L },
+            SeedIds.PACKING to Bag(1_000_000) { 15_000L }, // 1,000 pieces at 15 cents
+        )
+        val purchases = mutableListOf<Purchase>()
+        month = first
+        while (!month.isAfter(last)) {
+            val made = mutableMapOf<String, Long>()
+            invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }.flatMap { it.items }
+                .forEach { made.merge(it.productId, it.qtyPackets.toLong(), Long::plus) }
+            returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }
+                .forEach { made.merge(it.productId, it.qtyPackets.toLong(), Long::plus) }
+            damage.filter { YearMonth.from(it.date) == month }.forEach { made.merge(it.productId, it.packets.toLong(), Long::plus) }
+            for ((materialId, bag) in bags) {
+                val m = materials.first { it.id == materialId }
+                val perPacket = products.sumOf { p ->
+                    (recipes.getValue(p.id).firstOrNull { it.materialId == materialId }?.qtyMb ?: 0L) * (made[p.id] ?: 0L)
                 }
+                val withWastage = if (m.isPacking) perPacket else perPacket * 102 / 100
+                // Demo: sugar is bought short two months ago, so the negative stock warning has something to show.
+                val bought = if (materialId == SeedIds.SUGAR && month == last.minusMonths(2)) withWastage * 80 / 100 else withWastage
+                val bagCount = (bought + bag.sizeMb - 1) / bag.sizeMb
+                if (bagCount == 0L) continue
+                val date = minOf(month.atDay(2), today)
+                purchases += Purchase(
+                    "pu-%03d".format(purchases.size + 1), date, materialId, m.name, bagCount * bag.sizeMb,
+                    bagCount * bag.centsAt(month), "Monthly purchase", "Test Admin",
+                )
             }
             month = month.plusMonths(1)
         }
@@ -307,12 +355,15 @@ object AdminSeed {
             payments = payments.toList(),
             paymentInvoiceIds = paymentInvoice.toMap(),
             returns = returns.toList(),
-            batches = batches.toList(),
             categories = categories,
             expenses = expenses.toList(),
             overrides = overrides,
-            ingredients = ingredients,
+            materials = materials,
             recipes = recipes,
+            purchases = purchases.toList(),
+            damage = damage.toList(),
+            openingStock = openingStock,
+            wastageBp = DEFAULT_WASTAGE_BP,
             settings = BusinessSettings("Mamre Foods", "Address pending (Doc 1 P-6)", "Phone pending", "Thank you!"),
             workers = listOf(
                 WorkerAccount("w-1", "Test Worker", "user1", "W1", true),

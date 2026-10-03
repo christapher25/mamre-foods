@@ -19,8 +19,12 @@ class SharedPriceTableTest {
         }
     }
 
+    @Test fun aNewProcessStartsAboveTheStaticCatalogVersionSoOldCursorsPullTheFreshTable() {
+        assertTrue(SharedPriceTable.seeded(today).version > SharedPriceTable.STATIC_CATALOG_VERSION)
+    }
+
     @Test fun seededEntriesAreNotNewerThanTheStaticCatalogVersion() {
-        val t = SharedPriceTable.seeded(today)
+        val t = SharedPriceTable.seeded(today, baseVersion = SharedPriceTable.STATIC_CATALOG_VERSION)
         assertEquals(SharedPriceTable.STATIC_CATALOG_VERSION, t.version)
         assertTrue(t.entriesAfter(SharedPriceTable.STATIC_CATALOG_VERSION).isEmpty())
         assertEquals(t.all().size, t.entriesAfter(0).size)

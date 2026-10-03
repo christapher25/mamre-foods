@@ -47,8 +47,8 @@ import java.time.temporal.ChronoUnit
  *
  * Direct expense (owner change, supersedes Doc 1 A-11): a material's price in a month is the weighted
  * average of opening stock and that month's purchases; usage is (gross invoiced packets + replacement
- * packets + production-damaged packets) x recipe quantity x (1 + wastage); direct expense is the cost
- * consumed of every material, packing included.
+ * packets + production-damaged packets) x recipe quantity x (1 + wastage), except packing, which has no
+ * wastage; direct expense is the cost consumed of every material, packing included.
  */
 object ServerLogic {
     private const val TT_PER_CENT = 100L
@@ -263,7 +263,8 @@ object ServerLogic {
             if (q == null) missing += missingQuantity(material, p.name) else sum += made * q
         }
         if (missing.isNotEmpty()) return null to missing
-        return divHalfUp(sum * (BP + s.wastageBp), BP) to emptyList()
+        // Wastage applies to ingredients only: packing is one piece per packet made, with none on top.
+        return (if (material.isPacking) sum else divHalfUp(sum * (BP + s.wastageBp), BP)) to emptyList()
     }
 
     private fun chainStart(s: ServerState): YearMonth {
@@ -389,9 +390,9 @@ object ServerLogic {
             if (missing.isNotEmpty()) {
                 ProductCost.Incomplete(p.id, p.name, missing.distinct())
             } else {
-                val subtotal = lines.sumOf { it.tt } + packing
-                val wastage = divHalfUp(subtotal * s.wastageBp, BP)
-                val direct = subtotal + wastage
+                val ingredients = lines.sumOf { it.tt }
+                val wastage = divHalfUp(ingredients * s.wastageBp, BP) // ingredients only, not packing
+                val direct = ingredients + wastage + packing
                 val indirect = divHalfUp(indirectCents * TT_PER_CENT, net.toLong())
                 ProductCost.Complete(p.id, p.name, lines, packing, wastage, direct, indirect, direct + indirect)
             }

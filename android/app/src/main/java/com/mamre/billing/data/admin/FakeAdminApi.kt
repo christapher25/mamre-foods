@@ -16,14 +16,22 @@ import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseCategory
 import com.mamre.billing.domain.admin.ExpenseCheck
 import com.mamre.billing.domain.admin.ExpensesReport
-import com.mamre.billing.domain.admin.Ingredient
-import com.mamre.billing.domain.admin.IngredientPrice
 import com.mamre.billing.domain.admin.InvoiceDetail
+import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceCheck
 import com.mamre.billing.domain.admin.PriceEntry
 import com.mamre.billing.domain.admin.PriceMatrix
+import com.mamre.billing.domain.admin.ProductRecipe
+import com.mamre.billing.domain.admin.ProductionDamage
+import com.mamre.billing.domain.admin.Purchase
+import com.mamre.billing.domain.admin.RecipeLine
 import com.mamre.billing.domain.admin.ReturnsReport
+import com.mamre.billing.domain.admin.StockReport
+import com.mamre.billing.domain.admin.formatRecipeQuantity
+import com.mamre.billing.domain.admin.MAX_WASTAGE_BP
+import com.mamre.billing.domain.admin.formatWastage
+import com.mamre.billing.domain.admin.formatQuantity
 import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.admin.cleanVoidReason
 import com.mamre.billing.domain.admin.priceProblemMessage
@@ -197,25 +205,71 @@ class FakeAdminApi(
         }
     }
 
-    // ------------------------------------------------------------------ costing
+    // ------------------------------------------------------------------ costing, materials, purchases
 
     override suspend fun costing(month: YearMonth): CostingReport = ServerLogic.costing(s, month)
-    override suspend fun ingredients(): List<Ingredient> = s.ingredients
+    override suspend fun materials(): List<Material> = s.materials
 
-    override suspend fun setIngredientPrice(ingredientId: String, priceCents: Long, from: LocalDate, by: String) {
-        val ing = s.ingredients.firstOrNull { it.id == ingredientId } ?: refuse("Unknown ingredient")
-        val latest = ing.prices.maxByOrNull { it.effectiveFrom }
-        val check = validateNewPrice(centsToPlain(priceCents), from, latest?.effectiveFrom)
-        if (check is PriceCheck.Invalid) refuse(check.problems.joinToString { priceProblemMessage(it, latest?.effectiveFrom) })
-        val unit = "per ${ing.purchaseUnit}"
-        val before = latest?.let { "${formatCents(it.priceCents)} $unit from ${it.effectiveFrom}" } ?: "no price"
-        changed(by, "Ingredient price ${ing.name}", before, "${formatCents(priceCents)} $unit from $from") { st ->
+    override suspend fun recipes(): List<ProductRecipe> = s.products.map { p ->
+        ProductRecipe(
+            p.id, p.name,
+            s.recipes[p.id].orEmpty().map { e ->
+                val m = s.materials.first { it.id == e.materialId }
+                RecipeLine(m.id, m.name, m.baseUnit, e.qtyMb)
+            },
+        )
+    }
+
+    override suspend fun setRecipeQuantity(productId: String, materialId: String, qtyMb: Long, by: String) {
+        val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
+        val material = s.materials.firstOrNull { it.id == materialId } ?: refuse("Unknown material")
+        val line = s.recipes[productId]?.firstOrNull { it.materialId == materialId } ?: refuse("${material.name} is not in the recipe of ${product.name}")
+        if (qtyMb <= 0) refuse("The quantity must be more than zero")
+        fun d(q: Long?) = q?.let { formatRecipeQuantity(it, material.baseUnit) } ?: "not set"
+        changed(by, "Recipe ${product.name} / ${material.name}", d(line.qtyMb), d(qtyMb)) { st ->
             st.copy(
-                ingredients = st.ingredients.map {
-                    if (it.id == ingredientId) it.copy(prices = it.prices + IngredientPrice("ip-$ingredientId-${it.prices.size}", priceCents, from)) else it
+                recipes = st.recipes.mapValues { (pid, lines) ->
+                    if (pid == productId) lines.map { if (it.materialId == materialId) it.copy(qtyMb = qtyMb) else it } else lines
                 },
             )
         }
+    }
+
+    override suspend fun wastageBp(): Int = s.wastageBp
+
+    override suspend fun setWastageBp(basisPoints: Int, by: String) {
+        if (basisPoints < 0 || basisPoints > MAX_WASTAGE_BP) refuse("Wastage must be between 0% and 5%")
+        val old = s.wastageBp
+        changed(by, "Wastage", "${formatWastage(old)}%", "${formatWastage(basisPoints)}%") { it.copy(wastageBp = basisPoints) }
+    }
+
+    override suspend fun stock(month: YearMonth): StockReport = ServerLogic.stock(s, month)
+
+    override suspend fun purchases(month: YearMonth): List<Purchase> =
+        s.purchases.filter { YearMonth.from(it.date) == month }.sortedByDescending { it.date }
+
+    override suspend fun addPurchase(materialId: String, date: LocalDate, qtyMb: Long, totalCents: Long, note: String, by: String): Purchase {
+        val material = s.materials.firstOrNull { it.id == materialId } ?: refuse("Unknown material")
+        if (qtyMb <= 0) refuse("The quantity must be more than zero")
+        if (totalCents <= 0) refuse("The total paid must be more than $0.00")
+        val p = Purchase(
+            id = "pu-%03d".format(s.purchases.size + 1), date = date, materialId = material.id, materialName = material.name,
+            qtyMb = qtyMb, totalCents = totalCents, note = note.trim(), enteredBy = by,
+        )
+        changed(by, "Add purchase ${material.name}", "-", "${formatQuantity(qtyMb, material)} for ${formatCents(totalCents)} on $date") {
+            it.copy(purchases = it.purchases + p)
+        }
+        return p
+    }
+
+    override suspend fun addProductionDamage(productId: String, date: LocalDate, packets: Int, note: String, by: String): ProductionDamage {
+        val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
+        if (packets <= 0) refuse("Packets must be more than zero")
+        val row = DamageRow("dm-%03d".format(s.damage.size + 1), date, product.id, packets, note.trim(), by)
+        changed(by, "Add production damage ${product.name}", "-", "$packets packets on $date ${row.note}".trim()) {
+            it.copy(damage = it.damage + row)
+        }
+        return ProductionDamage(row.id, date, product.id, product.name, packets, row.note, by)
     }
 
     // ------------------------------------------------------------------ expenses

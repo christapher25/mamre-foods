@@ -31,7 +31,7 @@ class SharedPriceTable private constructor(rows: List<SharedPriceRow>, baseVersi
     val version: Long get() = current
 
     @Synchronized
-    fun entries(): List<SharedPriceRow> = rows.toList()
+    fun all(): List<SharedPriceRow> = rows.toList()
 
     /** Rows changed after [cursor], oldest change first (Doc 2 s6.4 pull by sync_version). */
     @Synchronized

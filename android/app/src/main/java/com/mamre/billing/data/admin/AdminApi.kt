@@ -14,11 +14,15 @@ import com.mamre.billing.domain.admin.DashboardReport
 import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseCategory
 import com.mamre.billing.domain.admin.ExpensesReport
-import com.mamre.billing.domain.admin.Ingredient
 import com.mamre.billing.domain.admin.InvoiceDetail
+import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceMatrix
+import com.mamre.billing.domain.admin.ProductRecipe
+import com.mamre.billing.domain.admin.ProductionDamage
+import com.mamre.billing.domain.admin.Purchase
 import com.mamre.billing.domain.admin.ReturnsReport
+import com.mamre.billing.domain.admin.StockReport
 import com.mamre.billing.domain.admin.WorkerAccount
 import java.time.LocalDate
 import java.time.YearMonth
@@ -70,8 +74,21 @@ interface AdminApi {
     suspend fun clearOverride(customerId: String, productId: String, by: String)
 
     suspend fun costing(month: YearMonth): CostingReport
-    suspend fun ingredients(): List<Ingredient>
-    suspend fun setIngredientPrice(ingredientId: String, priceCents: Long, from: LocalDate, by: String)
+
+    /** The shared materials list (owner costing spec). Prices come from purchases, not from a price list. */
+    suspend fun materials(): List<Material>
+    suspend fun recipes(): List<ProductRecipe>
+    suspend fun setRecipeQuantity(productId: String, materialId: String, qtyMb: Long, by: String)
+    suspend fun wastageBp(): Int
+    suspend fun setWastageBp(basisPoints: Int, by: String)
+
+    /** Opening stock, bought, used, closing stock, average price and cost consumed per material (B6). */
+    suspend fun stock(month: YearMonth): StockReport
+    suspend fun purchases(month: YearMonth): List<Purchase>
+    suspend fun addPurchase(materialId: String, date: LocalDate, qtyMb: Long, totalCents: Long, note: String, by: String): Purchase
+
+    /** Production damage is add only and counts as material usage (B7). */
+    suspend fun addProductionDamage(productId: String, date: LocalDate, packets: Int, note: String, by: String): ProductionDamage
 
     suspend fun expenseCategories(): List<ExpenseCategory>
     suspend fun expenses(month: YearMonth): ExpensesReport

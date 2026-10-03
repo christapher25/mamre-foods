@@ -214,8 +214,9 @@ class StockCostingTest {
         assertEquals(Figure.Known(sum), report.costConsumedTotal)
         assertTrue(row(report, SeedIds.PACKING).costConsumedCents.valueOrNull!! > 0) // packing is part of it
         assertEquals(report.costConsumedTotal, ServerLogic.directExpense(fullyPriced(), september))
-        // 1,020 packing pieces at 15 cents.
-        assertEquals(Figure.Known(15_300L), row(report, SeedIds.PACKING).costConsumedCents)
+        // Packing has no wastage: 1,000 pieces for 1,000 packets, at 15 cents.
+        assertEquals(Figure.Known(1_000_000L), row(report, SeedIds.PACKING).usedMb)
+        assertEquals(Figure.Known(15_000L), row(report, SeedIds.PACKING).costConsumedCents)
     }
 
     // --- profit formulas (owner change 5) ---
@@ -255,9 +256,12 @@ class StockCostingTest {
         )
         assertEquals(listOf("Whole wheat flour", "Oil", "Sugar", "Salt", "Baking powder"), fresh.lines.map { it.materialName })
         assertEquals(1_500L, fresh.packingTt) // $0.15
-        // 2% wastage on ingredients and packing: 6,975 x 2% = 139.5 -> 140.
-        assertEquals(140L, fresh.wastageTt)
-        assertEquals(6_975L + 140L, fresh.directTt)
+        // 2% wastage on the ingredients only, not on packing: 5,475 x 2% = 109.5 -> 110.
+        assertEquals(110L, fresh.wastageTt)
+        assertEquals(5_475L + 110L + 1_500L, fresh.directTt)
+        // Before wastage the Doc 1 s9.5 vectors still hold: $0.5475 ingredients, $0.6975 with packing.
+        assertEquals(5_475L, fresh.lines.sumOf { it.tt })
+        assertEquals(6_975L, fresh.lines.sumOf { it.tt } + fresh.packingTt)
         // $300 over 1,000 net packets = $0.30.
         assertEquals(3_000L, fresh.indirectTt)
         assertEquals(fresh.directTt + fresh.indirectTt, fresh.fullTt)
@@ -274,6 +278,14 @@ class StockCostingTest {
     @Test fun theWastageShownInCostingIsTheSettingAndNothingElse() {
         assertEquals(200, ServerLogic.costing(golden(), september).wastageBp)
         assertEquals(350, ServerLogic.costing(golden().copy(wastageBp = 350), september).wastageBp)
+    }
+
+    @Test fun packingHasNoWastageEvenAtFivePercent() {
+        val s = fullyPriced().copy(wastageBp = 500)
+        assertEquals(Figure.Known(1_000_000L), row(ServerLogic.stock(s, september), SeedIds.PACKING).usedMb)
+        val fresh = ServerLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        assertEquals(1_500L, fresh.packingTt)
+        assertEquals(274L, fresh.wastageTt) // 5,475 x 5% = 273.75
     }
 
     private fun divHalfUp(a: Long, b: Long) = ServerLogic.divHalfUp(a, b)
