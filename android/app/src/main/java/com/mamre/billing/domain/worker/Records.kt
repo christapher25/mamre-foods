@@ -69,6 +69,8 @@ data class InvoiceRecord(
     val salesmanName: String = "",
     /** The customer's location when the bill was made (change set D2); empty for a walk-in or no location. */
     val customerLocation: String = "",
+    /** The customer was a corporate account when this was made (change set D4): its bill prints no balance. */
+    val isCorporate: Boolean = false,
 ) {
     init {
         require(totalCents == invoiceTotal(lines)) { "invoice total must equal the sum of its lines (I-2)" }
@@ -96,6 +98,8 @@ data class PaymentRecord(
     val salesmanName: String = "",
     /** The customer's location when the bill was made (change set D2); empty for a walk-in or no location. */
     val customerLocation: String = "",
+    /** The customer was a corporate account when this was made (change set D4): its bill prints no balance. */
+    val isCorporate: Boolean = false,
 ) {
     init {
         require(amountCents > 0) { "a payment must be more than zero" }

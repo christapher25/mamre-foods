@@ -1,20 +1,25 @@
           MAMRE FOODS
-   (address / phone pending)
+    1461 E Branch Hollow Dr
+   Carrollton , Texas , 75007
+     Ph: +1 (972) 927-2119
 --------------------------------
-Invoice: MAM-W1-0042
-Date:    10/10/2026 14:20
+Bill No:  MAM-W1-0042
+Date:     10/10/2026
+Time:     14:20
 Salesman: Rajesh
 Customer: Spice Garden
-Type:     Restaurant
+          Irving
 --------------------------------
-Mamre Chapathi
-  10 x $2.50              $25.00
-Mamre Fresh Chapathi
-  20 x $2.80              $56.00
+Item Desc     Qty  Price     Amt
+MAMRE CHAPATHI 6NOS
+               10   2.50   25.00
+MAMRE FRESH CHAPATHI 6NOS
+               20   2.80   56.00
 --------------------------------
-TOTAL                     $81.00
-Paid now (Cash)           $30.00
-Balance after            $121.00
+TOTAL (USD)                81.00
+PAID (Cash)                30.00
+CREDIT                     51.00
+Balance after             121.00
 --------------------------------
 THIS MONTH (Oct 2026)
 Brought forward            $0.00

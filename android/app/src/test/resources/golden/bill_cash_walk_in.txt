@@ -1,0 +1,21 @@
+          MAMRE FOODS
+    1461 E Branch Hollow Dr
+   Carrollton , Texas , 75007
+     Ph: +1 (972) 927-2119
+--------------------------------
+Bill No:  MAM-W1-0043
+Date:     10/10/2026
+Time:     14:25
+Salesman: Rajesh
+Customer: Walk-in
+--------------------------------
+Item Desc     Qty  Price     Amt
+MAMRE FRESH CHAPATHI 6NOS
+                3   3.50   10.50
+MAMRE CHAPATHI 10NOS
+                2   4.00    8.00
+--------------------------------
+TOTAL (USD)                18.50
+PAID (Cash)                18.50
+--------------------------------
+           Thank you!

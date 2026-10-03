@@ -12,8 +12,18 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** The business name for the receipt header; address and phone come with Doc 1 P-6. */
+/** The business name for the receipt header. */
 const val BUSINESS_NAME = "MAMRE FOODS"
+
+/**
+ * The address block of the bill, one printed line each, as given in the owner's reference bill (change set D3). The
+ * Admin's Business details are not linked to receipts yet, so this is the one source until they are (QUESTIONS).
+ */
+val BUSINESS_ADDRESS_LINES: List<String> = listOf(
+    "1461 E Branch Hollow Dr",
+    "Carrollton , Texas , 75007",
+    "Ph: +1 (972) 927-2119",
+)
 
 private val MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)
 private const val NO_OPENING_BALANCE = 0L
@@ -28,27 +38,28 @@ fun invoiceReceiptOf(
     customerLedger: List<LedgerEntry>,
     showMonthSummary: Boolean,
     duplicate: Boolean = false,
-    addressLine: String? = null,
+    addressLines: List<String> = BUSINESS_ADDRESS_LINES,
+    isCorporate: Boolean = invoice.isCorporate,
 ): InvoiceReceipt {
-    val month = if (showMonthSummary) monthSummaryAt(invoice, customerLedger) else null
+    // A corporate account never gets a balance or a month summary on paper (change set D4): not even built.
+    val month = if (showMonthSummary && !isCorporate) monthSummaryAt(invoice, customerLedger) else null
     return InvoiceReceipt(
         businessName = BUSINESS_NAME,
-        addressLine = addressLine,
+        addressLines = addressLines,
         number = invoice.number,
         issuedAt = invoice.issuedAt,
         salesmanName = invoice.salesmanName,
         customerName = invoice.customerName,
         customerLocation = invoice.customerLocation,
-        customerTypeName = invoice.customerTypeName,
-        items = invoice.lines.map { ReceiptItem(
-                it.productName, it.qtyPackets, it.unitPriceCents, it.lineTotalCents,
-                customPacketSize = if (it.isCustomPacket) it.chapathisPerPacket else null,
-            ) },
+        items = invoice.lines.map {
+            ReceiptItem(it.productName, it.qtyPackets, it.unitPriceCents, it.lineTotalCents, it.chapathisPerPacket)
+        },
         totalCents = invoice.totalCents,
         paidNowCents = invoice.paidNowCents,
         method = invoice.method,
-        balanceAfterCents = if (invoice.customerId == null) null else invoice.balanceAfterCents,
+        balanceAfterCents = if (invoice.customerId == null || isCorporate) null else invoice.balanceAfterCents,
         month = month,
+        isCorporate = isCorporate,
         duplicate = duplicate,
         isVoid = invoice.isVoid,
     )
@@ -73,22 +84,22 @@ private fun monthSummaryAt(invoice: InvoiceRecord, ledger: List<LedgerEntry>): M
 
 fun paymentReceiptOf(
     payment: PaymentRecord,
-    customerTypeName: String,
     balanceAfterCents: Long,
     duplicate: Boolean = false,
-    addressLine: String? = null,
+    addressLines: List<String> = BUSINESS_ADDRESS_LINES,
+    isCorporate: Boolean = payment.isCorporate,
 ): PaymentReceipt = PaymentReceipt(
     businessName = BUSINESS_NAME,
-    addressLine = addressLine,
+    addressLines = addressLines,
     receiptNumber = payment.receiptNumber,
     paidAt = payment.paidAt,
     salesmanName = payment.salesmanName,
     customerName = payment.customerName,
     customerLocation = payment.customerLocation,
-    customerTypeName = customerTypeName,
     amountCents = payment.amountCents,
     method = payment.method,
     balanceAfterCents = balanceAfterCents,
     note = payment.note,
+    isCorporate = isCorporate,
     duplicate = duplicate,
 )

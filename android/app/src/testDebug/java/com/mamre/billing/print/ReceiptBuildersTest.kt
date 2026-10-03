@@ -79,11 +79,26 @@ class ReceiptBuildersTest {
         assertNull(receipt.month)
     }
 
+
+    @Test fun everyItemCarriesItsChapathisPerPacketSoACustomPacketPrintsLikeAStandardOne() {
+        val lines = listOf(
+            InvoiceLine(DemoIds.CHAPATHI, "Mamre Chapathi", 2, 250),
+            InvoiceLine(DemoIds.CHAPATHI, "Mamre Chapathi", 3, 417, chapathisPerPacket = 10, listPriceCents = 417, isCustomPacket = true),
+        )
+        val invoice = store.confirmInvoice(
+            InvoiceDraft("d-mixed", null, "Walk-in", "Retail", "W1", lines, 1751, PaymentMethod.CASH, salesmanName = "Rajesh"),
+        )
+        val receipt = invoiceReceiptOf(invoice, emptyList(), false)
+        assertEquals(listOf(6, 10), receipt.items.map { it.chapathisPerPacket })
+        val text = layoutInvoiceReceipt(receipt)
+        assertTrue(text.contains("MAMRE CHAPATHI 6NOS") && text.contains("MAMRE CHAPATHI 10NOS"))
+        assertTrue(text.none { it.startsWith("Type") }) // the customer type is never printed
+    }
     @Test fun theBuilderCopiesLinesAndFlagsFromTheInvoice() {
         val invoice = store.confirmInvoice(draft(DemoIds.RESTAURANT, 10, 0, null))
         val receipt = invoiceReceiptOf(invoice, store.state.value.ledgerOf(DemoIds.RESTAURANT), false, duplicate = true)
         assertEquals("MAM-W1-0001", receipt.number)
-        assertEquals(listOf(ReceiptItem("Mamre Chapathi", 10, 250, 2500)), receipt.items)
+        assertEquals(listOf(ReceiptItem("Mamre Chapathi", 10, 250, 2500, 6)), receipt.items)
         assertTrue(receipt.duplicate)
         assertEquals(BUSINESS_NAME, receipt.businessName)
     }
