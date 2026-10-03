@@ -56,7 +56,12 @@ data class AdminCustomer(
     val notes: String,
     val isActive: Boolean,
     val openingBalanceCents: Long,
-)
+    /** Area or branch (change set D2). */
+    val location: String = "",
+) {
+    /** "Name - Location": what the Admin lists show, so two stores of one chain can be told apart. */
+    val label: String get() = com.mamre.billing.domain.model.customerLabel(name, location)
+}
 
 /** What the Admin types in the add and edit customer forms. */
 data class CustomerForm(
@@ -69,6 +74,8 @@ data class CustomerForm(
     val isActive: Boolean,
     /** Only used when adding: a balance is computed afterwards, never edited (Doc 1 s6.3). */
     val openingBalanceCents: Long = 0,
+    /** Area or branch (change set D2). Required except for a Retail customer whose name is new. */
+    val location: String = "",
 )
 
 data class InvoiceItem(

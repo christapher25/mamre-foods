@@ -24,6 +24,7 @@ import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.PaymentDraft
 import com.mamre.billing.domain.model.Customer
+import com.mamre.billing.domain.model.label
 import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.worker.PayerKind
 import com.mamre.billing.domain.worker.PaymentCheck
@@ -138,7 +139,7 @@ class PaymentFlowViewModel @Inject constructor(
         val salesman = session.profile?.fullName ?: return null
         if (!u.canRecord) return null
         return store.recordPayment(
-            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note, salesman),
+            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note, salesman, customer.location),
         )
     }
 }
@@ -167,7 +168,7 @@ fun PaymentFormScreen(vm: PaymentFlowViewModel, onBack: () -> Unit, onRecorded: 
     var asking by remember { mutableStateOf(false) }
     val ok = ui.check as? PaymentCheck.Ok
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Record payment", subtitle = ui.customer?.name, onBack = onBack)
+        AppTopBar(title = "Record payment", subtitle = ui.customer?.label, onBack = onBack)
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -213,7 +214,7 @@ fun PaymentFormScreen(vm: PaymentFlowViewModel, onBack: () -> Unit, onRecorded: 
     if (asking && ok != null) {
         ConfirmDialog(
             title = "Record payment?",
-            message = "${formatCents(ok.amountCents)} by ${ui.method.label} from ${ui.customer?.name}. It cannot be edited afterwards.",
+            message = "${formatCents(ok.amountCents)} by ${ui.method.label} from ${ui.customer?.label}. It cannot be edited afterwards.",
             confirmText = "Record",
             onConfirm = {
                 asking = false

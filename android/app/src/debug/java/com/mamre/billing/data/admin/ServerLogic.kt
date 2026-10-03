@@ -189,7 +189,7 @@ object ServerLogic {
                 else -> current += owed
             }
         }
-        BalanceRow(c.id, c.name, c.typeName, bal, current, over30, over60)
+        BalanceRow(c.id, c.label, c.typeName, bal, current, over30, over60)
     }.sortedByDescending { it.balanceCents }
 
     // ------------------------------------------------------------------ packets and chapathis

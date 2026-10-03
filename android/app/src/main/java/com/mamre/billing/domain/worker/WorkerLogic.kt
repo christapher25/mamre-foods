@@ -2,15 +2,15 @@ package com.mamre.billing.domain.worker
 
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.customerLabel
+import com.mamre.billing.domain.model.customerMatches
 import java.time.LocalDateTime
 
-/** Search by any part of the name, ignoring case, listed by name (Doc 2 s10 Select customer). */
-fun filterCustomers(customers: List<Customer>, query: String): List<Customer> {
-    val q = query.trim().lowercase()
-    return customers
-        .filter { q.isEmpty() || it.name.lowercase().contains(q) }
-        .sortedBy { it.name.lowercase() }
-}
+/** Search by any part of the name or the location, ignoring case, listed by name then location (Doc 2 s10 Select customer, change set D2). */
+fun filterCustomers(customers: List<Customer>, query: String): List<Customer> =
+    customers
+        .filter { customerMatches(it.name, it.location, query) }
+        .sortedWith(compareBy({ it.name.lowercase() }, { it.location.lowercase() }))
 
 /** Walk-in is a null customer (Doc 1 s4.1); a saved customer is Cash or Credit. */
 fun payerKind(customer: Customer?): PayerKind = when {
@@ -69,6 +69,7 @@ data class ReturnRecord(
     val creditCents: Long,
     val deviceCode: String,
     val occurredAt: LocalDateTime,
+    val customerLocation: String = "",
 ) {
     init {
         require(qtyPackets > 0) { "a return needs at least one packet" }
@@ -77,6 +78,8 @@ data class ReturnRecord(
             "credit must match the resolution"
         }
     }
+
+    val customerDisplay: String get() = customerLabel(customerName, customerLocation)
 }
 
 /** A product with the price it sells for to the chosen customer; null means no price is set. */

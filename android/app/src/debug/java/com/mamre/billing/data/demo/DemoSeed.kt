@@ -18,6 +18,8 @@ object DemoIds {
     const val SHOP = "00000000-0000-4000-8000-0000000000c2"
     const val RETAIL_CUSTOMER = "00000000-0000-4000-8000-0000000000c3"
     const val CATERING = "00000000-0000-4000-8000-0000000000c4"
+    const val FRESHMART_DOWNTOWN = "00000000-0000-4000-8000-0000000000c5"
+    const val FRESHMART_WESTSIDE = "00000000-0000-4000-8000-0000000000c6"
 }
 
 /**
@@ -31,6 +33,7 @@ object DemoIds {
  */
 object DemoSeed {
     private const val SALESMAN = "Rajesh"
+    private const val RESTAURANT_LOCATION = "Irving"
     private const val RESTAURANT_NAME = "Spice Garden"
     private const val RESTAURANT_TYPE_NAME = "Restaurant"
     private const val CHAPATHI_PRICE_CENTS = 250L
@@ -53,6 +56,7 @@ object DemoSeed {
                 method = PaymentMethod.CASH,
                 note = "",
                 salesmanName = SALESMAN,
+                customerLocation = RESTAURANT_LOCATION,
             ),
         ),
     )
@@ -79,6 +83,7 @@ object DemoSeed {
             method = null,
             balanceAfterCents = balanceAfter,
             salesmanName = SALESMAN,
+            customerLocation = RESTAURANT_LOCATION,
         )
     }
 }

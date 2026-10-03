@@ -22,6 +22,7 @@ import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.data.demo.DemoStore
 import com.mamre.billing.data.demo.ReturnDraft
 import com.mamre.billing.domain.model.Customer
+import com.mamre.billing.domain.model.label
 import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnRecord
@@ -146,6 +147,7 @@ class ReturnFlowViewModel @Inject constructor(
                 id = draftId,
                 customerId = customer.id,
                 customerName = customer.name,
+                customerLocation = customer.location,
                 productId = product.product.id,
                 productName = product.product.name,
                 qtyPackets = u.qty,
@@ -183,7 +185,7 @@ fun ReturnFormScreen(vm: ReturnFlowViewModel, onBack: () -> Unit, onRecorded: ()
     val ui by vm.ui.collectAsStateWithLifecycle()
     var asking by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Return", subtitle = ui.customer?.name, onBack = onBack)
+        AppTopBar(title = "Return", subtitle = ui.customer?.label, onBack = onBack)
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -234,7 +236,7 @@ fun ReturnFormScreen(vm: ReturnFlowViewModel, onBack: () -> Unit, onRecorded: ()
     if (asking) {
         ConfirmDialog(
             title = "Record return?",
-            message = "${ui.qty} x ${ui.product?.product?.name} from ${ui.customer?.name}. It cannot be edited afterwards.",
+            message = "${ui.qty} x ${ui.product?.product?.name} from ${ui.customer?.label}. It cannot be edited afterwards.",
             confirmText = "Record",
             onConfirm = {
                 asking = false
@@ -260,7 +262,7 @@ fun ReturnDoneScreen(vm: ReturnFlowViewModel, onDone: () -> Unit) {
         ) {
             if (r != null) {
                 AppCard {
-                    Text(r.customerName, style = MaterialTheme.typography.titleMedium)
+                    Text(r.customerDisplay, style = MaterialTheme.typography.titleMedium)
                     Text("${r.qtyPackets} x ${r.productName}", style = MaterialTheme.typography.bodyLarge)
                     Text(
                         "${r.reason.label} - ${r.resolution.label}",

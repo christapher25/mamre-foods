@@ -128,7 +128,7 @@ fun SalesListContent(ui: SalesListUi, onFilter: (InvoiceFilter) -> Unit, onOpen:
                         MonthSelector(month, span.first, span.last, { onFilter(ui.filter.copy(month = it)) })
                     }
                     SecondaryButton(
-                        text = "Customer: " + (ui.customers.firstOrNull { it.id == ui.filter.customerId }?.name ?: "All customers"),
+                        text = "Customer: " + (ui.customers.firstOrNull { it.id == ui.filter.customerId }?.label ?: "All customers"),
                         onClick = { pickCustomer = true },
                     )
                     OptionChips(

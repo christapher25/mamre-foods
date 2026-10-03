@@ -31,6 +31,8 @@ data class Customer(
     val address: String,
     val paymentMode: PaymentMode,
     val isActive: Boolean,
+    /** Area or branch (change set D2); name plus location is unique. Empty for a Retail customer without one. */
+    val location: String = "",
 )
 
 /** Price history row. Has no is_active: it is never removed (DECISIONS: PriceDefault). */

@@ -115,7 +115,7 @@ class SharedCatalogSyncTest {
     private val sync = WorkerSync(repo, DemoStore(seed = DemoSeed.state()))
 
     private fun form(name: String, type: String = DemoIds.CATERING_TYPE) = com.mamre.billing.domain.admin.CustomerForm(
-        name, type, "555-0100", "1 Main St", com.mamre.billing.domain.model.PaymentMode.CREDIT, "", true,
+        name, type, "555-0100", "1 Main St", com.mamre.billing.domain.model.PaymentMode.CREDIT, "", true, location = "Hall Road",
     )
 
     @Test fun aCustomerAddedByTheAdminAppearsInTheWorkerListAfterSyncNowAndNotBefore() = runTest {
@@ -164,7 +164,7 @@ class SharedCatalogSyncTest {
     @Test fun everyCustomerExistsOnceWithOneIdOnBothSides() = runTest {
         val shared = table.customers()
         assertEquals(shared.size, shared.map { it.id }.toSet().size)
-        assertEquals(shared.size, shared.map { it.name }.toSet().size)
+        assertEquals(shared.size, shared.map { it.name to it.location }.toSet().size) // name plus location is the unique pair (D2)
         assertEquals(shared.map { it.id }.toSet(), admin.customers().map { it.id }.toSet())
         sync.syncNow()
         assertEquals(shared.map { it.id }.toSet(), repo.activeCustomers().map { it.id }.toSet())

@@ -441,7 +441,7 @@ class FakeAdminApiTest {
     // --- customers and settings (B3, B9) ---
 
     private fun form(name: String = "New Cafe", type: String = SeedIds.RESTAURANT) =
-        CustomerForm(name, type, "555-0100", "1 Main St", PaymentMode.CREDIT, "Net 15", true)
+        CustomerForm(name, type, "555-0100", "1 Main St", PaymentMode.CREDIT, "Net 15", true, location = "Main Street")
 
     @Test fun aCustomerCanBeAddedAndEditedAndEachChangeIsLogged() = runTest {
         val c = api.addCustomer(form(), "Test Admin")

@@ -23,6 +23,7 @@ fun CustomerEntity.toDomain() = Customer(
         else -> error("Unknown payment_mode: $paymentMode") // contract allows cash or credit only
     },
     isActive = isActive,
+    location = location,
 )
 
 fun PriceDefaultEntity.toDomain() = PriceDefault(id, productId, customerTypeId, unitPriceCents, effectiveFrom)

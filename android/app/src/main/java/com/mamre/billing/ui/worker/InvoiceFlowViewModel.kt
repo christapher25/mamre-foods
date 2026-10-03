@@ -78,6 +78,7 @@ data class InvoiceUi(
     val customerChosen: Boolean = false,
     val customer: Customer? = null,
     val customerName: String = "",
+    val customerLocation: String = "",
     val typeName: String = "",
     val products: List<ProductRow> = emptyList(),
     val lines: List<InvoiceLine> = emptyList(),
@@ -90,6 +91,8 @@ data class InvoiceUi(
     val method: PaymentMethod = PaymentMethod.CASH,
     val check: PaymentCheck = PaymentCheck.Rejected(PaymentProblem.NOT_AN_AMOUNT),
 ) {
+    /** "Name - Location" for the top bars, the confirm screen and the bill (change set D2). */
+    val customerLabel: String get() = com.mamre.billing.domain.model.customerLabel(customerName, customerLocation)
     val canContinue: Boolean get() = lines.isNotEmpty()
     val canConfirm: Boolean get() = lines.isNotEmpty() && check is PaymentCheck.Ok && deviceCode != null
 }
@@ -156,6 +159,7 @@ class InvoiceFlowViewModel @Inject constructor(
             customerChosen = inp.chosen,
             customer = customer,
             customerName = customer?.name ?: WALK_IN_NAME,
+            customerLocation = customer?.location.orEmpty(),
             typeName = snap.typeName(customer),
             products = rows,
             lines = lines,
@@ -252,6 +256,7 @@ class InvoiceFlowViewModel @Inject constructor(
                 id = draftId,
                 customerId = u.customer?.id,
                 customerName = u.customerName,
+                customerLocation = u.customerLocation,
                 customerTypeName = u.typeName,
                 deviceCode = device,
                 lines = u.lines,

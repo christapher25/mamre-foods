@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.label
 import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.ChipKind
@@ -78,7 +79,7 @@ fun CustomerCard(row: CustomerRow, onClick: () -> Unit, modifier: Modifier = Mod
     val customer = row.customer
     val credit = customer.paymentMode == PaymentMode.CREDIT
     AppCard(onClick = onClick, modifier = modifier, contentPadding = Spacing.lg) {
-        Text(customer.name, style = MaterialTheme.typography.titleMedium)
+        Text(customer.label, style = MaterialTheme.typography.titleMedium)
         Row(
             Modifier.padding(top = Spacing.sm),
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),

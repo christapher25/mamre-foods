@@ -48,7 +48,11 @@ import com.mamre.billing.domain.admin.validateCustomerForm
 import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validateNewPrice
 import com.mamre.billing.domain.admin.validateSettings
+import com.mamre.billing.domain.model.CustomerIdentity
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.checkCustomerIdentity
+import com.mamre.billing.domain.model.identityProblemMessage
+import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.worker.InvoiceStatus
@@ -125,46 +129,49 @@ class FakeAdminApi(
     // ------------------------------------------------------------------ customers
 
     override suspend fun customerTypes(): List<AdminCustomerType> = s.types
-    override suspend fun customers(): List<AdminCustomer> = s.customers.sortedBy { it.name.lowercase() }
+    override suspend fun customers(): List<AdminCustomer> = s.customers.sortedBy { it.label.lowercase() }
     override suspend fun customer(id: String): AdminCustomer? = s.customers.firstOrNull { it.id == id }
     override suspend fun customerBalance(id: String): Long = ServerLogic.balance(s, id)
     override suspend fun customerSummary(id: String, month: YearMonth): CustomerMonthSummary =
         ServerLogic.customerSummary(s, id, month)
 
-    private fun checkForm(form: CustomerForm) {
+    private fun checkForm(form: CustomerForm, editingId: String? = null) {
         val problems = validateCustomerForm(form)
         if (problems.isNotEmpty()) refuse("Check the customer: ${problems.joinToString { it.name.lowercase().replace('_', ' ') }}")
-        if (s.types.none { it.id == form.typeId }) refuse("Unknown customer type")
+        val type = s.types.firstOrNull { it.id == form.typeId } ?: refuse("Unknown customer type")
+        // Name plus location is unique (change set D2); an edit is not compared with itself.
+        val others = s.customers.filter { it.id != editingId }.map { CustomerIdentity(it.id, it.name, it.location) }
+        checkCustomerIdentity(form.name, form.location, type.name, others)?.let { refuse(identityProblemMessage(it)) }
     }
 
     private fun describe(c: AdminCustomer) =
-        "${c.name}, ${c.typeName}, ${if (c.paymentMode == PaymentMode.CREDIT) "Credit" else "Cash"}, " +
+        "${c.name}, location '${c.location}', ${c.typeName}, ${if (c.paymentMode == PaymentMode.CREDIT) "Credit" else "Cash"}, " +
             "phone '${c.phone}', address '${c.address}', notes '${c.notes}', ${if (c.isActive) "active" else "inactive"}"
 
     override suspend fun addCustomer(form: CustomerForm, by: String): AdminCustomer {
         checkForm(form)
         val c = AdminCustomer(
             id = "c-new-${s.customers.size + 1}", // ids never repeat: customers are never removed
-            name = form.name.trim(), typeId = form.typeId,
+            name = normalizeSpaces(form.name), location = normalizeSpaces(form.location), typeId = form.typeId,
             typeName = s.types.first { it.id == form.typeId }.name,
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive, openingBalanceCents = form.openingBalanceCents,
         )
-        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0)) // salesmen get it at their next sync
+        prices.addCustomer(SharedCustomerRow(c.id, c.name, c.typeId, c.phone, c.address, c.paymentMode, c.isActive, 0, c.location)) // salesmen get it at their next sync
         changed(by, "Add customer ${c.name}", "-", describe(c)) { it.copy(customers = it.customers + c) }
         return c
     }
 
     override suspend fun updateCustomer(id: String, form: CustomerForm, by: String): AdminCustomer {
-        checkForm(form)
+        checkForm(form, editingId = id)
         val old = s.customers.firstOrNull { it.id == id } ?: refuse("Customer not found")
         val updated = old.copy(
-            name = form.name.trim(), typeId = form.typeId, typeName = s.types.first { it.id == form.typeId }.name,
+            name = normalizeSpaces(form.name), location = normalizeSpaces(form.location), typeId = form.typeId, typeName = s.types.first { it.id == form.typeId }.name,
             phone = form.phone.trim(), address = form.address.trim(), paymentMode = form.paymentMode,
             notes = form.notes.trim(), isActive = form.isActive,
         )
         prices.updateCustomer(id) {
-            it.copy(name = updated.name, typeId = updated.typeId, phone = updated.phone, address = updated.address, paymentMode = updated.paymentMode, isActive = updated.isActive)
+            it.copy(name = updated.name, location = updated.location, typeId = updated.typeId, phone = updated.phone, address = updated.address, paymentMode = updated.paymentMode, isActive = updated.isActive)
         }
         changed(by, "Edit customer ${old.name}", describe(old), describe(updated)) { st ->
             st.copy(customers = st.customers.map { if (it.id == id) updated else it })

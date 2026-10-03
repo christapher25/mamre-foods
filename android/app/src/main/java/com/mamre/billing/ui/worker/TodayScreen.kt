@@ -85,7 +85,7 @@ fun InvoiceCard(invoice: InvoiceRecord, onClick: () -> Unit) {
             Text(invoice.number, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             if (invoice.isVoid) StatusChip("VOID", kind = ChipKind.ERROR)
         }
-        Text(invoice.customerName, style = MaterialTheme.typography.bodyLarge)
+        Text(invoice.customerDisplay, style = MaterialTheme.typography.bodyLarge)
         Row(
             Modifier.fillMaxWidth().padding(top = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,

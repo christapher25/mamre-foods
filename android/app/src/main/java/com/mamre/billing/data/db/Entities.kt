@@ -36,6 +36,7 @@ data class CustomerEntity(
     val address: String,
     @ColumnInfo(name = "payment_mode") val paymentMode: String,
     @ColumnInfo(name = "is_active") val isActive: Boolean,
+    val location: String = "",
 )
 
 @Entity(tableName = "price_defaults", indices = [Index("customer_type_id", "product_id")])

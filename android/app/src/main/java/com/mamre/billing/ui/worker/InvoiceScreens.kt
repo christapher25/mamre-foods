@@ -145,7 +145,7 @@ private fun TypeTiles(ui: InvoiceUi, onType: (CustomerType) -> Unit, walkIn: @Co
 fun BuilderScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "New invoice", subtitle = "${ui.customerName} - ${ui.typeName}", onBack = onBack)
+        AppTopBar(title = "New invoice", subtitle = "${ui.customerLabel} (${ui.typeName})", onBack = onBack)
         LazyColumn(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(Spacing.lg),
@@ -393,7 +393,7 @@ fun PaymentScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -
     val ui by vm.ui.collectAsStateWithLifecycle()
     val credit = ui.payerKind == PayerKind.CREDIT_CUSTOMER
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Payment", subtitle = "${ui.customerName} - ${ui.typeName}", onBack = onBack)
+        AppTopBar(title = "Payment", subtitle = "${ui.customerLabel} (${ui.typeName})", onBack = onBack)
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -467,7 +467,7 @@ fun ConfirmScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onConfirmed: (St
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             AppCard {
-                Text(ui.customerName, style = MaterialTheme.typography.titleMedium)
+                Text(ui.customerLabel, style = MaterialTheme.typography.titleMedium)
                 Text(ui.typeName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             AppCard {

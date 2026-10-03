@@ -50,6 +50,8 @@ data class InvoiceReceipt(
     /** Printed as "Salesman:"; the device code is never printed (change set D1). */
     val salesmanName: String,
     val customerName: String,
+    /** Printed on the next line, indented 10 (change set D2). Empty when the customer has none. */
+    val customerLocation: String = "",
     val customerTypeName: String,
     val items: List<ReceiptItem>,
     val totalCents: Long,
@@ -71,6 +73,8 @@ data class PaymentReceipt(
     /** Printed as "Salesman:"; the device code is never printed (change set D1). */
     val salesmanName: String,
     val customerName: String,
+    /** Printed on the next line, indented 10 (change set D2). Empty when the customer has none. */
+    val customerLocation: String = "",
     val customerTypeName: String,
     val amountCents: Long,
     val method: PaymentMethod,
@@ -89,7 +93,7 @@ fun layoutInvoiceReceipt(r: InvoiceReceipt): List<String> = buildList {
     add("Invoice: ${r.number}")
     add("Date:    ${r.issuedAt.format(DATE_TIME)}")
     addAll(labelled("Salesman: ", r.salesmanName))
-    addAll(labelled("Customer: ", r.customerName))
+    addAll(customerLines(r.customerName, r.customerLocation))
     addAll(labelled("Type:     ", r.customerTypeName))
     add(rule())
     for (item in r.items) {
@@ -125,7 +129,7 @@ fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
     add("Receipt: ${r.receiptNumber}")
     add("Date:    ${r.paidAt.format(DATE_TIME)}")
     addAll(labelled("Salesman: ", r.salesmanName))
-    addAll(labelled("Customer: ", r.customerName))
+    addAll(customerLines(r.customerName, r.customerLocation))
     addAll(labelled("Type:     ", r.customerTypeName))
     add(rule())
     add(leftRight("Payment received (${r.method.label})", formatCents(r.amountCents)))
@@ -181,4 +185,12 @@ private fun wrap(text: String, width: Int = RECEIPT_WIDTH): List<String> {
     }
     if (current.isNotEmpty()) lines += current
     return lines.ifEmpty { listOf("") }
+}
+
+/** "Customer: Name" with the location on the next line, indented under the name (change set D2, D3). */
+private fun customerLines(name: String, location: String): List<String> {
+    val head = labelled("Customer: ", name)
+    if (location.isBlank()) return head
+    val pad = " ".repeat(LABEL_WIDTH)
+    return head + wrap(location, RECEIPT_WIDTH - LABEL_WIDTH).map { pad + it }
 }

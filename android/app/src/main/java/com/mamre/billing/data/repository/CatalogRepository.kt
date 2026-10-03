@@ -60,7 +60,7 @@ class CatalogRepository(
             check(it.paymentMode == "cash" || it.paymentMode == "credit") {
                 "Unknown payment_mode: ${it.paymentMode}"
             }
-            CustomerEntity(it.id, it.name, it.typeId, it.phone, it.address, it.paymentMode, it.isActive)
+            CustomerEntity(it.id, it.name, it.typeId, it.phone, it.address, it.paymentMode, it.isActive, it.location)
         }
         val defaultRows = pull.priceDefaults.map {
             PriceDefaultEntity(

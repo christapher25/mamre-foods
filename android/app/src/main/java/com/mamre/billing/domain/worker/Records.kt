@@ -1,5 +1,6 @@
 package com.mamre.billing.domain.worker
 
+import com.mamre.billing.domain.model.customerLabel
 import java.time.LocalDateTime
 
 // Worker-side records (Doc 2 s4.2). Everything is a val: a confirmed invoice, payment or return
@@ -66,6 +67,8 @@ data class InvoiceRecord(
     val voidReason: String? = null,
     /** The salesman's name when the bill was made; the receipt prints it, never the device code (change set D1). */
     val salesmanName: String = "",
+    /** The customer's location when the bill was made (change set D2); empty for a walk-in or no location. */
+    val customerLocation: String = "",
 ) {
     init {
         require(totalCents == invoiceTotal(lines)) { "invoice total must equal the sum of its lines (I-2)" }
@@ -74,6 +77,9 @@ data class InvoiceRecord(
     }
 
     val isVoid: Boolean get() = status == InvoiceStatus.VOID
+
+    /** "Name - Location" for lists and screens (change set D2). */
+    val customerDisplay: String get() = customerLabel(customerName, customerLocation)
 }
 
 /** A payment taken with no new invoice (Doc 1 s5.4, A-16). Saved customers only. */
@@ -88,8 +94,12 @@ data class PaymentRecord(
     val method: PaymentMethod,
     val note: String,
     val salesmanName: String = "",
+    /** The customer's location when the bill was made (change set D2); empty for a walk-in or no location. */
+    val customerLocation: String = "",
 ) {
     init {
         require(amountCents > 0) { "a payment must be more than zero" }
     }
+
+    val customerDisplay: String get() = customerLabel(customerName, customerLocation)
 }

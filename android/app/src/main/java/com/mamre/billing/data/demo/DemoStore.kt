@@ -43,6 +43,7 @@ data class InvoiceDraft(
     val priceEditAllowed: Boolean = false,
     /** The signed-in salesman's name, printed on the bill (change set D1). */
     val salesmanName: String = "",
+    val customerLocation: String = "",
 )
 
 /** Everything the worker screens read. Immutable: a new state replaces the old one. */
@@ -84,6 +85,7 @@ data class PaymentDraft(
     val method: PaymentMethod,
     val note: String,
     val salesmanName: String = "",
+    val customerLocation: String = "",
 )
 
 /** What the worker confirmed on the Return screen (Doc 1 s7.1). */
@@ -98,6 +100,7 @@ data class ReturnDraft(
     val resolution: ReturnResolution,
     val unitPriceCents: Long,
     val deviceCode: String,
+    val customerLocation: String = "",
 )
 
 /**
@@ -148,6 +151,7 @@ class DemoStore(
             method = draft.method,
             balanceAfterCents = previous + total - draft.paidNowCents,
             salesmanName = draft.salesmanName,
+            customerLocation = draft.customerLocation,
         )
         _state.update { it.copy(invoices = it.invoices + record, pendingCount = it.pendingCount + 1) }
         return record
@@ -173,6 +177,7 @@ class DemoStore(
             method = draft.method,
             note = draft.note.trim(),
             salesmanName = draft.salesmanName,
+            customerLocation = draft.customerLocation,
         )
         _state.update { it.copy(payments = it.payments + record, pendingCount = it.pendingCount + 1) }
         return record
@@ -195,6 +200,7 @@ class DemoStore(
             creditCents = returnCreditCents(draft.resolution, draft.qtyPackets, draft.unitPriceCents),
             deviceCode = draft.deviceCode,
             occurredAt = LocalDateTime.now(clock),
+            customerLocation = draft.customerLocation,
         )
         _state.update { it.copy(returns = it.returns + record, pendingCount = it.pendingCount + 1) }
         return record

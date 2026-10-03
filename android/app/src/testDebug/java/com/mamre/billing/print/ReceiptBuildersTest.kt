@@ -44,6 +44,16 @@ class ReceiptBuildersTest {
         // The seeded September invoices were made by the demo salesman too.
         assertTrue(store.state.value.invoices.filter { it.deviceCode == "DEMO" }.all { it.salesmanName == "Rajesh" })
     }
+
+    @Test fun theLocationIsKeptOnTheInvoiceAndPrintedUnderTheCustomerName() {
+        val invoice = store.confirmInvoice(draft(DemoIds.FRESHMART_DOWNTOWN, 2, 0, null).copy(customerName = "FreshMart", customerLocation = "Downtown"))
+        assertEquals("FreshMart - Downtown", invoice.customerDisplay) // what Today's invoices lists
+        val lines = layoutInvoiceReceipt(invoiceReceiptOf(invoice, emptyList(), false))
+        val i = lines.indexOf("Customer: FreshMart")
+        assertEquals("          Downtown", lines[i + 1])
+        // The seeded Spice Garden ledger carries its location too.
+        assertTrue(store.state.value.invoices.filter { it.deviceCode == "DEMO" }.all { it.customerDisplay == "Spice Garden - Irving" })
+    }
     @Test fun theSeptemberLedgerShowsOnTheSeptemberInvoicesOwnReceipt() {
         val third = store.state.value.invoices.single { it.number == "MAM-DEMO-0003" }
         val month = invoiceReceiptOf(third, store.state.value.ledgerOf(DemoIds.RESTAURANT), true).month!!

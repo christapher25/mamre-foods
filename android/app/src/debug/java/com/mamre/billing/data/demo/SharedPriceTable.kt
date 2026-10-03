@@ -48,6 +48,8 @@ data class SharedCustomerRow(
     val paymentMode: PaymentMode,
     val isActive: Boolean,
     val syncVersion: Long,
+    /** Area or branch (change set D2). */
+    val location: String = "",
 )
 
 data class SharedOverrideRow(
@@ -206,20 +208,23 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
                 SharedProductRow(DemoIds.FRESH, "FRESH", "Mamre Fresh Chapathi", STANDARD_PACKET_SIZE, true, v),
                 SharedProductRow(DemoIds.CHAPATHI, "CHAPATHI", "Mamre Chapathi", STANDARD_PACKET_SIZE, true, v),
             )
-            fun customer(id: String, name: String, type: String, mode: PaymentMode) =
-                SharedCustomerRow(id, name, type, "", "", mode, true, v)
+            fun customer(id: String, name: String, location: String, type: String, mode: PaymentMode) =
+                SharedCustomerRow(id, name, type, "", "", mode, true, v, location)
             // Each customer exists once, with one id, on both sides (change set C1). Ledgers stay separate.
             val customers = listOf(
-                customer(DemoIds.RESTAURANT, "Spice Garden", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
-                customer("c-curry-house", "Curry House", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
-                customer("c-taj-kitchen", "Taj Kitchen", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
-                customer("c-masala-bistro", "Masala Bistro", DemoIds.RESTAURANT_TYPE, PaymentMode.CASH),
-                customer(DemoIds.SHOP, "Patel Mart", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
-                customer("c-corner-shop", "Corner Shop", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
-                customer("c-desi-grocers", "Desi Grocers", DemoIds.SHOP_TYPE, PaymentMode.CASH),
-                customer(DemoIds.RETAIL_CUSTOMER, "Rao Family", DemoIds.RETAIL_TYPE, PaymentMode.CASH),
-                customer("c-sharma-family", "Sharma Family", DemoIds.RETAIL_TYPE, PaymentMode.CREDIT),
-                customer(DemoIds.CATERING, "Royal Banquets", DemoIds.CATERING_TYPE, PaymentMode.CREDIT),
+                customer(DemoIds.RESTAURANT, "Spice Garden", "Irving", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
+                customer("c-curry-house", "Curry House", "Plano", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
+                customer("c-taj-kitchen", "Taj Kitchen", "Frisco", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT),
+                customer("c-masala-bistro", "Masala Bistro", "Allen", DemoIds.RESTAURANT_TYPE, PaymentMode.CASH),
+                customer(DemoIds.SHOP, "Patel Mart", "Carrollton", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
+                customer("c-corner-shop", "Corner Shop", "Richardson", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
+                customer("c-desi-grocers", "Desi Grocers", "Garland", DemoIds.SHOP_TYPE, PaymentMode.CASH),
+                customer(DemoIds.RETAIL_CUSTOMER, "Rao Family", "Coppell", DemoIds.RETAIL_TYPE, PaymentMode.CASH),
+                customer("c-sharma-family", "Sharma Family", "Lewisville", DemoIds.RETAIL_TYPE, PaymentMode.CREDIT),
+                customer(DemoIds.CATERING, "Royal Banquets", "Addison", DemoIds.CATERING_TYPE, PaymentMode.CREDIT),
+                // Two stores of one chain: the same name, told apart by location (change set D2).
+                customer(DemoIds.FRESHMART_DOWNTOWN, "FreshMart", "Downtown", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
+                customer(DemoIds.FRESHMART_WESTSIDE, "FreshMart", "Westside", DemoIds.SHOP_TYPE, PaymentMode.CREDIT),
             )
             fun price(n: Int, product: String, type: String, cents: Long, from: LocalDate) = SharedPriceRow(
                 id = "00000000-0000-4000-8000-0000000000d$n",

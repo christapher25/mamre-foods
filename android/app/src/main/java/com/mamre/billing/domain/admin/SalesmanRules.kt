@@ -26,10 +26,9 @@ sealed interface SalesmanCheck {
     data class Invalid(val problem: SalesmanProblem) : SalesmanCheck
 }
 
-private val SPACES = Regex("\\s+")
 
 /** Trimmed, with every run of spaces made one, so "Rajesh  Thomas" and "Rajesh Thomas" are one name. */
-fun canonicalName(raw: String): String = raw.trim().replace(SPACES, " ")
+fun canonicalName(raw: String): String = com.mamre.billing.domain.model.normalizeSpaces(raw)
 
 /** A name is 2 to 40 characters of letters, spaces and dots, and not used already (ignoring case and extra spaces). */
 fun validateSalesmanName(raw: String, existingNames: Collection<String>): SalesmanNameCheck {

@@ -41,7 +41,12 @@ import com.mamre.billing.domain.admin.PriceCheck
 import com.mamre.billing.domain.admin.priceProblemMessage
 import com.mamre.billing.domain.admin.validateCustomerForm
 import com.mamre.billing.domain.admin.validateNewPrice
+import com.mamre.billing.domain.model.CustomerIdentity
+import com.mamre.billing.domain.model.IdentityProblem
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.checkCustomerIdentity
+import com.mamre.billing.domain.model.customerMatches
+import com.mamre.billing.domain.model.identityProblemMessage
 import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.money.parseCents
 import com.mamre.billing.ui.components.AppCard
@@ -119,7 +124,7 @@ fun CustomerListContent(
 ) {
     val q = ui.query.trim().lowercase()
     val shown = ui.customers.filter {
-        (ui.typeId == null || it.typeId == ui.typeId) && (q.isEmpty() || it.name.lowercase().contains(q) || it.phone.contains(q))
+        (ui.typeId == null || it.typeId == ui.typeId) && (q.isEmpty() || customerMatches(it.name, it.location, q) || it.phone.contains(q))
     }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Customers", actions = { DemoChip() })
@@ -131,7 +136,7 @@ fun CustomerListContent(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
                     PrimaryButton("Add customer", onClick = onAdd)
-                    LabeledTextField(label = "Search by name or phone", value = ui.query, onValueChange = onQuery)
+                    LabeledTextField(label = "Search by name, location or phone", value = ui.query, onValueChange = onQuery)
                     OptionChips(
                         options = listOf<AdminCustomerType?>(null) + ui.types,
                         selected = ui.types.firstOrNull { it.id == ui.typeId },
@@ -146,7 +151,7 @@ fun CustomerListContent(
                 AppCard(onClick = { onOpen(c.id) }) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f).padding(end = Spacing.sm)) {
-                            Text(c.name, style = MaterialTheme.typography.titleMedium)
+                            Text(c.label, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "${c.typeName} - ${c.modeLabel()}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -252,7 +257,7 @@ fun CustomerDetailContent(
     var clearing by remember { mutableStateOf<AdminProduct?>(null) }
     val c = ui.customer
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = c?.name ?: "Customer", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = c?.label ?: "Customer", onBack = onBack, actions = { DemoChip() })
         if (c == null) {
             if (!ui.loading) EmptyState("Customer not found")
             return@Column
@@ -348,6 +353,8 @@ data class CustomerFormUi(
     val loading: Boolean = true,
     val types: List<AdminCustomerType> = emptyList(),
     val existing: AdminCustomer? = null,
+    /** Name and location of every other customer, for the uniqueness check (change set D2). */
+    val others: List<CustomerIdentity> = emptyList(),
     val error: String? = null,
     val savedId: String? = null,
 )
@@ -365,7 +372,8 @@ class CustomerFormViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val existing = id?.let { api.customer(it) }
-            _ui.update { it.copy(loading = false, types = api.customerTypes(), existing = existing) }
+            val others = api.customers().filter { it.id != id }.map { CustomerIdentity(it.id, it.name, it.location) }
+            _ui.update { it.copy(loading = false, types = api.customerTypes(), existing = existing, others = others) }
         }
     }
 
@@ -394,6 +402,7 @@ fun CustomerFormScreen(onBack: () -> Unit, onSaved: () -> Unit, viewModel: Custo
 fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (CustomerForm) -> Unit) {
     val e = ui.existing
     var name by remember { mutableStateOf(e?.name.orEmpty()) }
+    var location by remember { mutableStateOf(e?.location.orEmpty()) }
     var typeId by remember { mutableStateOf(e?.typeId) }
     var phone by remember { mutableStateOf(e?.phone.orEmpty()) }
     var address by remember { mutableStateOf(e?.address.orEmpty()) }
@@ -404,8 +413,10 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
     var tried by remember { mutableStateOf(false) }
 
     val openingCents = parseCents(opening)
-    val form = CustomerForm(name, typeId.orEmpty(), phone, address, mode, notes, active, openingCents ?: 0L)
+    val form = CustomerForm(name, typeId.orEmpty(), phone, address, mode, notes, active, openingCents ?: 0L, location)
     val problems = validateCustomerForm(form)
+    val typeName = ui.types.firstOrNull { it.id == typeId }?.name
+    val identity = if (typeName == null) null else checkCustomerIdentity(name, location, typeName, ui.others)
     val openingBad = e == null && openingCents == null
 
     Column(Modifier.fillMaxSize()) {
@@ -417,6 +428,15 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
             LabeledTextField(
                 "Name", name, { name = it },
                 errorText = if (tried && CustomerProblem.NAME_REQUIRED in problems) "Enter the customer's name" else null,
+            )
+            LabeledTextField(
+                "Location (area or branch)", location, { location = it },
+                errorText = if (tried && identity != null && identity != IdentityProblem.NAME_REQUIRED) identityProblemMessage(identity) else null,
+            )
+            Text(
+                "Name plus location must be unique. Only Retail customers can have no location, and only if the name is new.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("Customer type", style = MaterialTheme.typography.titleSmall)
             OptionChips(ui.types, ui.types.firstOrNull { it.id == typeId }, { it.name }, { typeId = it.id })
@@ -452,7 +472,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             PrimaryButton("Save customer", onClick = {
                 tried = true
-                if (problems.isEmpty() && !openingBad) onSave(form)
+                if (problems.isEmpty() && !openingBad && identity == null) onSave(form)
             })
         }
     }
@@ -529,7 +549,7 @@ fun OverrideContent(ui: OverrideUi, onBack: () -> Unit, onSave: (Long, LocalDate
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            Text("${ui.customer?.name.orEmpty()} - ${ui.product?.name.orEmpty()}", style = MaterialTheme.typography.titleMedium)
+            Text("${ui.customer?.label.orEmpty()} - ${ui.product?.name.orEmpty()}", style = MaterialTheme.typography.titleMedium)
             ui.current?.let {
                 Text(
                     "Current override: ${formatCents(it.unitPriceCents)} from ${formatDate(it.effectiveFrom)}",

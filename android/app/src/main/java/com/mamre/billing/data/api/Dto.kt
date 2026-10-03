@@ -74,6 +74,8 @@ data class CustomerDto(
     val address: String,
     @SerialName("payment_mode") val paymentMode: String,
     @SerialName("is_active") val isActive: Boolean,
+    /** Owner decision D2: area or branch. Not in openapi.yaml v0.2.0 yet (QUESTIONS), so it may be missing. */
+    val location: String = "",
 )
 
 @Serializable

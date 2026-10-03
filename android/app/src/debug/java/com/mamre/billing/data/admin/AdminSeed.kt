@@ -20,6 +20,7 @@ import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.admin.DEFAULT_WASTAGE_BP
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.customerLabel
 import com.mamre.billing.domain.worker.InvoiceStatus
 import com.mamre.billing.domain.worker.customPacketPriceCents
 import com.mamre.billing.domain.worker.PaymentMethod
@@ -50,6 +51,8 @@ object SeedIds {
     const val PATEL_MART = DemoIds.SHOP
     const val RAO_FAMILY = DemoIds.RETAIL_CUSTOMER
     const val ROYAL_BANQUETS = DemoIds.CATERING
+    const val FRESHMART_DOWNTOWN = DemoIds.FRESHMART_DOWNTOWN
+    const val FRESHMART_WESTSIDE = DemoIds.FRESHMART_WESTSIDE
     const val CORNER_SHOP = "c-corner-shop"
     const val CAT_ELECTRICITY = "x-electricity"
     const val CAT_MACHINE = "x-machine"
@@ -73,6 +76,7 @@ private data class Behaviour(
 private data class CustomerSeed(
     val id: String,
     val name: String,
+    val location: String,
     val typeId: String,
     val mode: PaymentMode,
     val baseQty: Int,
@@ -106,13 +110,15 @@ object AdminSeed {
         Behaviour(SeedIds.RAO_FAMILY, 12, 9, 4),
         Behaviour("c-sharma-family", 16, 10, 5, payPercent = 40),
         Behaviour(SeedIds.ROYAL_BANQUETS, 96, 6, 3, payPercent = 60),
+        Behaviour(SeedIds.FRESHMART_DOWNTOWN, 70, 3, 1, payPercent = 70),
+        Behaviour(SeedIds.FRESHMART_WESTSIDE, 56, 4, 0, payPercent = 50),
     )
 
     fun build(today: LocalDate, prices: SharedPriceTable = SharedPriceTable.seeded(today)): ServerState {
         val sharedCustomers = prices.customers().associateBy { it.id }
         val customerSeeds = behaviours.map { b ->
             val row = sharedCustomers.getValue(b.id)
-            CustomerSeed(b.id, row.name, row.typeId, row.paymentMode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
+            CustomerSeed(b.id, row.name, row.location, row.typeId, row.paymentMode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
         }
         val last = YearMonth.from(today)
         val first = last.minusMonths(6)
@@ -125,7 +131,7 @@ object AdminSeed {
         val productName = products.associate { it.id to it.name }
         val customers = customerSeeds.map {
             AdminCustomer(
-                id = it.id, name = it.name, typeId = it.typeId, typeName = typeName.getValue(it.typeId),
+                id = it.id, name = it.name, location = it.location, typeId = it.typeId, typeName = typeName.getValue(it.typeId),
                 phone = "", address = "", paymentMode = it.mode, notes = "", isActive = true,
                 openingBalanceCents = it.opening,
             )
@@ -191,11 +197,11 @@ object AdminSeed {
                         line(SeedIds.CHAPATHI, maxOf(4, c.baseQty / 2 + (dayIndex * 3 + ci) % (c.baseQty / 4 + 1)))
                     }
                     invoiceSeq++
-                    val inv = newInvoice(invoiceSeq, c.id, c.name, typeName.getValue(c.typeId), day, 8 + ci / 3, (ci % 3) * 20, lines)
+                    val inv = newInvoice(invoiceSeq, c.id, customerLabel(c.name, c.location), typeName.getValue(c.typeId), day, 8 + ci / 3, (ci % 3) * 20, lines)
                     invoices += inv
                     balances[c.id] = balances.getValue(c.id) + inv.totalCents
                     if (c.mode == PaymentMode.CASH) {
-                        addPayment(c.id, c.name, day, inv.totalCents, if (invoiceSeq % 4 == 0) PaymentMethod.CARD else PaymentMethod.CASH, inv.id)
+                        addPayment(c.id, customerLabel(c.name, c.location), day, inv.totalCents, if (invoiceSeq % 4 == 0) PaymentMethod.CARD else PaymentMethod.CASH, inv.id)
                     }
                     // Restaurants return something now and then: credit or free replacement.
                     if (c.typeId == SeedIds.RESTAURANT && invoiceSeq % 9 == 0) {
@@ -205,7 +211,7 @@ object AdminSeed {
                         val credit = if (resolution == ReturnResolution.CREDIT) packets * l.unitPriceCents else 0L
                         val on = if (day.isBefore(today)) day.plusDays(1) else day
                         returns += ReturnRow(
-                            "ret-%03d".format(returns.size + 1), on, c.id, c.name, typeName.getValue(c.typeId), inv.id,
+                            "ret-%03d".format(returns.size + 1), on, c.id, customerLabel(c.name, c.location), typeName.getValue(c.typeId), inv.id,
                             l.productId, l.productName, packets, l.chapathisPerPacket, reasons[invoiceSeq % reasons.size], resolution,
                             l.unitPriceCents, credit,
                         )
@@ -233,7 +239,7 @@ object AdminSeed {
                     val owed = balances.getValue(c.id)
                     val stopped = c.stoppedPayingDaysAgo?.let { day.isAfter(today.minusDays(it.toLong())) } ?: false
                     val pay = (owed * c.payPercent / 100) / 500 * 500
-                    if (pay > 0 && !stopped) addPayment(c.id, c.name, day, pay, methods[(dayIndex + ci) % methods.size], null)
+                    if (pay > 0 && !stopped) addPayment(c.id, customerLabel(c.name, c.location), day, pay, methods[(dayIndex + ci) % methods.size], null)
                 }
             }
             day = day.plusDays(1)

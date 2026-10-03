@@ -81,6 +81,20 @@ class ReceiptLayoutTest {
         val at = long.indexOfFirst { it.startsWith("Salesman: ") }
         assertEquals(listOf("Salesman: Rajesh Thomas", "          Kuruvilla Mathew", "          Panicker"), long.subList(at, at + 3))
     }
+
+    @Test fun theCustomerLocationIsOnTheNextLineIndentedTen() {
+        val lines = layoutInvoiceReceipt(sample.copy(customerName = "FreshMart", customerLocation = "Downtown"))
+        val i = lines.indexOf("Customer: FreshMart")
+        assertEquals("          Downtown", lines[i + 1])
+        val none = layoutInvoiceReceipt(sample)
+        assertEquals("Customer: Spice Garden", none[none.indexOfFirst { it.startsWith("Customer: ") }])
+        assertEquals("Type:     Restaurant", none[none.indexOfFirst { it.startsWith("Customer: ") } + 1]) // no location line when there is none
+        val long = layoutInvoiceReceipt(sample.copy(customerLocation = "North Dallas Tollway Service Road East"))
+        assertTrue(long.all { it.length <= RECEIPT_WIDTH })
+        val at = long.indexOfFirst { it.startsWith("Customer: ") }
+        assertEquals("          North Dallas Tollway", long[at + 1])
+        assertEquals("          Service Road East", long[at + 2])
+    }
     @Test fun aVoidInvoiceIsMarkedVoidAndKeepsItsNumber() {
         val lines = layoutInvoiceReceipt(sample.copy(isVoid = true))
         assertTrue(lines.any { it.trim() == "*** VOID ***" })
