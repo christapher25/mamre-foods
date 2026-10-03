@@ -404,9 +404,9 @@ class FakeAdminApiTest {
         val names = AdminApi::class.java.methods.map { it.name }.toSet()
         assertTrue(names.none { it.startsWith("delete") || it.startsWith("remove") })
         assertEquals(setOf("invoices", "invoiceDetail", "voidInvoice"), names.filter { it.contains("nvoice") }.toSet())
-        assertEquals(setOf("expenseCategories", "expenses", "addExpense"), names.filter { it.contains("xpense") }.toSet())
-        // Purchases and production damage are add only too.
-        assertEquals(setOf("purchases", "addPurchase"), names.filter { it.contains("urchase") }.toSet())
+        assertEquals(setOf("expenseCategories", "expenses", "addExpense", "reverseExpense"), names.filter { it.contains("xpense") }.toSet())
+        // Purchases and production damage are add only too; a mistake is corrected by a reversing entry (owner spec 5).
+        assertEquals(setOf("purchases", "addPurchase", "reversePurchase"), names.filter { it.contains("urchase") }.toSet())
         assertEquals(setOf("addProductionDamage"), names.filter { it.contains("amage") }.toSet())
         assertEquals(setOf("returnsReport"), names.filter { it.contains("eturn") }.toSet())
         assertTrue(names.none { it.contains("ayment") })

@@ -87,12 +87,21 @@ interface AdminApi {
     suspend fun purchases(month: YearMonth): List<Purchase>
     suspend fun addPurchase(materialId: String, date: LocalDate, qtyMb: Long, totalCents: Long, note: String, by: String): Purchase
 
+    /**
+     * Corrects a mistake without editing it: adds a linked entry with negative quantity and total, dated
+     * today, with a required reason. The original stays; the monthly table nets the two out.
+     */
+    suspend fun reversePurchase(purchaseId: String, reason: String, by: String): Purchase
+
     /** Production damage is add only and counts as material usage (B7). */
     suspend fun addProductionDamage(productId: String, date: LocalDate, packets: Int, note: String, by: String): ProductionDamage
 
     suspend fun expenseCategories(): List<ExpenseCategory>
     suspend fun expenses(month: YearMonth): ExpensesReport
     suspend fun addExpense(categoryId: String, date: LocalDate, amountCents: Long, description: String, by: String): Expense
+
+    /** Same rule as [reversePurchase]: a negative linked entry with a required reason; the original stays. */
+    suspend fun reverseExpense(expenseId: String, reason: String, by: String): Expense
 
     suspend fun returnsReport(month: YearMonth): ReturnsReport
     suspend fun balances(): List<BalanceRow>

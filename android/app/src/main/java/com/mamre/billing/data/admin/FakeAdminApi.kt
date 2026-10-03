@@ -262,6 +262,25 @@ class FakeAdminApi(
         return p
     }
 
+    override suspend fun reversePurchase(purchaseId: String, reason: String, by: String): Purchase {
+        val clean = cleanVoidReason(reason) ?: refuse("A reversal needs a reason")
+        val original = s.purchases.firstOrNull { it.id == purchaseId } ?: refuse("Purchase not found")
+        if (original.isReversal) refuse("A reversing entry cannot be reversed; add a new purchase instead")
+        if (s.purchases.any { it.reversesId == purchaseId }) refuse("This purchase is already reversed")
+        val material = s.materials.first { it.id == original.materialId }
+        val rev = Purchase(
+            id = "pu-%03d".format(s.purchases.size + 1), date = today, materialId = original.materialId,
+            materialName = original.materialName, qtyMb = -original.qtyMb, totalCents = -original.totalCents,
+            note = "Reverses ${original.id}", enteredBy = by, reversesId = original.id, reason = clean,
+        )
+        changed(
+            by, "Reverse purchase ${material.name}",
+            "${formatQuantity(original.qtyMb, material)} for ${formatCents(original.totalCents)} on ${original.date}",
+            "reversed on $today: $clean",
+        ) { it.copy(purchases = it.purchases + rev) }
+        return rev
+    }
+
     override suspend fun addProductionDamage(productId: String, date: LocalDate, packets: Int, note: String, by: String): ProductionDamage {
         val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
         if (packets <= 0) refuse("Packets must be more than zero")
@@ -289,6 +308,24 @@ class FakeAdminApi(
             it.copy(expenses = it.expenses + e)
         }
         return e
+    }
+
+    override suspend fun reverseExpense(expenseId: String, reason: String, by: String): Expense {
+        val clean = cleanVoidReason(reason) ?: refuse("A reversal needs a reason")
+        val original = s.expenses.firstOrNull { it.id == expenseId } ?: refuse("Expense not found")
+        if (original.isReversal) refuse("A reversing entry cannot be reversed; add a new expense instead")
+        if (s.expenses.any { it.reversesId == expenseId }) refuse("This expense is already reversed")
+        val rev = Expense(
+            id = "ex-%03d".format(s.expenses.size + 1), categoryId = original.categoryId, categoryName = original.categoryName,
+            kind = original.kind, date = today, amountCents = -original.amountCents, description = "Reverses ${original.id}",
+            enteredBy = by, reversesId = original.id, reason = clean,
+        )
+        changed(
+            by, "Reverse expense ${original.categoryName}",
+            "${formatCents(original.amountCents)} on ${original.date} ${original.description}".trim(),
+            "reversed on $today: $clean",
+        ) { it.copy(expenses = it.expenses + rev) }
+        return rev
     }
 
     // ------------------------------------------------------------------ returns, balances, settings

@@ -214,7 +214,13 @@ data class Purchase(
     val totalCents: Long,
     val note: String,
     val enteredBy: String,
-)
+    /** Set on a reversing entry: the purchase it cancels. Its quantity and total are negative. */
+    val reversesId: String? = null,
+    /** Required on a reversing entry. */
+    val reason: String = "",
+) {
+    val isReversal: Boolean get() = reversesId != null
+}
 
 /**
  * One material for one month (B6 Materials tab). The server calculates every figure; [Figure.Incomplete]
@@ -296,7 +302,13 @@ data class Expense(
     val amountCents: Long,
     val description: String,
     val enteredBy: String,
-)
+    /** Set on a reversing entry: the expense it cancels. Its amount is negative. */
+    val reversesId: String? = null,
+    /** Required on a reversing entry. */
+    val reason: String = "",
+) {
+    val isReversal: Boolean get() = reversesId != null
+}
 
 data class CategoryTotal(val category: ExpenseCategory, val totalCents: Long, val entries: List<Expense>)
 
