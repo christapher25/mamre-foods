@@ -31,6 +31,7 @@ import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.ReturnResolution
 import com.mamre.billing.domain.worker.broughtForward
 import com.mamre.billing.domain.worker.ledgerBalance
+import java.math.BigInteger
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
@@ -191,42 +192,55 @@ object ServerLogic {
         BalanceRow(c.id, c.name, c.typeName, bal, current, over30, over60)
     }.sortedByDescending { it.balanceCents }
 
-    // ------------------------------------------------------------------ packets
+    // ------------------------------------------------------------------ packets and chapathis
 
-    /** Packets invoiced (gross, void excluded) in the month, per product. Usage uses this, not net of credits. */
+    /** Packets invoiced (gross, void excluded) in the month, per product. Packing uses these. */
     fun invoicedPackets(s: ServerState, month: YearMonth): Map<String, Long> =
         s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
             .flatMap { it.items }.groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
 
-    private fun replacementPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+    /** Chapathis invoiced (gross, void excluded) in the month, per product: packets x chapathis per packet. */
+    fun invoicedChapathis(s: ServerState, month: YearMonth): Map<String, Long> =
+        s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
+            .flatMap { it.items }.groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.chapathis.toLong() } }
+
+    private fun replacementRows(s: ServerState, month: YearMonth) =
         s.returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }
-            .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
 
-    private fun damagedPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+    private fun replacementPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+        replacementRows(s, month).groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
+
+    private fun replacementChapathis(s: ServerState, month: YearMonth): Map<String, Long> =
+        replacementRows(s, month).groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() * it.chapathisPerPacket } }
+
+    private fun damagedChapathis(s: ServerState, month: YearMonth): Map<String, Long> =
         s.damage.filter { YearMonth.from(it.date) == month }
-            .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.packets.toLong() } }
+            .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.chapathis.toLong() } }
 
-    /** Packets that left the business in a bag: invoiced + replacement. Damaged packets are spoiled before packing. */
+    /** Packets that left the business in a bag: invoiced + replacement. Damaged chapathis are spoiled before packing. */
     fun packetsBagged(s: ServerState, month: YearMonth): Map<String, Long> {
         val a = invoicedPackets(s, month)
         val b = replacementPackets(s, month)
         return (a.keys + b.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) }
     }
 
-    /** Everything made in the month per product: invoiced + replacement + damaged packets. */
-    fun packetsMade(s: ServerState, month: YearMonth): Map<String, Long> {
-        val a = invoicedPackets(s, month)
-        val b = replacementPackets(s, month)
-        val c = damagedPackets(s, month)
+    /** Everything made in the month per product, in chapathis: invoiced + replacement + damaged. */
+    fun chapathisMade(s: ServerState, month: YearMonth): Map<String, Long> {
+        val a = invoicedChapathis(s, month)
+        val b = replacementChapathis(s, month)
+        val c = damagedChapathis(s, month)
         return (a.keys + b.keys + c.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) + (c[it] ?: 0L) }
     }
 
-    /** Net packets sold: invoiced less credited by returns (Doc 1 s9.4, A-9). Used for the indirect share only. */
-    fun netPackets(s: ServerState, productId: String?, month: YearMonth): Int {
+    /**
+     * Net chapathis sold: invoiced less credited by returns (Doc 1 s9.4, A-9). Used for the indirect share only;
+     * packets of different sizes are not comparable, so the share is spread over chapathis.
+     */
+    fun netChapathis(s: ServerState, productId: String?, month: YearMonth): Long {
         val sold = s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
-            .sumOf { inv -> inv.items.filter { productId == null || it.productId == productId }.sumOf { it.qtyPackets } }
+            .sumOf { inv -> inv.items.filter { productId == null || it.productId == productId }.sumOf { it.chapathis.toLong() } }
         val credited = s.returns.filter { it.resolution == ReturnResolution.CREDIT && YearMonth.from(it.date) == month && (productId == null || it.productId == productId) }
-            .sumOf { it.qtyPackets }
+            .sumOf { it.qtyPackets.toLong() * it.chapathisPerPacket }
         return sold - credited
     }
 
@@ -255,25 +269,40 @@ object ServerLogic {
 
     private fun missingQuantity(material: Material, product: String?): String {
         val note = if (material.id == SeedIds.SORBATE) SORBATE_NOTE else ""
-        return if (product == null) "${material.name} quantity per packet$note" else "${material.name} quantity per packet of $product$note"
+        return if (product == null) "${material.name} quantity per kg of wheat$note" else "${material.name} quantity per kg of wheat for $product$note"
     }
 
-    /** Usage of one material in a month in thousandths of its base unit, or what is missing to know it. */
-    private fun usage(s: ServerState, material: Material, madePackets: Map<String, Long>, baggedPackets: Map<String, Long>): Pair<Long?, List<String>> {
-        // Materials are used by every packet made; packing only by packets that were bagged.
-        val packets = if (material.isPacking) baggedPackets else madePackets
-        var sum = 0L
+    private fun gcd(a: Long, b: Long): Long = if (b == 0L) a else gcd(b, a % b)
+
+    /**
+     * Usage of one material in a month in thousandths of its base unit, or what is missing to know it.
+     * Ingredients: TOTAL chapathis x quantity per kg of wheat / yield, over all products in ONE step, rounded half
+     * up in milli-units, then x (1 + wastage). Packing: one piece per packet bagged, no yield and no wastage.
+     */
+    private fun usage(s: ServerState, material: Material, madeChapathis: Map<String, Long>, baggedPackets: Map<String, Long>): Pair<Long?, List<String>> {
         val missing = mutableListOf<String>()
-        for (p in s.products) {
-            val line = s.recipes[p.id]?.firstOrNull { it.materialId == material.id } ?: continue
-            val made = packets[p.id] ?: 0L
-            if (made == 0L) continue
-            val q = line.qtyMb
-            if (q == null) missing += missingQuantity(material, p.name) else sum += made * q
+        if (material.isPacking) {
+            var sum = 0L
+            for (p in s.products) {
+                val line = s.recipes[p.id]?.firstOrNull { it.materialId == material.id } ?: continue
+                val bagged = baggedPackets[p.id] ?: 0L
+                if (bagged == 0L) continue
+                val q = line.qtyMb
+                if (q == null) missing += missingQuantity(material, p.name) else sum += bagged * q
+            }
+            return if (missing.isNotEmpty()) null to missing else sum to emptyList()
+        }
+        val used = s.products.filter { (madeChapathis[it.id] ?: 0L) > 0 && s.recipes[it.id]?.any { r -> r.materialId == material.id } == true }
+        var common = 1L
+        for (p in used) common = common / gcd(common, p.yieldPerKg.toLong()) * p.yieldPerKg
+        var numerator = 0L
+        for (p in used) {
+            val q = s.recipes.getValue(p.id).first { it.materialId == material.id }.qtyMb
+            if (q == null) missing += missingQuantity(material, p.name) else numerator += (madeChapathis[p.id] ?: 0L) * q * (common / p.yieldPerKg)
         }
         if (missing.isNotEmpty()) return null to missing
-        // Wastage applies to ingredients only: packing is one piece per packet made, with none on top.
-        return (if (material.isPacking) sum else divHalfUp(sum * (BP + s.wastageBp), BP)) to emptyList()
+        // One rounding step: chapathis x quantity / yield x (1 + wastage), half up (wastage applies to ingredients only).
+        return divHalfUp(numerator * (BP + s.wastageBp), common * BP) to emptyList()
     }
 
     private fun chainStart(s: ServerState): YearMonth {
@@ -292,7 +321,7 @@ object ServerLogic {
         }.toMutableMap()
         var month = minOf(chainStart(s), target)
         while (true) {
-            val packets = packetsMade(s, month)
+            val packets = chapathisMade(s, month)
             val bagged = packetsBagged(s, month)
             val results = s.materials.map { m -> monthOf(s, m, month, packets, bagged, carry.getValue(m.id)) }
             if (month == target) return results
@@ -375,39 +404,82 @@ object ServerLogic {
     /** Month direct expense: the cost of all the materials consumed, packing included. */
     fun directExpense(s: ServerState, month: YearMonth): Figure = stock(s, month).costConsumedTotal
 
-    // ------------------------------------------------------------------ costing per packet
+    // ------------------------------------------------------------------ costing per chapathi and per packet
 
-    fun costing(s: ServerState, month: YearMonth): CostingReport {
-        val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
-        val net = netPackets(s, null, month)
-        val indirectCents = indirectTotalCents(s, month)
-        val products = s.products.map { p ->
-            val recipe = s.recipes[p.id].orEmpty()
-            val missing = mutableListOf<String>()
-            val lines = mutableListOf<CostLine>()
-            var packing = 0L
-            for (entry in recipe) {
-                val mm = monthMaterials.getValue(entry.materialId)
-                val q = entry.qtyMb
-                val price = mm.price
-                if (q == null) missing += missingQuantity(mm.material, null)
-                if (price == null) missing += "${mm.material.name} price"
-                if (q == null || price == null) continue
-                val tt = divHalfUp(q * price.valueCents * TT_PER_CENT, price.qtyMb)
-                if (mm.material.isPacking) packing += tt else lines += CostLine(mm.material.id, mm.material.name, tt)
-            }
-            if (net <= 0) missing += "Packets sold this month"
-            if (missing.isNotEmpty()) {
-                ProductCost.Incomplete(p.id, p.name, missing.distinct())
-            } else {
-                val ingredients = lines.sumOf { it.tt }
-                val wastage = divHalfUp(ingredients * s.wastageBp, BP) // ingredients only, not packing
-                val direct = ingredients + wastage + packing
-                val indirect = divHalfUp(indirectCents * TT_PER_CENT, net.toLong())
-                ProductCost.Complete(p.id, p.name, lines, packing, wastage, direct, indirect, direct + indirect)
+    /** a/b summed exactly over several fractions, then rounded half up once (BigInteger: no precision lost). */
+    private fun exactRounded(parts: List<Pair<BigInteger, BigInteger>>): Long {
+        var n = BigInteger.ZERO
+        var d = BigInteger.ONE
+        for ((a, b) in parts) {
+            n = n.multiply(b).add(a.multiply(d))
+            d = d.multiply(b)
+            val g = n.gcd(d)
+            if (g.signum() > 0 && g != BigInteger.ONE) {
+                n = n.divide(g)
+                d = d.divide(g)
             }
         }
+        return n.multiply(BigInteger.TWO).add(d).divide(d.multiply(BigInteger.TWO)).toLong()
+    }
+
+    /** One chapathis-sized piece of the month's weighted average prices, for building costs. */
+    private fun costFor(
+        s: ServerState,
+        product: com.mamre.billing.domain.admin.AdminProduct,
+        monthMaterials: Map<String, MonthMaterial>,
+        chapathis: Int,
+        indirectCents: Long,
+        netChapathis: Long,
+    ): ProductCost {
+        val missing = mutableListOf<String>()
+        val lines = mutableListOf<CostLine>()
+        val parts = mutableListOf<Pair<BigInteger, BigInteger>>()
+        val partsOne = mutableListOf<Pair<BigInteger, BigInteger>>()
+        var packing = 0L
+        for (entry in s.recipes[product.id].orEmpty()) {
+            val mm = monthMaterials.getValue(entry.materialId)
+            val q = entry.qtyMb
+            val price = mm.price
+            if (q == null) missing += missingQuantity(mm.material, null)
+            if (price == null) missing += "${mm.material.name} price"
+            if (q == null || price == null) continue
+            if (mm.material.isPacking) {
+                packing += divHalfUp(q * price.valueCents * TT_PER_CENT, price.qtyMb) // one piece per packet
+            } else {
+                val perUnitDen = BigInteger.valueOf(price.qtyMb).multiply(BigInteger.valueOf(product.yieldPerKg.toLong()))
+                val perUnitNum = BigInteger.valueOf(q).multiply(BigInteger.valueOf(price.valueCents)).multiply(BigInteger.valueOf(TT_PER_CENT))
+                parts += perUnitNum.multiply(BigInteger.valueOf(chapathis.toLong())) to perUnitDen
+                partsOne += perUnitNum to perUnitDen
+                lines += CostLine(mm.material.id, mm.material.name, divHalfUp(q * price.valueCents * TT_PER_CENT * chapathis, price.qtyMb * product.yieldPerKg))
+            }
+        }
+        if (netChapathis <= 0) missing += "Chapathis sold this month"
+        if (missing.isNotEmpty()) return ProductCost.Incomplete(product.id, product.name, missing.distinct())
+        val ingredients = exactRounded(parts)
+        val wastage = divHalfUp(ingredients * s.wastageBp, BP) // ingredients only, not packing
+        val direct = ingredients + wastage + packing
+        val indirect = divHalfUp(indirectCents * TT_PER_CENT * chapathis, netChapathis)
+        val one = exactRounded(partsOne)
+        return ProductCost.Complete(
+            product.id, product.name, chapathis, lines, ingredients, wastage, packing, direct, indirect, direct + indirect,
+            perChapathiTt = one + divHalfUp(one * s.wastageBp, BP),
+        )
+    }
+
+    /** Cost per standard packet for every product (a custom packet is asked for with [packetCost]). */
+    fun costing(s: ServerState, month: YearMonth): CostingReport {
+        val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
+        val net = netChapathis(s, null, month)
+        val indirectCents = indirectTotalCents(s, month)
+        val products = s.products.map { costFor(s, it, monthMaterials, it.unitsPerPacket, indirectCents, net) }
         return CostingReport(month, s.wastageBp, products, indirectCents, net)
+    }
+
+    /** Cost of a packet of [chapathis]: per chapathi x N plus one packing piece (change set C2). */
+    fun packetCost(s: ServerState, month: YearMonth, productId: String, chapathis: Int): ProductCost {
+        val product = s.products.first { it.id == productId }
+        val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
+        return costFor(s, product, monthMaterials, chapathis, indirectTotalCents(s, month), netChapathis(s, null, month))
     }
 
     // ------------------------------------------------------------------ reports
@@ -442,10 +514,14 @@ object ServerLogic {
             val credits = s.returns.filter { it.typeName == t.name && YearMonth.from(it.date) == month }.sumOf { it.creditCents }
             NamedAmount(t.name, revenue - credits)
         }
+        val packetsSold = invoicedPackets(s, month).values.sum().toInt()
+        val chapathisSold = invoicedChapathis(s, month).values.sum()
         return DashboardReport(
             month = month,
             inProgress = month == YearMonth.from(s.today),
             netSalesCents = netSales,
+            packetsSold = packetsSold,
+            chapathisSold = chapathisSold,
             cashCollectedCents = cash,
             outstandingCents = outstanding,
             directCost = direct,
@@ -473,29 +549,34 @@ object ServerLogic {
     }
 
     fun returnsReport(s: ServerState, month: YearMonth): ReturnsReport {
-        val costing = costing(s, month)
+        val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
+        val net = netChapathis(s, null, month)
+        val indirect = indirectTotalCents(s, month)
         val rows = s.returns.filter { YearMonth.from(it.date) == month }.sortedByDescending { it.date }.map { r ->
             // Information only: the replacement is already inside direct expense (owner change).
             val cost: Figure = if (r.resolution == ReturnResolution.REPLACEMENT) {
-                when (val p = costing.products.first { it.productId == r.productId }) {
-                    is ProductCost.Complete -> Figure.Known(divHalfUp(p.directTt * r.qtyPackets, TT_PER_CENT))
-                    is ProductCost.Incomplete -> Figure.Incomplete(p.missing)
+                val product = s.products.first { it.id == r.productId }
+                when (val c = costFor(s, product, monthMaterials, r.chapathisPerPacket, indirect, net)) {
+                    is ProductCost.Complete -> Figure.Known(divHalfUp(c.directTt * r.qtyPackets, TT_PER_CENT))
+                    is ProductCost.Incomplete -> Figure.Incomplete(c.missing)
                 }
             } else {
                 Figure.Known(0L)
             }
-            AdminReturn(r.id, r.date, r.customerName, r.productName, r.qtyPackets, r.reason, r.resolution, r.creditCents, cost)
+            AdminReturn(r.id, r.date, r.customerName, r.productName, r.qtyPackets, r.chapathisPerPacket, r.reason, r.resolution, r.creditCents, cost)
         }
         val damage = s.damage.filter { YearMonth.from(it.date) == month }.sortedByDescending { it.date }.map { d ->
-            ProductionDamage(d.id, d.date, d.productId, s.products.first { it.id == d.productId }.name, d.packets, d.note, d.enteredBy)
+            ProductionDamage(d.id, d.date, d.productId, s.products.first { it.id == d.productId }.name, d.chapathis, d.note, d.enteredBy)
         }
+        val replacements = rows.filter { it.resolution == ReturnResolution.REPLACEMENT }
         return ReturnsReport(
             month = month,
             returns = rows,
             damage = damage,
             creditsTotalCents = rows.sumOf { it.creditCents },
-            replacementPackets = rows.filter { it.resolution == ReturnResolution.REPLACEMENT }.sumOf { it.qtyPackets },
-            damagedPackets = damage.sumOf { it.packets },
+            replacementPackets = replacements.sumOf { it.qtyPackets },
+            replacementChapathis = replacements.sumOf { it.qtyPackets * it.chapathisPerPacket },
+            damagedChapathis = damage.sumOf { it.chapathis },
         )
     }
 

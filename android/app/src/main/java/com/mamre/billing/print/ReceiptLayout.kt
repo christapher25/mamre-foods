@@ -25,6 +25,8 @@ data class ReceiptItem(
     val qtyPackets: Int,
     val unitPriceCents: Long,
     val lineTotalCents: Long,
+    /** Chapathis per packet, set only for a custom packet; the receipt then reads "(N pcs)" (change set C2). */
+    val customPacketSize: Int? = null,
 )
 
 data class MonthPayment(val date: LocalDate, val method: PaymentMethod, val amountCents: Long)
@@ -89,7 +91,7 @@ fun layoutInvoiceReceipt(r: InvoiceReceipt): List<String> = buildList {
     addAll(labelled("Type:     ", r.customerTypeName))
     add(rule())
     for (item in r.items) {
-        addAll(wrap(item.productName))
+        addAll(wrap(if (item.customPacketSize != null) "${item.productName} (${item.customPacketSize} pcs)" else item.productName))
         add(leftRight("  ${item.qtyPackets} x ${formatCents(item.unitPriceCents)}", formatCents(item.lineTotalCents)))
     }
     add(rule())

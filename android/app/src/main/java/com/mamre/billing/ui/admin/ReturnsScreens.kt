@@ -114,7 +114,8 @@ fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Un
             AppCard {
                 LabelValueRow("Credits given") { Text(formatCents(report.creditsTotalCents), style = MaterialTheme.typography.titleSmall) }
                 LabelValueRow("Replacement packets") { Text("${report.replacementPackets}") }
-                LabelValueRow("Production damage packets") { Text("${report.damagedPackets}") }
+                LabelValueRow("Replacement chapathis") { Text("${report.replacementChapathis}") }
+                LabelValueRow("Production damage chapathis") { Text("${report.damagedChapathis}") }
             }
 
             SectionHeader("Customer returns")
@@ -132,7 +133,7 @@ fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Un
                         Column(Modifier.weight(1f).padding(end = Spacing.sm)) {
                             Text(r.customerName, style = MaterialTheme.typography.titleSmall)
                             Text(
-                                "${formatDate(r.date)} - ${r.qtyPackets} x ${r.productName}",
+                                "${formatDate(r.date)} - ${r.qtyPackets} x ${r.productName} (${r.chapathisPerPacket} pcs)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -155,7 +156,7 @@ fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Un
 
             SectionHeader("Production damage")
             Text(
-                "Packets spoiled in production. They use materials, are not a customer return, and are never edited.",
+                "Chapathis spoiled in production, counted in chapathis. They use materials but no packing, are not a customer return, and are never edited.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -166,7 +167,7 @@ fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Un
             report.damage.forEach { d ->
                 AppCard {
                     LabelValueRow("${formatDate(d.date)} - ${d.productName}") {
-                        Text("${d.packets} packets", style = MaterialTheme.typography.bodyLarge)
+                        Text("${d.chapathis} chapathis", style = MaterialTheme.typography.bodyLarge)
                     }
                     if (d.note.isNotBlank()) Text(d.note, style = MaterialTheme.typography.bodySmall)
                     Text("Entered by ${d.enteredBy}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -198,10 +199,10 @@ class AddDamageViewModel @Inject constructor(
         viewModelScope.launch { _ui.update { it.copy(loading = false, products = api.products(), today = api.today) } }
     }
 
-    fun save(productId: String, date: LocalDate, packets: Int, note: String) {
+    fun save(productId: String, date: LocalDate, chapathis: Int, note: String) {
         viewModelScope.launch {
             try {
-                api.addProductionDamage(productId, date, packets, note, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.addProductionDamage(productId, date, chapathis, note, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
                 _ui.update { it.copy(error = null, saved = true) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -240,20 +241,20 @@ fun AddDamageContent(ui: AddDamageUi, onBack: () -> Unit, onSave: (String, Local
             msg(DamageProblem.PRODUCT_REQUIRED)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             DateField("Date", date, { date = it }, errorText = msg(DamageProblem.DATE_REQUIRED))
             LabeledTextField(
-                "Packets damaged", packets, { packets = it },
-                errorText = msg(DamageProblem.PACKETS_INVALID, DamageProblem.PACKETS_NOT_POSITIVE),
-                placeholder = "12",
+                "Chapathis damaged", packets, { packets = it },
+                errorText = msg(DamageProblem.CHAPATHIS_INVALID, DamageProblem.CHAPATHIS_NOT_POSITIVE),
+                placeholder = "24",
             )
             LabeledTextField("Note (optional)", note, { note = it })
             Text(
-                "Damaged packets use materials but no packing. This is not a customer return and is never edited or deleted.",
+                "Damaged chapathis use materials but no packing. This is not a customer return and is never edited or deleted.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             PrimaryButton("Save production damage", onClick = {
                 tried = true
-                if (check is DamageCheck.Ok) onSave(check.productId, check.date, check.packets, note)
+                if (check is DamageCheck.Ok) onSave(check.productId, check.date, check.chapathis, note)
             })
         }
     }

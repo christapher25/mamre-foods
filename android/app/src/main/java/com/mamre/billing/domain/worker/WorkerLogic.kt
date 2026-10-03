@@ -80,7 +80,14 @@ data class ReturnRecord(
 }
 
 /** A product with the price it sells for to the chosen customer; null means no price is set. */
-data class PricedProduct(val productId: String, val name: String, val unitPriceCents: Long?)
+data class PricedProduct(
+    val productId: String,
+    val name: String,
+    /** The price of a standard packet, or null when no price is set. */
+    val unitPriceCents: Long?,
+    /** Chapathis in this product's standard packet (6 by default, set by the Admin). */
+    val standardPacketSize: Int = DEFAULT_PACKET_SIZE,
+)
 
 /**
  * The invoice lines for the packets entered (Doc 1 s5.1). A product with no price never becomes a

@@ -22,14 +22,29 @@ data class InvoiceLine(
     val productId: String,
     val productName: String,
     val qtyPackets: Int,
+    /** The price charged per packet. Equals [listPriceCents] unless a worker changed it (change set C3). */
     val unitPriceCents: Long,
+    /** Chapathis in each packet: 6 for a standard packet, 1 to 200 for a custom one (change set C2). */
+    val chapathisPerPacket: Int = DEFAULT_PACKET_SIZE,
+    /** The price list says this per packet of this size; the default is the charged price. */
+    val listPriceCents: Long = unitPriceCents,
+    /** A packet of a size other than the product's standard one. */
+    val isCustomPacket: Boolean = false,
 ) {
     init {
         require(qtyPackets > 0) { "qtyPackets must be positive" }
         require(unitPriceCents > 0) { "unitPriceCents must be positive (a missing price is never zero)" }
+        require(listPriceCents > 0) { "listPriceCents must be positive" }
+        require(isValidPacketSize(chapathisPerPacket)) { "a packet holds 1 to $MAX_PACKET_SIZE chapathis" }
     }
 
     val lineTotalCents: Long get() = lineTotal(qtyPackets, unitPriceCents)
+
+    /** Chapathis sold on this line. */
+    val chapathis: Int get() = qtyPackets * chapathisPerPacket
+
+    /** True only when the charged price differs from the list price (change set C3). */
+    val priceOverridden: Boolean get() = unitPriceCents != listPriceCents
 }
 
 data class InvoiceRecord(

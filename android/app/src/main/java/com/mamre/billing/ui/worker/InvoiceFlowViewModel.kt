@@ -12,12 +12,17 @@ import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.pricing.PriceResult
 import com.mamre.billing.domain.worker.InvoiceLine
 import com.mamre.billing.domain.worker.InvoiceRecord
+import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
+import com.mamre.billing.domain.worker.PacketEntry
+import com.mamre.billing.domain.worker.PacketKey
 import com.mamre.billing.domain.worker.PayerKind
 import com.mamre.billing.domain.worker.PaymentCheck
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.PaymentProblem
 import com.mamre.billing.domain.worker.PricedProduct
-import com.mamre.billing.domain.worker.buildInvoiceLines
+import com.mamre.billing.domain.worker.buildPacketLines
+import com.mamre.billing.domain.worker.customPacketPriceCents
+import com.mamre.billing.domain.worker.isValidPacketSize
 import com.mamre.billing.domain.worker.checkInvoicePayment
 import com.mamre.billing.domain.worker.filterCustomers
 import com.mamre.billing.domain.worker.invoiceTotal
@@ -36,10 +41,18 @@ import kotlinx.coroutines.launch
 /** A customer in a pick list, with the balance the ledger gives today (Doc 1 s6.3). */
 data class CustomerRow(val customer: Customer, val typeName: String, val balanceCents: Long)
 
+/** One kind of packet of a product on the builder: its size, how many are entered and its list price. */
+data class PacketRow(val key: PacketKey, val qty: Int, val listPriceCents: Long, val isStandard: Boolean)
+
 /** A product with the price this customer pays; [price] decides whether it can be sold (Doc 1 s4.2). */
-data class ProductRow(val product: Product, val price: PriceResult) {
+data class ProductRow(val product: Product, val price: PriceResult, val packets: List<PacketRow> = emptyList()) {
+    /** The price of a standard packet. */
     val unitPriceCents: Long? get() = (price as? PriceResult.Found)?.unitPriceCents
+    val standardSize: Int get() = product.unitsPerPacket.takeIf { it > 0 } ?: DEFAULT_PACKET_SIZE
 }
+
+/** What happened when the worker asked for a custom packet size. */
+enum class CustomPacketResult { ADDED, INVALID_SIZE, ALREADY_THERE }
 
 /** Everything W2 to W5 draw. Prices come from resolvePrice and are never editable. */
 data class InvoiceUi(
@@ -54,7 +67,6 @@ data class InvoiceUi(
     val customerName: String = "",
     val typeName: String = "",
     val products: List<ProductRow> = emptyList(),
-    val quantities: Map<String, Int> = emptyMap(),
     val lines: List<InvoiceLine> = emptyList(),
     val totalCents: Long = 0,
     val payerKind: PayerKind = PayerKind.WALK_IN,
@@ -71,7 +83,9 @@ private data class Input(
     val query: String = "",
     val chosen: Boolean = false,
     val customer: Customer? = null,
-    val quantities: Map<String, Int> = emptyMap(),
+    val packets: Map<PacketKey, Int> = emptyMap(),
+    /** Custom packet sizes the worker opened for a product, kept even while their quantity is zero. */
+    val customSizes: Map<String, List<Int>> = emptyMap(),
     val amountText: String = "",
     val method: PaymentMethod = PaymentMethod.CASH,
 )
@@ -96,9 +110,19 @@ class InvoiceFlowViewModel @Inject constructor(
         if (snap == null) return@combine InvoiceUi(loading = true, deviceCode = deviceCode)
         val today = store.today()
         val customer = inp.customer
-        val rows = snap.products.map { ProductRow(it, snap.priceFor(customer, it, today)) }
-        val priced = rows.map { PricedProduct(it.product.id, it.product.name, it.unitPriceCents) }
-        val lines = buildInvoiceLines(priced, inp.quantities)
+        val rows = snap.products.map { p ->
+            val price = snap.priceFor(customer, p, today)
+            val unit = (price as? PriceResult.Found)?.unitPriceCents
+            val base = ProductRow(p, price)
+            val sizes = listOf(base.standardSize) + inp.customSizes[p.id].orEmpty().sorted()
+            val packets = if (unit == null) emptyList() else sizes.map { s ->
+                val key = PacketKey(p.id, s)
+                PacketRow(key, inp.packets[key] ?: 0, customPacketPriceCents(unit, s, base.standardSize), s == base.standardSize)
+            }
+            base.copy(packets = packets)
+        }
+        val priced = rows.map { PricedProduct(it.product.id, it.product.name, it.unitPriceCents, it.standardSize) }
+        val lines = buildPacketLines(priced, inp.packets.map { (k, q) -> PacketEntry(k, q) })
         val total = invoiceTotal(lines)
         val kind = payerKind(customer)
         val previous = customer?.let { demo.balanceOf(it.id) } ?: 0L
@@ -114,7 +138,6 @@ class InvoiceFlowViewModel @Inject constructor(
             customerName = customer?.name ?: WALK_IN_NAME,
             typeName = snap.typeName(customer),
             products = rows,
-            quantities = inp.quantities,
             lines = lines,
             totalCents = total,
             payerKind = kind,
@@ -138,11 +161,29 @@ class InvoiceFlowViewModel @Inject constructor(
     /** A different customer can mean different prices, so packets and the payment start again. */
     private fun choose(customer: Customer?) = input.update {
         if (it.chosen && it.customer?.id == customer?.id) it
-        else it.copy(chosen = true, customer = customer, quantities = emptyMap(), amountText = "")
+        else it.copy(chosen = true, customer = customer, packets = emptyMap(), customSizes = emptyMap(), amountText = "")
     }
 
-    fun setQuantity(productId: String, qty: Int) =
-        input.update { it.copy(quantities = it.quantities + (productId to qty.coerceAtLeast(0))) }
+    fun setQuantity(key: PacketKey, qty: Int) =
+        input.update { it.copy(packets = it.packets + (key to qty.coerceAtLeast(0))) }
+
+    /** Opens a custom packet line of [chapathis] per packet for a product (1 to 200, not one it already has). */
+    fun addCustomPacket(productId: String, chapathis: Int): CustomPacketResult {
+        if (!isValidPacketSize(chapathis)) return CustomPacketResult.INVALID_SIZE
+        val standard = snapshot.value?.products?.firstOrNull { it.id == productId }?.unitsPerPacket ?: DEFAULT_PACKET_SIZE
+        val existing = input.value.customSizes[productId].orEmpty()
+        if (chapathis == standard || chapathis in existing) return CustomPacketResult.ALREADY_THERE
+        input.update { it.copy(customSizes = it.customSizes + (productId to (existing + chapathis))) }
+        return CustomPacketResult.ADDED
+    }
+
+    /** Drops a custom packet line together with its quantity. */
+    fun removeCustomPacket(key: PacketKey) = input.update {
+        it.copy(
+            customSizes = it.customSizes + (key.productId to it.customSizes[key.productId].orEmpty().filter { s -> s != key.chapathisPerPacket }),
+            packets = it.packets - key,
+        )
+    }
 
     /** Called on the way to the payment step: walk-in and cash customers start at the full total. */
     fun preparePayment() = input.update {

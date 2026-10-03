@@ -38,7 +38,7 @@ class FakeAdminApiTest {
     private val last = YearMonth.of(2026, 10)
     private val allMonths = generateSequence(first) { it.plusMonths(1) }.takeWhile { !it.isAfter(last) }.toList()
     private val completeMonths = listOf(YearMonth.of(2026, 4), YearMonth.of(2026, 5))
-    private val sorbateQuantity = "Potassium sorbate quantity per packet of Mamre Chapathi (Doc 1 P-2)"
+    private val sorbateQuantity = "Potassium sorbate quantity per kg of wheat for Mamre Chapathi (Doc 1 P-2)"
 
     private suspend fun expectRefused(block: suspend () -> Unit): AdminRuleException {
         try {
@@ -314,9 +314,11 @@ class FakeAdminApiTest {
                 damage = emptyList(),
             )
         }
-        val fresh = ServerLogic.costing(s, YearMonth.of(2026, 9)).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        // The Doc 1 s9.5 packet is 12 chapathis; the standard packet is now 6, so ask for 12.
+        val fresh = ServerLogic.packetCost(s, YearMonth.of(2026, 9), SeedIds.FRESH, 12) as ProductCost.Complete
         assertEquals(5475L, fresh.lines.sumOf { it.tt }) // $0.5475 ingredients
-        assertEquals(6975L, fresh.lines.sumOf { it.tt } + fresh.packingTt) // $0.6975 with packing
+        assertEquals(5475L, fresh.ingredientsTt)
+        assertEquals(6975L, fresh.ingredientsTt + fresh.packingTt) // $0.6975 with packing
         val indirect = ServerLogic.divHalfUp(900_00L * 100, 6000) // $900 over 6,000 net packets
         assertEquals(1500L, indirect) // $0.1500
         assertEquals(8475L, 6975L + indirect) // $0.8475
@@ -325,11 +327,11 @@ class FakeAdminApiTest {
     @Test fun mamreChapathiCostIsIncompleteAndNamesWhatIsMissing() = runTest {
         val report = api.costing(YearMonth.of(2026, 9))
         val chapathi = report.products.first { it.productId == SeedIds.CHAPATHI } as ProductCost.Incomplete
-        assertTrue(chapathi.missing.contains("Potassium sorbate quantity per packet (Doc 1 P-2)"))
+        assertTrue(chapathi.missing.contains("Potassium sorbate quantity per kg of wheat (Doc 1 P-2)"))
         assertTrue(chapathi.missing.contains("Potassium sorbate price"))
         val fresh = report.products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
         assertEquals(fresh.directTt + fresh.indirectTt, fresh.fullTt)
-        assertEquals(fresh.lines.sumOf { it.tt } + fresh.wastageTt + fresh.packingTt, fresh.directTt)
+        assertEquals(fresh.ingredientsTt + fresh.wastageTt + fresh.packingTt, fresh.directTt)
         assertEquals(1500L, fresh.packingTt)
     }
 
@@ -338,7 +340,7 @@ class FakeAdminApiTest {
         val before = api.stock(m).rows.first { it.material.id == SeedIds.WHEAT }.usedMb.valueOrNull!!
         api.addProductionDamage(SeedIds.FRESH, LocalDate.of(2026, 9, 29), 100, "Dropped trays", "Test Admin")
         val after = api.stock(m).rows.first { it.material.id == SeedIds.WHEAT }.usedMb.valueOrNull!!
-        assertEquals(before + 100 * 375_000L * 102 / 100, after) // 100 packets x 375 g x 1.02
+        assertEquals(before + 3_187_500L, after) // 100 chapathis x 1 kg per 32 = 3.125 kg, x 1.02
         assertEquals(1, api.changeLog.value.size)
     }
 
@@ -363,7 +365,7 @@ class FakeAdminApiTest {
     @Test fun givingPotassiumSorbateAPriceDoesNotCompleteTheCostWhileTheQuantityIsMissing() = runTest {
         api.addPurchase(SeedIds.SORBATE, LocalDate.of(2026, 9, 2), 1_000_000, 900, "", "Test Admin")
         val chapathi = api.costing(YearMonth.of(2026, 9)).products.first { it.productId == SeedIds.CHAPATHI } as ProductCost.Incomplete
-        assertTrue(chapathi.missing.contains("Potassium sorbate quantity per packet (Doc 1 P-2)"))
+        assertTrue(chapathi.missing.contains("Potassium sorbate quantity per kg of wheat (Doc 1 P-2)"))
         assertFalse(chapathi.missing.contains("Potassium sorbate price"))
     }
 
@@ -418,10 +420,10 @@ class FakeAdminApiTest {
         for (m in allMonths) {
             val r = api.returnsReport(m)
             assertEquals(r.returns.sumOf { it.creditCents }, r.creditsTotalCents)
-            assertEquals(r.damage.sumOf { it.packets }, r.damagedPackets)
+            assertEquals(r.damage.sumOf { it.chapathis }, r.damagedChapathis)
         }
         val complete = api.returnsReport(completeMonths.first())
-        assertTrue(complete.damagedPackets > 0) // production damage is listed apart from customer returns
+        assertTrue(complete.damagedChapathis > 0) // production damage is listed apart from customer returns
     }
 
     @Test fun aReplacementHasAnInformationOnlyCostCreditsNothingAndNeverChangesProfit() = runTest {

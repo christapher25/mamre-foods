@@ -100,17 +100,17 @@ class MaterialsRulesTest {
 
     // --- production damage (B7) ---
 
-    @Test fun productionDamageNeedsAProductADateAndWholePacketsAboveZero() {
+    @Test fun productionDamageNeedsAProductADateAndWholeChapathisAboveZero() {
         fun check(product: String? = "p", date: LocalDate? = day, packets: String = "12") =
             validateProductionDamage(product, date, packets)
-        assertEquals(12, (check() as DamageCheck.Ok).packets)
+        assertEquals(12, (check() as DamageCheck.Ok).chapathis)
         fun problems(c: DamageCheck) = (c as DamageCheck.Invalid).problems
         assertEquals(setOf(DamageProblem.PRODUCT_REQUIRED), problems(check(product = null)))
         assertEquals(setOf(DamageProblem.DATE_REQUIRED), problems(check(date = null)))
-        assertEquals(setOf(DamageProblem.PACKETS_INVALID), problems(check(packets = "1.5")))
-        assertEquals(setOf(DamageProblem.PACKETS_INVALID), problems(check(packets = "")))
-        assertEquals(setOf(DamageProblem.PACKETS_NOT_POSITIVE), problems(check(packets = "0")))
-        assertEquals(setOf(DamageProblem.PACKETS_NOT_POSITIVE), problems(check(packets = "-4")))
+        assertEquals(setOf(DamageProblem.CHAPATHIS_INVALID), problems(check(packets = "1.5")))
+        assertEquals(setOf(DamageProblem.CHAPATHIS_INVALID), problems(check(packets = "")))
+        assertEquals(setOf(DamageProblem.CHAPATHIS_NOT_POSITIVE), problems(check(packets = "0")))
+        assertEquals(setOf(DamageProblem.CHAPATHIS_NOT_POSITIVE), problems(check(packets = "-4")))
     }
 
     // --- showing quantities ---

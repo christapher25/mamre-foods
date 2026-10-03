@@ -21,6 +21,7 @@ import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.admin.DEFAULT_WASTAGE_BP
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.worker.InvoiceStatus
+import com.mamre.billing.domain.worker.customPacketPriceCents
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnResolution
@@ -144,6 +145,14 @@ object AdminSeed {
                 .maxByOrNull { it.effectiveFrom }?.unitPriceCents
         }
 
+        val stdSize = products.associate { it.id to it.unitsPerPacket }
+        fun item(productId: String, qty: Int, listStd: Long, size: Int, changePercent: Int = 0): InvoiceItem {
+            val std = stdSize.getValue(productId)
+            val list = customPacketPriceCents(listStd, size, std)
+            val charged = list - list * changePercent / 100
+            return InvoiceItem(productId, productName.getValue(productId), qty, charged, qty * charged, size, list, size != std)
+        }
+
         // --- invoices, payments and returns, day by day ---
         val invoices = mutableListOf<AdminInvoice>()
         val payments = mutableListOf<AdminPayment>()
@@ -169,11 +178,15 @@ object AdminSeed {
             customerSeeds.forEachIndexed { ci, c ->
                 if ((dayIndex - c.offset) >= 0 && (dayIndex - c.offset) % c.everyDays == 0) {
                     val lines = mutableListOf<InvoiceItem>()
-                    fun line(productId: String, qty: Int) {
+                    fun line(productId: String, qty: Int, size: Int = stdSize.getValue(productId), changePercent: Int = 0) {
                         val price = unitPrice(c, productId, c.typeId, day) ?: return
-                        lines += InvoiceItem(productId, productName.getValue(productId), qty, price, qty * price)
+                        lines += item(productId, qty, price, size, changePercent)
                     }
-                    line(SeedIds.FRESH, c.baseQty + (dayIndex * 7 + ci * 5) % (c.baseQty / 2 + 1))
+                    // Types whose flag lets the worker change a price sometimes charge 5% less, and now and then
+                    // order a custom packet of 10 chapathis (change set C2 and C3 demo data).
+                    val canEdit = types.first { it.id == c.typeId }.workerCanEditPrice
+                    line(SeedIds.FRESH, c.baseQty + (dayIndex * 7 + ci * 5) % (c.baseQty / 2 + 1), changePercent = if (canEdit && (dayIndex + ci) % 4 == 1) 5 else 0)
+                    if (canEdit && (dayIndex + ci) % 5 == 2) line(SeedIds.FRESH, 3 + dayIndex % 4, size = 10)
                     if (!day.isBefore(launch) && (dayIndex + ci) % 3 != 0) {
                         line(SeedIds.CHAPATHI, maxOf(4, c.baseQty / 2 + (dayIndex * 3 + ci) % (c.baseQty / 4 + 1)))
                     }
@@ -193,7 +206,7 @@ object AdminSeed {
                         val on = if (day.isBefore(today)) day.plusDays(1) else day
                         returns += ReturnRow(
                             "ret-%03d".format(returns.size + 1), on, c.id, c.name, typeName.getValue(c.typeId), inv.id,
-                            l.productId, l.productName, packets, reasons[invoiceSeq % reasons.size], resolution,
+                            l.productId, l.productName, packets, l.chapathisPerPacket, reasons[invoiceSeq % reasons.size], resolution,
                             l.unitPriceCents, credit,
                         )
                         balances[c.id] = balances.getValue(c.id) - credit
@@ -205,10 +218,12 @@ object AdminSeed {
                 val price = unitPrice(null, SeedIds.FRESH, SeedIds.RETAIL, day)!!
                 val qty = 4 + dayIndex % 5
                 invoiceSeq++
-                val inv = newInvoice(
-                    invoiceSeq, null, "Walk-in", typeName.getValue(SeedIds.RETAIL), day, 13, 0,
-                    listOf(InvoiceItem(SeedIds.FRESH, productName.getValue(SeedIds.FRESH), qty, price, qty * price)),
+                // Walk-ins follow the Retail rules, so some buy a custom packet of 10 chapathis.
+                val walkInItems = listOfNotNull(
+                    item(SeedIds.FRESH, qty, price, stdSize.getValue(SeedIds.FRESH)),
+                    if (dayIndex % 6 == 0) item(SeedIds.FRESH, 2, price, 10) else null,
                 )
+                val inv = newInvoice(invoiceSeq, null, "Walk-in", typeName.getValue(SeedIds.RETAIL), day, 13, 0, walkInItems)
                 invoices += inv
                 addPayment(null, "Walk-in", day, inv.totalCents, PaymentMethod.CASH, inv.id)
             }
@@ -252,9 +267,11 @@ object AdminSeed {
             Material(SeedIds.SORBATE, "Potassium sorbate", "g", "kg", false, listOf(g, kg)),
             Material(SeedIds.PACKING, "Packing", "piece", "piece", true, listOf(piece)),
         )
+        // The recipe is per 1 kg of wheat (yield 32 chapathis per kg): wheat 1000 g, oil 80 ml, sugar 20 g, salt 15 g,
+        // baking powder 2 g. Packing is one piece per packet whatever its size.
         val base = listOf(
-            RecipeEntry(SeedIds.WHEAT, 375_000), RecipeEntry(SeedIds.OIL, 30_000), RecipeEntry(SeedIds.SUGAR, 7_500),
-            RecipeEntry(SeedIds.SALT, 5_625), RecipeEntry(SeedIds.BAKING_POWDER, 750),
+            RecipeEntry(SeedIds.WHEAT, 1_000_000), RecipeEntry(SeedIds.OIL, 80_000), RecipeEntry(SeedIds.SUGAR, 20_000),
+            RecipeEntry(SeedIds.SALT, 15_000), RecipeEntry(SeedIds.BAKING_POWDER, 2_000),
         )
         val packingLine = RecipeEntry(SeedIds.PACKING, 1_000)
         val recipes = mapOf(
@@ -263,16 +280,16 @@ object AdminSeed {
             SeedIds.CHAPATHI to base + RecipeEntry(SeedIds.SORBATE, null) + packingLine,
         )
 
-        // --- production damage: about 1.5% of the packets sold, one entry a month per product ---
+        // --- production damage: about 1.5% of the chapathis sold, one entry a month per product ---
         val damage = mutableListOf<DamageRow>()
         var month = first
         while (!month.isAfter(last)) {
             for (p in products) {
                 val sold = invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
-                    .sumOf { inv -> inv.items.filter { it.productId == p.id }.sumOf { it.qtyPackets } }
+                    .sumOf { inv -> inv.items.filter { it.productId == p.id }.sumOf { it.chapathis } }
                 if (sold == 0) continue
                 val date = minOf(month.atDay(10), today)
-                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(1, sold * 15 / 1000), "Burnt in the oven", "Test Admin")
+                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(6, sold * 15 / 1000), "Burnt in the oven", "Test Admin")
             }
             month = month.plusMonths(1)
         }
@@ -300,17 +317,23 @@ object AdminSeed {
         val purchases = mutableListOf<Purchase>()
         month = first
         while (!month.isAfter(last)) {
-            val made = mutableMapOf<String, Long>()
-            invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }.flatMap { it.items }
-                .forEach { made.merge(it.productId, it.qtyPackets.toLong(), Long::plus) }
-            returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }
-                .forEach { made.merge(it.productId, it.qtyPackets.toLong(), Long::plus) }
-            val bagged = made.toMap() // packing: invoiced + replacement only
-            damage.filter { YearMonth.from(it.date) == month }.forEach { made.merge(it.productId, it.packets.toLong(), Long::plus) }
+            val made = mutableMapOf<String, Long>() // chapathis made per product
+            val bagged = mutableMapOf<String, Long>() // packets that left in a bag per product
+            invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }.flatMap { it.items }.forEach {
+                made.merge(it.productId, it.chapathis.toLong(), Long::plus)
+                bagged.merge(it.productId, it.qtyPackets.toLong(), Long::plus)
+            }
+            returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }.forEach {
+                made.merge(it.productId, it.qtyPackets.toLong() * it.chapathisPerPacket, Long::plus)
+                bagged.merge(it.productId, it.qtyPackets.toLong(), Long::plus)
+            }
+            damage.filter { YearMonth.from(it.date) == month }.forEach { made.merge(it.productId, it.chapathis.toLong(), Long::plus) }
             for ((materialId, bag) in bags) {
                 val m = materials.first { it.id == materialId }
+                // Ingredients: chapathis x quantity per kg of wheat / yield; packing: one piece per packet bagged.
                 val perPacket = products.sumOf { p ->
-                    (recipes.getValue(p.id).firstOrNull { it.materialId == materialId }?.qtyMb ?: 0L) * ((if (m.isPacking) bagged else made)[p.id] ?: 0L)
+                    val q = recipes.getValue(p.id).firstOrNull { it.materialId == materialId }?.qtyMb ?: 0L
+                    if (m.isPacking) q * (bagged[p.id] ?: 0L) else q * (made[p.id] ?: 0L) / p.yieldPerKg
                 }
                 val withWastage = if (m.isPacking) perPacket else perPacket * 102 / 100
                 // Demo: sugar is bought short two months ago, so the negative stock warning has something to show.

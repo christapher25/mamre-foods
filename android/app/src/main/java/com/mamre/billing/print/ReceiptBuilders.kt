@@ -39,7 +39,10 @@ fun invoiceReceiptOf(
         deviceCode = invoice.deviceCode,
         customerName = invoice.customerName,
         customerTypeName = invoice.customerTypeName,
-        items = invoice.lines.map { ReceiptItem(it.productName, it.qtyPackets, it.unitPriceCents, it.lineTotalCents) },
+        items = invoice.lines.map { ReceiptItem(
+                it.productName, it.qtyPackets, it.unitPriceCents, it.lineTotalCents,
+                customPacketSize = if (it.isCustomPacket) it.chapathisPerPacket else null,
+            ) },
         totalCents = invoice.totalCents,
         paidNowCents = invoice.paidNowCents,
         method = invoice.method,

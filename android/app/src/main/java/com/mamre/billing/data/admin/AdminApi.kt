@@ -18,6 +18,7 @@ import com.mamre.billing.domain.admin.InvoiceDetail
 import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceMatrix
+import com.mamre.billing.domain.admin.ProductCost
 import com.mamre.billing.domain.admin.ProductRecipe
 import com.mamre.billing.domain.admin.ProductionDamage
 import com.mamre.billing.domain.admin.Purchase
@@ -94,7 +95,16 @@ interface AdminApi {
     suspend fun reversePurchase(purchaseId: String, reason: String, by: String): Purchase
 
     /** Production damage is add only and counts as material usage (B7). */
-    suspend fun addProductionDamage(productId: String, date: LocalDate, packets: Int, note: String, by: String): ProductionDamage
+    suspend fun addProductionDamage(productId: String, date: LocalDate, chapathis: Int, note: String, by: String): ProductionDamage
+
+    /** Standard packet size (chapathis) of a product. Synced to workers; custom packet prices follow it. */
+    suspend fun setStandardPacketSize(productId: String, chapathis: Int, by: String)
+
+    /** Chapathis made from 1 kg of wheat. Usage and cost per chapathi follow it. */
+    suspend fun setYieldPerKg(productId: String, chapathisPerKg: Int, by: String)
+
+    /** Cost of a packet of [chapathis] (a custom packet: per chapathi x N + packing), calculated by the server. */
+    suspend fun packetCost(month: YearMonth, productId: String, chapathis: Int): ProductCost
 
     suspend fun expenseCategories(): List<ExpenseCategory>
     suspend fun expenses(month: YearMonth): ExpensesReport

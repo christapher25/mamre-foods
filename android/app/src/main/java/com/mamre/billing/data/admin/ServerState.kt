@@ -33,23 +33,28 @@ data class ReturnRow(
     val productId: String,
     val productName: String,
     val qtyPackets: Int,
+    /** Chapathis in each returned packet; a replacement is made of this many chapathis per packet. */
+    val chapathisPerPacket: Int = 6,
     val reason: ReturnReason,
     val resolution: ReturnResolution,
     val unitPriceCents: Long,
     val creditCents: Long,
 )
 
-/** Packets damaged in production, entered by the Admin (add only). */
+/** Chapathis damaged in production, entered by the Admin (add only). */
 data class DamageRow(
     val id: String,
     val date: LocalDate,
     val productId: String,
-    val packets: Int,
+    val chapathis: Int,
     val note: String,
     val enteredBy: String,
 )
 
-/** One material of a product's recipe: thousandths of the base unit per packet, or null while unset (Doc 1 P-2). */
+/**
+ * One material of a product's recipe: thousandths of the base unit per 1 kg of wheat, or null while unset
+ * (Doc 1 P-2). The packing line is the exception: one piece per packet, whatever the packet size.
+ */
 data class RecipeEntry(val materialId: String, val qtyMb: Long?)
 
 /** Stock held before the first month of data, with the money it was worth. */

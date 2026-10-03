@@ -259,8 +259,11 @@ fun SalesDetailContent(ui: SalesDetailUi, onBack: () -> Unit, onVoid: (String) -
             AppCard {
                 inv.items.forEachIndexed { i, item ->
                     if (i > 0) androidx.compose.foundation.layout.Spacer(Modifier.padding(top = Spacing.sm))
-                    Text(item.productName, style = MaterialTheme.typography.titleSmall)
-                    LabelValueRow("${item.qtyPackets} x ${formatCents(item.unitPriceCents)}") {
+                    Text(
+                        if (item.isCustomPacket) "${item.productName} (custom ${item.chapathisPerPacket} pcs)" else item.productName,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    LabelValueRow("${item.qtyPackets} x ${formatCents(item.unitPriceCents)} (${item.chapathis} pcs)") {
                         Text(formatCents(item.lineTotalCents), style = MaterialTheme.typography.bodyLarge)
                     }
                 }

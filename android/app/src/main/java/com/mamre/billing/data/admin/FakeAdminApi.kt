@@ -18,7 +18,11 @@ import com.mamre.billing.domain.admin.ExpenseCategory
 import com.mamre.billing.domain.admin.ExpenseCheck
 import com.mamre.billing.domain.admin.ExpensesReport
 import com.mamre.billing.domain.admin.InvoiceDetail
+import com.mamre.billing.domain.admin.MAX_YIELD_PER_KG
 import com.mamre.billing.domain.admin.Material
+import com.mamre.billing.domain.admin.ProductCost
+import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
+import com.mamre.billing.domain.worker.isValidPacketSize
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceCheck
 import com.mamre.billing.domain.admin.PriceEntry
@@ -227,6 +231,8 @@ class FakeAdminApi(
                 val m = s.materials.first { it.id == e.materialId }
                 RecipeLine(m.id, m.name, m.baseUnit, e.qtyMb)
             },
+            yieldPerKg = p.yieldPerKg,
+            standardPacketSize = p.unitsPerPacket,
         )
     }
 
@@ -291,14 +297,38 @@ class FakeAdminApi(
         return rev
     }
 
-    override suspend fun addProductionDamage(productId: String, date: LocalDate, packets: Int, note: String, by: String): ProductionDamage {
+    override suspend fun addProductionDamage(productId: String, date: LocalDate, chapathis: Int, note: String, by: String): ProductionDamage {
         val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
-        if (packets <= 0) refuse("Packets must be more than zero")
-        val row = DamageRow("dm-%03d".format(s.damage.size + 1), date, product.id, packets, note.trim(), by)
-        changed(by, "Add production damage ${product.name}", "-", "$packets packets on $date ${row.note}".trim()) {
+        if (chapathis <= 0) refuse("Chapathis must be more than zero")
+        val row = DamageRow("dm-%03d".format(s.damage.size + 1), date, product.id, chapathis, note.trim(), by)
+        changed(by, "Add production damage ${product.name}", "-", "$chapathis chapathis on $date ${row.note}".trim()) {
             it.copy(damage = it.damage + row)
         }
-        return ProductionDamage(row.id, date, product.id, product.name, packets, row.note, by)
+        return ProductionDamage(row.id, date, product.id, product.name, chapathis, row.note, by)
+    }
+
+    override suspend fun setStandardPacketSize(productId: String, chapathis: Int, by: String) {
+        val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
+        if (!isValidPacketSize(chapathis)) refuse("A packet holds 1 to $MAX_PACKET_SIZE chapathis")
+        if (chapathis == product.unitsPerPacket) refuse("That is already the standard packet size")
+        prices.setStandardPacketSize(productId, chapathis) // workers receive it at their next sync
+        changed(by, "Standard packet ${product.name}", "${product.unitsPerPacket} chapathis", "$chapathis chapathis") { st ->
+            st.copy(products = st.products.map { if (it.id == productId) it.copy(unitsPerPacket = chapathis) else it })
+        }
+    }
+
+    override suspend fun setYieldPerKg(productId: String, chapathisPerKg: Int, by: String) {
+        val product = s.products.firstOrNull { it.id == productId } ?: refuse("Unknown product")
+        if (chapathisPerKg < 1 || chapathisPerKg > MAX_YIELD_PER_KG) refuse("The yield is 1 to $MAX_YIELD_PER_KG chapathis per kg of wheat")
+        changed(by, "Yield ${product.name}", "${product.yieldPerKg} per kg", "$chapathisPerKg per kg") { st ->
+            st.copy(products = st.products.map { if (it.id == productId) it.copy(yieldPerKg = chapathisPerKg) else it })
+        }
+    }
+
+    override suspend fun packetCost(month: YearMonth, productId: String, chapathis: Int): ProductCost {
+        if (s.products.none { it.id == productId }) refuse("Unknown product")
+        if (!isValidPacketSize(chapathis)) refuse("A packet holds 1 to $MAX_PACKET_SIZE chapathis")
+        return ServerLogic.packetCost(s, month, productId, chapathis)
     }
 
     // ------------------------------------------------------------------ expenses

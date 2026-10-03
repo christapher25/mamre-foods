@@ -137,31 +137,31 @@ fun formatWastage(basisPoints: Int): String {
 
 // --- production damage (B7, add only) ---
 
-enum class DamageProblem { PRODUCT_REQUIRED, DATE_REQUIRED, PACKETS_INVALID, PACKETS_NOT_POSITIVE }
+enum class DamageProblem { PRODUCT_REQUIRED, DATE_REQUIRED, CHAPATHIS_INVALID, CHAPATHIS_NOT_POSITIVE }
 
 sealed interface DamageCheck {
-    data class Ok(val productId: String, val date: LocalDate, val packets: Int) : DamageCheck
+    data class Ok(val productId: String, val date: LocalDate, val chapathis: Int) : DamageCheck
 
     data class Invalid(val problems: Set<DamageProblem>) : DamageCheck
 }
 
-fun validateProductionDamage(productId: String?, date: LocalDate?, packetsText: String): DamageCheck {
+fun validateProductionDamage(productId: String?, date: LocalDate?, chapathisText: String): DamageCheck {
     val problems = mutableSetOf<DamageProblem>()
     if (productId.isNullOrBlank()) problems += DamageProblem.PRODUCT_REQUIRED
     if (date == null) problems += DamageProblem.DATE_REQUIRED
-    val packets = packetsText.trim().toLongOrNull()
+    val chapathis = chapathisText.trim().toLongOrNull()
     when {
-        packets == null || packets > Int.MAX_VALUE -> problems += DamageProblem.PACKETS_INVALID
-        packets <= 0 -> problems += DamageProblem.PACKETS_NOT_POSITIVE
+        chapathis == null || chapathis > Int.MAX_VALUE -> problems += DamageProblem.CHAPATHIS_INVALID
+        chapathis <= 0 -> problems += DamageProblem.CHAPATHIS_NOT_POSITIVE
     }
-    return if (problems.isEmpty()) DamageCheck.Ok(productId!!, date!!, packets!!.toInt()) else DamageCheck.Invalid(problems)
+    return if (problems.isEmpty()) DamageCheck.Ok(productId!!, date!!, chapathis!!.toInt()) else DamageCheck.Invalid(problems)
 }
 
 fun damageProblemMessage(problem: DamageProblem): String = when (problem) {
     DamageProblem.PRODUCT_REQUIRED -> "Choose the product"
     DamageProblem.DATE_REQUIRED -> "Choose the date"
-    DamageProblem.PACKETS_INVALID -> "Enter a whole number of packets"
-    DamageProblem.PACKETS_NOT_POSITIVE -> "Packets must be more than zero"
+    DamageProblem.CHAPATHIS_INVALID -> "Enter a whole number of chapathis"
+    DamageProblem.CHAPATHIS_NOT_POSITIVE -> "Chapathis must be more than zero"
 }
 
 // --- showing quantities ---

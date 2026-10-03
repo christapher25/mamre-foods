@@ -35,9 +35,15 @@ data class AdminProduct(
     val id: String,
     val code: String,
     val name: String,
+    /** Chapathis in a standard packet (6). Synced to workers; the Admin edits it on the Costing screen. */
     val unitsPerPacket: Int,
     val packingCostCents: Long,
+    /** Chapathis made from 1 kg of wheat (32). Admin only: recipe quantities are per 1 kg of wheat. */
+    val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,
 )
+
+const val DEFAULT_YIELD_PER_KG = 32
+const val MAX_YIELD_PER_KG = 200
 
 data class AdminCustomer(
     val id: String,
@@ -69,9 +75,20 @@ data class InvoiceItem(
     val productId: String,
     val productName: String,
     val qtyPackets: Int,
+    /** The price charged per packet. */
     val unitPriceCents: Long,
     val lineTotalCents: Long,
-)
+    /** Chapathis in each packet: 6 for a standard packet, 1 to 200 for a custom one (change set C2). */
+    val chapathisPerPacket: Int = 6,
+    /** What the price list says per packet of this size; differs from [unitPriceCents] when a worker changed the price (C3). */
+    val listPriceCents: Long = unitPriceCents,
+    val isCustomPacket: Boolean = false,
+) {
+    val chapathis: Int get() = qtyPackets * chapathisPerPacket
+
+    /** Flagged by the server layer: true only when the charged price differs from the list price. */
+    val priceOverridden: Boolean get() = unitPriceCents != listPriceCents
+}
 
 data class AdminInvoice(
     val id: String,
@@ -91,6 +108,10 @@ data class AdminInvoice(
 ) {
     val isVoid: Boolean get() = status == InvoiceStatus.VOID
     val packets: Int get() = items.sumOf { it.qtyPackets }
+    val chapathis: Int get() = items.sumOf { it.chapathis }
+
+    /** Any line was charged a price other than the list price (change set C3). */
+    val hasChangedPrice: Boolean get() = items.any { it.priceOverridden }
 }
 
 data class AdminPayment(
@@ -207,7 +228,14 @@ data class RecipeLine(
     val qtyMb: Long?,
 )
 
-data class ProductRecipe(val productId: String, val productName: String, val lines: List<RecipeLine>)
+data class ProductRecipe(
+    val productId: String,
+    val productName: String,
+    val lines: List<RecipeLine>,
+    /** Chapathis from 1 kg of wheat. Recipe quantities are per 1 kg of wheat, except packing (one piece per packet). */
+    val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,
+    val standardPacketSize: Int = 6,
+)
 
 /** A purchase of a material. Add only: never edited or deleted (Doc 3 N3). */
 data class Purchase(
@@ -269,14 +297,21 @@ sealed interface ProductCost {
     data class Complete(
         override val productId: String,
         override val productName: String,
-        /** One line per ingredient material, packing and wastage not included. */
+        /** Chapathis in the packet this cost is for: the standard size, or a custom size asked for. */
+        val chapathis: Int,
+        /** One line per ingredient material for that packet, each rounded half up; packing and wastage not included. */
         val lines: List<CostLine>,
-        val packingTt: Long,
-        /** Wastage on the ingredients and the packing. */
+        /** All ingredients for the packet, rounded half up ONCE from the exact sum (lines may differ by a unit). */
+        val ingredientsTt: Long,
+        /** Wastage on the ingredients only: packing has none. */
         val wastageTt: Long,
+        /** One packing piece per packet, whatever its size. */
+        val packingTt: Long,
         val directTt: Long,
         val indirectTt: Long,
         val fullTt: Long,
+        /** Ingredients plus wastage for one chapathi, in ten-thousandths of a dollar. */
+        val perChapathiTt: Long,
     ) : ProductCost
 
     data class Incomplete(
@@ -291,7 +326,8 @@ data class CostingReport(
     val wastageBp: Int,
     val products: List<ProductCost>,
     val indirectTotalCents: Long,
-    val netPackets: Int,
+    /** Chapathis invoiced less credited: the indirect share is spread over these. */
+    val netChapathis: Long,
 )
 
 enum class ExpenseKind(val label: String) { DIRECT("Direct"), INDIRECT("Indirect") }
@@ -331,6 +367,7 @@ data class AdminReturn(
     val customerName: String,
     val productName: String,
     val qtyPackets: Int,
+    val chapathisPerPacket: Int,
     val reason: ReturnReason,
     val resolution: ReturnResolution,
     val creditCents: Long,
@@ -338,13 +375,13 @@ data class AdminReturn(
     val replacementCost: Figure,
 )
 
-/** Packets damaged in production, entered by the Admin. Add only; it counts as usage of materials. */
+/** Chapathis damaged in production, entered by the Admin. Add only; counts as usage of materials, not of packing. */
 data class ProductionDamage(
     val id: String,
     val date: LocalDate,
     val productId: String,
     val productName: String,
-    val packets: Int,
+    val chapathis: Int,
     val note: String,
     val enteredBy: String,
 )
@@ -355,7 +392,8 @@ data class ReturnsReport(
     val damage: List<ProductionDamage>,
     val creditsTotalCents: Long,
     val replacementPackets: Int,
-    val damagedPackets: Int,
+    val replacementChapathis: Int,
+    val damagedChapathis: Int,
 )
 
 data class BalanceRow(
@@ -397,6 +435,9 @@ data class DashboardReport(
     val month: YearMonth,
     val inProgress: Boolean,
     val netSalesCents: Long,
+    /** Packets and chapathis invoiced in the month (void excluded, credits not deducted). */
+    val packetsSold: Int,
+    val chapathisSold: Long,
     val cashCollectedCents: Long,
     val outstandingCents: Long,
     val directCost: Figure,

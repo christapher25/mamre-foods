@@ -28,6 +28,7 @@ import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.data.admin.DataSpan
 import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.CostingReport
+import com.mamre.billing.domain.admin.MAX_YIELD_PER_KG
 import com.mamre.billing.domain.admin.ProductCost
 import com.mamre.billing.domain.admin.ProductRecipe
 import com.mamre.billing.domain.admin.RecipeCheck
@@ -39,6 +40,8 @@ import com.mamre.billing.domain.admin.validateRecipeQuantity
 import com.mamre.billing.domain.admin.validateWastage
 import com.mamre.billing.domain.admin.wastageProblemMessage
 import com.mamre.billing.domain.money.formatCents
+import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
+import com.mamre.billing.domain.worker.isValidPacketSize
 import com.mamre.billing.domain.money.formatMilli
 import com.mamre.billing.domain.money.formatTenThousandths
 import com.mamre.billing.ui.components.AppCard
@@ -47,6 +50,7 @@ import com.mamre.billing.ui.components.ChipKind
 import com.mamre.billing.ui.components.LabelValueRow
 import com.mamre.billing.ui.components.LabeledTextField
 import com.mamre.billing.ui.components.MonthSelector
+import com.mamre.billing.ui.components.OptionChips
 import com.mamre.billing.ui.components.SecondaryButton
 import com.mamre.billing.ui.components.SectionHeader
 import com.mamre.billing.ui.components.StatusChip
@@ -72,6 +76,11 @@ data class CostingUi(
     val report: CostingReport? = null,
     val recipes: List<ProductRecipe> = emptyList(),
     val error: String? = null,
+    /** The custom packet calculator: product, chapathis typed and the cost the server worked out. */
+    val calcProductId: String? = null,
+    val calcText: String = "",
+    val calcResult: ProductCost? = null,
+    val calcError: String? = null,
 )
 
 @HiltViewModel
@@ -105,6 +114,29 @@ class CostingViewModel @Inject constructor(
 
     fun setWastage(basisPoints: Int) = attempt { api.setWastageBp(basisPoints, by) }
 
+    fun setPacketSize(productId: String, chapathis: Int) = attempt { api.setStandardPacketSize(productId, chapathis, by) }
+
+    fun setYield(productId: String, chapathisPerKg: Int) = attempt { api.setYieldPerKg(productId, chapathisPerKg, by) }
+
+    /** Asks the server what a packet of N chapathis costs (per chapathi x N + packing). */
+    fun calculate(productId: String?, text: String) {
+        _ui.update { it.copy(calcProductId = productId, calcText = text, calcResult = null, calcError = null) }
+        val month = _ui.value.month ?: return
+        val n = text.toIntOrNull()
+        if (productId == null || n == null || !isValidPacketSize(n)) {
+            if (text.isNotBlank()) _ui.update { it.copy(calcError = "Enter a number from 1 to $MAX_PACKET_SIZE") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val cost = api.packetCost(month, productId, n)
+                _ui.update { if (it.calcText == text && it.calcProductId == productId) it.copy(calcResult = cost) else it }
+            } catch (e: AdminRuleException) {
+                _ui.update { it.copy(calcError = e.message) }
+            }
+        }
+    }
+
     private fun attempt(block: suspend () -> Unit) {
         viewModelScope.launch {
             try {
@@ -120,7 +152,10 @@ class CostingViewModel @Inject constructor(
 @Composable
 fun CostingScreen(onBack: () -> Unit, viewModel: CostingViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    CostingContent(ui, onBack, viewModel::selectMonth, viewModel::setRecipe, viewModel::setWastage)
+    CostingContent(
+        ui, onBack, viewModel::selectMonth, viewModel::setRecipe, viewModel::setWastage,
+        viewModel::setPacketSize, viewModel::setYield, viewModel::calculate,
+    )
 }
 
 private data class RecipeEdit(val productId: String, val productName: String, val materialId: String, val materialName: String, val baseUnit: String, val current: Long?)
@@ -132,8 +167,12 @@ fun CostingContent(
     onMonth: (YearMonth) -> Unit,
     onRecipe: (String, String, Long) -> Unit,
     onWastage: (Int) -> Unit,
+    onPacketSize: (String, Int) -> Unit = { _, _ -> },
+    onYield: (String, Int) -> Unit = { _, _ -> },
+    onCalculate: (String?, String) -> Unit = { _, _ -> },
 ) {
     var editRecipe by remember { mutableStateOf<RecipeEdit?>(null) }
+    var editNumber by remember { mutableStateOf<NumberEdit?>(null) }
     var editWastage by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Costing", onBack = onBack, actions = { DemoChip() })
@@ -151,7 +190,7 @@ fun CostingContent(
                     Text("${formatWastage(report.wastageBp)}%", style = MaterialTheme.typography.titleMedium)
                 }
                 Text(
-                    "Packing has no wastage. Indirect expenses ${formatCents(report.indirectTotalCents)} shared over ${report.netPackets} net packets.",
+                    "Packing has no wastage. Indirect expenses ${formatCents(report.indirectTotalCents)} shared over ${report.netChapathis} net chapathis.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -160,11 +199,23 @@ fun CostingContent(
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
 
             SectionHeader("Cost per packet")
-            report.products.forEach { ProductCostCard(it) }
+            report.products.forEach { cost ->
+                val product = ui.recipes.firstOrNull { it.productId == cost.productId }
+                ProductCostCard(
+                    cost = cost,
+                    standardSize = product?.standardPacketSize,
+                    yieldPerKg = product?.yieldPerKg,
+                    onEditSize = { editNumber = NumberEdit.Size(cost.productId, cost.productName, product?.standardPacketSize ?: 6) },
+                    onEditYield = { editNumber = NumberEdit.Yield(cost.productId, cost.productName, product?.yieldPerKg ?: 32) },
+                )
+            }
 
-            SectionHeader("Recipe per packet")
+            SectionHeader("Custom packet")
+            CustomPacketCalculator(ui, onCalculate)
+
+            SectionHeader("Recipe per 1 kg of wheat")
             Text(
-                "Quantities per packet apply to every month. Each edit is written to the change log.",
+                "Quantities are per 1 kg of wheat, which makes the yield below in chapathis; packing is one piece per packet, whatever its size. They apply to every month. Each edit is written to the change log.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -219,13 +270,52 @@ fun CostingContent(
             onDismiss = { editRecipe = null },
         )
     }
+    editNumber?.let { e ->
+        var text by remember(e) { mutableStateOf(e.current.toString()) }
+        var problem by remember(e) { mutableStateOf<String?>(null) }
+        val isSize = e is NumberEdit.Size
+        EditNumberDialog(
+            title = if (isSize) "Standard packet size" else "Yield per kg of wheat",
+            subtitle = e.productName,
+            label = if (isSize) "Chapathis in a standard packet (1 to $MAX_PACKET_SIZE)" else "Chapathis per kg of wheat (1 to $MAX_YIELD_PER_KG)",
+            value = text,
+            error = problem,
+            onValue = {
+                text = it.filter(Char::isDigit).take(3)
+                problem = null
+            },
+            onSave = {
+                val n = text.toIntOrNull()
+                when {
+                    n == null -> problem = "Enter a whole number"
+                    isSize && !isValidPacketSize(n) -> problem = "Enter a number from 1 to $MAX_PACKET_SIZE"
+                    !isSize && (n < 1 || n > MAX_YIELD_PER_KG) -> problem = "Enter a number from 1 to $MAX_YIELD_PER_KG"
+                    isSize -> {
+                        onPacketSize(e.productId, n)
+                        editNumber = null
+                    }
+                    else -> {
+                        onYield(e.productId, n)
+                        editNumber = null
+                    }
+                }
+            },
+            onDismiss = { editNumber = null },
+        )
+    }
     if (editWastage) {
         WastageDialog(current = ui.report?.wastageBp ?: 0, onSave = onWastage, onDismiss = { editWastage = false })
     }
 }
 
 @Composable
-private fun ProductCostCard(cost: ProductCost) {
+private fun ProductCostCard(
+    cost: ProductCost,
+    standardSize: Int?,
+    yieldPerKg: Int?,
+    onEditSize: () -> Unit,
+    onEditYield: () -> Unit,
+) {
     AppCard {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(cost.productName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -233,7 +323,13 @@ private fun ProductCostCard(cost: ProductCost) {
         }
         when (cost) {
             is ProductCost.Complete -> Column(Modifier.padding(top = Spacing.sm)) {
+                Text(
+                    "Per standard packet (${cost.chapathis} chapathis)",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(bottom = Spacing.xs),
+                )
                 cost.lines.forEach { LabelValueRow(it.materialName) { Text(formatTenThousandths(it.tt)) } }
+                LabelValueRow("Ingredients") { Text(formatTenThousandths(cost.ingredientsTt)) }
                 LabelValueRow("Wastage") { Text(formatTenThousandths(cost.wastageTt)) }
                 LabelValueRow("Packing") { Text(formatTenThousandths(cost.packingTt)) }
                 LabelValueRow("Direct cost", Modifier.padding(top = Spacing.xs)) {
@@ -243,13 +339,70 @@ private fun ProductCostCard(cost: ProductCost) {
                 LabelValueRow("Full cost", Modifier.padding(top = Spacing.xs)) {
                     Text(formatTenThousandths(cost.fullTt), style = MaterialTheme.typography.titleMedium)
                 }
+                LabelValueRow("Per chapathi (ingredients + wastage)", Modifier.padding(top = Spacing.sm)) {
+                    Text(formatTenThousandths(cost.perChapathiTt), style = MaterialTheme.typography.titleSmall)
+                }
             }
             is ProductCost.Incomplete -> Column(Modifier.padding(top = Spacing.sm)) {
                 Text("Missing inputs:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 cost.missing.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Spacing.xs)) }
             }
         }
+        if (standardSize != null) {
+            LabelValueRow("Standard packet", Modifier.padding(top = Spacing.sm)) { Text("$standardSize chapathis") }
+            SecondaryButton("Edit packet size", onClick = onEditSize)
+        }
+        if (yieldPerKg != null) {
+            LabelValueRow("Yield", Modifier.padding(top = Spacing.sm)) { Text("$yieldPerKg chapathis per kg of wheat") }
+            SecondaryButton("Edit yield", onClick = onEditYield)
+        }
     }
+}
+
+/** A product, a number of chapathis, and the cost the server works out: per chapathi x N plus one packing piece. */
+@Composable
+private fun CustomPacketCalculator(ui: CostingUi, onCalculate: (String?, String) -> Unit) {
+    AppCard {
+        Text("What does a custom packet cost?", style = MaterialTheme.typography.titleSmall)
+        OptionChips(
+            options = ui.recipes,
+            selected = ui.recipes.firstOrNull { it.productId == ui.calcProductId },
+            label = { it.productName },
+            onSelect = { onCalculate(it.productId, ui.calcText) },
+            perRow = 1,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
+        LabeledTextField(
+            label = "Chapathis in the packet (1 to 200)",
+            value = ui.calcText,
+            onValueChange = { onCalculate(ui.calcProductId ?: ui.recipes.firstOrNull()?.productId, it.filter(Char::isDigit).take(3)) },
+            errorText = ui.calcError,
+            modifier = Modifier.padding(top = Spacing.sm),
+        )
+        when (val c = ui.calcResult) {
+            is ProductCost.Complete -> Column(Modifier.padding(top = Spacing.sm)) {
+                LabelValueRow("Ingredients (${c.chapathis} chapathis)") { Text(formatTenThousandths(c.ingredientsTt)) }
+                LabelValueRow("Wastage") { Text(formatTenThousandths(c.wastageTt)) }
+                LabelValueRow("Packing (one piece)") { Text(formatTenThousandths(c.packingTt)) }
+                LabelValueRow("Direct cost", Modifier.padding(top = Spacing.xs)) { Text(formatTenThousandths(c.directTt), style = MaterialTheme.typography.titleSmall) }
+                LabelValueRow("Full cost") { Text(formatTenThousandths(c.fullTt), style = MaterialTheme.typography.titleMedium) }
+            }
+            is ProductCost.Incomplete -> {
+                StatusChip(INCOMPLETE, kind = ChipKind.WARNING, modifier = Modifier.padding(top = Spacing.sm))
+                c.missing.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Spacing.xs)) }
+            }
+            null -> Unit
+        }
+    }
+}
+
+private sealed interface NumberEdit {
+    val productId: String
+    val productName: String
+    val current: Int
+
+    data class Size(override val productId: String, override val productName: String, override val current: Int) : NumberEdit
+    data class Yield(override val productId: String, override val productName: String, override val current: Int) : NumberEdit
 }
 
 /** A dialog with one number field and an error line. */

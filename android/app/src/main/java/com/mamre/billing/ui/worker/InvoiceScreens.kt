@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.domain.money.formatCents
+import com.mamre.billing.domain.worker.PacketKey
 import com.mamre.billing.domain.worker.PayerKind
 import com.mamre.billing.domain.worker.PaymentCheck
 import com.mamre.billing.domain.worker.PaymentMethod
@@ -145,11 +146,11 @@ fun BuilderScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             items(ui.products, key = { it.product.id }) { row ->
-                ProductCard(
-                    name = row.product.name,
-                    unitPriceCents = row.unitPriceCents,
-                    qty = ui.quantities[row.product.id] ?: 0,
-                    onQty = { vm.setQuantity(row.product.id, it) },
+                PacketProductCard(
+                    row = row,
+                    onQty = vm::setQuantity,
+                    onAddCustom = { size -> vm.addCustomPacket(row.product.id, size) },
+                    onRemoveCustom = vm::removeCustomPacket,
                 )
             }
         }
@@ -165,6 +166,104 @@ fun BuilderScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -
             PrimaryButton("Continue", onClick = onContinue, enabled = ui.canContinue)
         }
     }
+}
+
+/**
+ * One product on the builder (change set C2): the Standard packet row, any Custom packet rows (1 to 200
+ * chapathis each, priced from the standard price) and an "Add custom packet" button. A product with no price
+ * is disabled and says so; it is never priced at zero (Doc 1 s4.2).
+ */
+@Composable
+fun PacketProductCard(
+    row: ProductRow,
+    onQty: (PacketKey, Int) -> Unit,
+    onAddCustom: (Int) -> CustomPacketResult,
+    onRemoveCustom: (PacketKey) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var adding by remember { mutableStateOf(false) }
+    val unit = row.unitPriceCents
+    AppCard(
+        modifier = modifier,
+        containerColor = if (unit != null) MaterialTheme.colorScheme.surface else MamreTheme.extra.disabledContainer,
+    ) {
+        Text(row.product.name, style = MaterialTheme.typography.titleMedium)
+        if (unit == null) {
+            Text(NO_PRICE_MESSAGE, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+            return@AppCard
+        }
+        row.packets.forEachIndexed { i, p ->
+            if (i > 0) Column(Modifier.padding(vertical = Spacing.sm)) { HorizontalDivider(color = MaterialTheme.colorScheme.outline) }
+            Text(
+                if (p.isStandard) "Standard (${p.key.chapathisPerPacket})" else "Custom: ${p.key.chapathisPerPacket} pcs",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(top = Spacing.sm),
+            )
+            Text(
+                "${formatCents(p.listPriceCents)} per packet",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            QuantityStepper(value = p.qty, onValueChange = { onQty(p.key, it) }, modifier = Modifier.padding(top = Spacing.sm))
+            if (p.qty > 0) {
+                Text(
+                    "${p.qty} x ${formatCents(p.listPriceCents)} = ${formatCents(p.qty * p.listPriceCents)} (${p.qty * p.key.chapathisPerPacket} pcs)",
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = Spacing.sm),
+                )
+            }
+            if (!p.isStandard) {
+                SecondaryButton("Remove this size", onClick = { onRemoveCustom(p.key) }, modifier = Modifier.padding(top = Spacing.sm))
+            }
+        }
+        SecondaryButton("Add custom packet", onClick = { adding = true }, modifier = Modifier.padding(top = Spacing.md))
+    }
+    if (adding) {
+        CustomPacketDialog(
+            productName = row.product.name,
+            onAdd = onAddCustom,
+            onDismiss = { adding = false },
+        )
+    }
+}
+
+/** Asks for the chapathis in a custom packet (1 to 200) and says why a size is refused. */
+@Composable
+private fun CustomPacketDialog(productName: String, onAdd: (Int) -> CustomPacketResult, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var problem by remember { mutableStateOf<String?>(null) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Custom packet", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(productName, style = MaterialTheme.typography.bodyMedium)
+                LabeledTextField(
+                    label = "Chapathis per packet (1 to 200)",
+                    value = text,
+                    onValueChange = {
+                        text = it.filter(Char::isDigit).take(3)
+                        problem = null
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    errorText = problem,
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                when (onAdd(text.toIntOrNull() ?: 0)) {
+                    CustomPacketResult.ADDED -> onDismiss()
+                    CustomPacketResult.INVALID_SIZE -> problem = "Enter a number from 1 to 200"
+                    CustomPacketResult.ALREADY_THERE -> problem = "That packet size is already on this card"
+                }
+            }) { Text("Add", style = MaterialTheme.typography.titleMedium) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel", style = MaterialTheme.typography.titleMedium) }
+        },
+    )
 }
 
 /**
@@ -290,7 +389,10 @@ fun ConfirmScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onConfirmed: (St
             AppCard {
                 ui.lines.forEachIndexed { i, line ->
                     if (i > 0) Column(Modifier.padding(vertical = Spacing.sm)) { HorizontalDivider(color = MaterialTheme.colorScheme.outline) }
-                    Text(line.productName, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        if (line.isCustomPacket) "${line.productName} (${line.chapathisPerPacket} pcs)" else line.productName,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
                     LabelValueRow("${line.qtyPackets} x ${formatCents(line.unitPriceCents)}") {
                         AmountText(line.lineTotalCents, size = AmountSize.SMALL)
                     }
