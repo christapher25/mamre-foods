@@ -25,9 +25,11 @@ data class HomeState(
 )
 
 /**
- * W1 Home. Shows the profile stored at sign-in and refreshes the catalog (GET /sync/catalog)
- * when the app has signal. Failures are silent: offline the worker keeps the last catalog
- * (Doc 2 s6). A dead session is handled by SessionManager.role, which returns the UI to Login.
+ * W1 Home. Shows the profile stored at sign-in and the counts. It does NOT refresh the catalog: customers, the
+ * corporate flag, locations, prices, price-edit switches and the business settings reach the device only at
+ * Sync now (owner decision). Only an EMPTY local catalog (first use after login) is loaded, once, and failures
+ * then are silent: offline the salesman keeps what the device has (Doc 2 s6). A dead session is handled by
+ * SessionManager.role, which returns the UI to Login.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -54,7 +56,9 @@ class HomeViewModel @Inject constructor(
         session.profile?.let { p ->
             _state.update { it.copy(workerName = p.fullName, deviceCode = p.deviceCode) }
         }
-        viewModelScope.launch { quietly { catalog.refresh() } }
+        // Sync timing (owner decision): the catalog changes ONLY at Sync now. The one exception is first use after
+        // login, when the local catalog is empty: it is loaded once so the app is usable.
+        viewModelScope.launch { quietly { if (catalog.isEmpty()) catalog.refresh() } }
     }
 
     private suspend fun quietly(block: suspend () -> Unit) {

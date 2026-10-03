@@ -93,6 +93,9 @@ class CatalogRepository(
     /** The bill header from the business settings the last sync stored; empty values until the first sync (change set E4). */
     suspend fun businessHeader(): BusinessHeader = businessHeaderOf(settings.getAll().associate { it.key to it.value })
 
+    /** True when nothing usable is stored yet (first use after login): there are no products to invoice. */
+    suspend fun isEmpty(): Boolean = products.getActive().isEmpty()
+
     suspend fun activeProducts(): List<Product> = products.getActive().map { it.toDomain() }
 
     suspend fun activeCustomerTypes(): List<CustomerType> = customerTypes.getActive().map { it.toDomain() }
