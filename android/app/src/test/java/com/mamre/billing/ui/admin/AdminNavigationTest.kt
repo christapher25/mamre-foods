@@ -48,7 +48,7 @@ class AdminNavigationTest {
             assertTrue(r, showsBottomBar(r))
         }
         for (r in listOf(AdminRoutes.SALES_DETAIL, AdminRoutes.CUSTOMER_DETAIL, AdminRoutes.CUSTOMER_NEW, AdminRoutes.CUSTOMER_EDIT,
-            AdminRoutes.OVERRIDE_SET, AdminRoutes.PRICE_SET, AdminRoutes.INGREDIENT_PRICE, AdminRoutes.EXPENSE_ADD)) {
+            AdminRoutes.OVERRIDE_SET, AdminRoutes.PRICE_SET, AdminRoutes.PURCHASE_ADD, AdminRoutes.EXPENSE_ADD, AdminRoutes.DAMAGE_ADD)) {
             assertFalse(r, showsBottomBar(r))
         }
         assertFalse(showsBottomBar(null))

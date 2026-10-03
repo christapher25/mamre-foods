@@ -42,7 +42,7 @@ fun NavGraphBuilder.adminGraph(navController: NavController) {
             PriceSetScreen(onBack = { navController.popBackStack() })
         }
         composable(AdminRoutes.MORE) { MoreScreen(onOpen = { navController.navigate(it) }) }
-        composable(AdminRoutes.COSTING) { AdminPlaceholderScreen("Costing", onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.COSTING) { CostingScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.EXPENSES) {
             ExpensesScreen(
                 onAddPurchase = { navController.navigate(AdminRoutes.PURCHASE_ADD) },
@@ -52,8 +52,16 @@ fun NavGraphBuilder.adminGraph(navController: NavController) {
         }
         composable(AdminRoutes.PURCHASE_ADD) { AddPurchaseScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.EXPENSE_ADD) { AddExpenseScreen(onBack = { navController.popBackStack() }) }
-        composable(AdminRoutes.RETURNS) { AdminPlaceholderScreen("Returns and damage", onBack = { navController.popBackStack() }) }
-        composable(AdminRoutes.BALANCES) { AdminPlaceholderScreen("Balances", onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.RETURNS) {
+            ReturnsScreen(onBack = { navController.popBackStack() }, onAddDamage = { navController.navigate(AdminRoutes.DAMAGE_ADD) })
+        }
+        composable(AdminRoutes.DAMAGE_ADD) { AddDamageScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.BALANCES) {
+            BalancesScreen(
+                onBack = { navController.popBackStack() },
+                onOpenCustomer = { navController.navigate(AdminRoutes.customerDetail(it)) },
+            )
+        }
         composable(AdminRoutes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
     }
 }
