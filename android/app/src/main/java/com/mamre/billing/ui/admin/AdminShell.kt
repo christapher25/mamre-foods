@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
-import com.mamre.billing.ui.components.EmptyState
 import com.mamre.billing.ui.theme.Spacing
 
 private const val BAR_MAX_FONT_SCALE = 1.1f
@@ -122,14 +121,5 @@ private fun MoreItem(title: String, subtitle: String, route: String, onOpen: (St
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-/** A tab whose screen is built in a later step of Stage B. */
-@Composable
-fun AdminPlaceholderScreen(title: String, onBack: (() -> Unit)? = null) {
-    Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = title, onBack = onBack)
-        EmptyState(title = "Coming next", message = "This admin screen is built in the next step.", modifier = Modifier.padding(top = Spacing.xl))
     }
 }
