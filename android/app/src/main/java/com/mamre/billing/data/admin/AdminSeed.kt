@@ -185,7 +185,7 @@ object AdminSeed {
                     // Types whose flag lets the worker change a price sometimes charge 5% less, and now and then
                     // order a custom packet of 10 chapathis (change set C2 and C3 demo data).
                     val canEdit = types.first { it.id == c.typeId }.workerCanEditPrice
-                    line(SeedIds.FRESH, c.baseQty + (dayIndex * 7 + ci * 5) % (c.baseQty / 2 + 1), changePercent = if (canEdit && (dayIndex + ci) % 4 == 1) 5 else 0)
+                    line(SeedIds.FRESH, c.baseQty + (dayIndex * 7 + ci * 5) % (c.baseQty / 2 + 1), changePercent = if (canEdit && invoiceSeq % 4 == 0) 5 else 0)
                     if (canEdit && (dayIndex + ci) % 5 == 2) line(SeedIds.FRESH, 3 + dayIndex % 4, size = 10)
                     if (!day.isBefore(launch) && (dayIndex + ci) % 3 != 0) {
                         line(SeedIds.CHAPATHI, maxOf(4, c.baseQty / 2 + (dayIndex * 3 + ci) % (c.baseQty / 4 + 1)))

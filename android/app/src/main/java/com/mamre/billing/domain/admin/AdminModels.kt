@@ -156,6 +156,8 @@ data class InvoiceFilter(
     val month: YearMonth? = null,
     val customerId: String? = null,
     val status: InvoiceStatusFilter = InvoiceStatusFilter.ALL,
+    /** Only invoices where a worker charged a price other than the list price (change set C3). */
+    val priceChangedOnly: Boolean = false,
 )
 
 data class CustomerMonthSummary(

@@ -2,6 +2,12 @@ package com.mamre.billing.ui.admin
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Switch
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -58,10 +64,14 @@ data class PricesUi(
     val loading: Boolean = true,
     val matrix: PriceMatrix? = null,
     val today: LocalDate? = null,
+    val error: String? = null,
 )
 
 @HiltViewModel
-class PricesViewModel @Inject constructor(private val api: AdminApi) : ViewModel() {
+class PricesViewModel @Inject constructor(
+    private val api: AdminApi,
+    private val session: SessionManager,
+) : ViewModel() {
     private val _ui = MutableStateFlow(PricesUi())
     val ui: StateFlow<PricesUi> = _ui.asStateFlow()
 
@@ -70,16 +80,28 @@ class PricesViewModel @Inject constructor(private val api: AdminApi) : ViewModel
             api.revision.collect { _ui.update { it.copy(loading = false, matrix = api.priceMatrix(), today = api.today) } }
         }
     }
+
+    /** Switches "Worker can edit price" for a customer type; the change is logged and synced to workers. */
+    fun setWorkerCanEdit(typeId: String, allowed: Boolean) {
+        viewModelScope.launch {
+            try {
+                api.setWorkerCanEditPrice(typeId, allowed, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                _ui.update { it.copy(error = null) }
+            } catch (e: AdminRuleException) {
+                _ui.update { it.copy(error = e.message) }
+            }
+        }
+    }
 }
 
 @Composable
 fun PricesScreen(onSetPrice: (String, String) -> Unit, viewModel: PricesViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    PricesContent(ui, onSetPrice)
+    PricesContent(ui, onSetPrice, viewModel::setWorkerCanEdit)
 }
 
 @Composable
-fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit) {
+fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCanEdit: (String, Boolean) -> Unit = { _, _ -> }) {
     val matrix = ui.matrix
     val today = ui.today
     Column(Modifier.fillMaxSize()) {
@@ -94,6 +116,43 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            SectionHeader("Price rules")
+            AppCard {
+                Text(
+                    "Worker can edit price: when on, a worker may change a line's price for customers of this type. When off the price is read-only.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                matrix.types.forEach { type ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(Modifier.weight(1f).padding(end = Spacing.sm)) {
+                            Text(type.name, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                if (type.workerCanEditPrice) "Worker can edit price" else "Price is read-only",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = type.workerCanEditPrice,
+                            onCheckedChange = { onWorkerCanEdit(type.id, it) },
+                            modifier = Modifier.semantics { contentDescription = "Worker can edit price for ${type.name}" },
+                        )
+                    }
+                }
+                Text(
+                    WORKERS_SYNC_NOTE,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.md),
+                )
+                ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            }
+            SectionHeader("Default prices")
             matrix.products.forEach { product ->
                 AppCard {
                     Text(product.name, style = MaterialTheme.typography.titleMedium)

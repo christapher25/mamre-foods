@@ -192,6 +192,16 @@ class FakeAdminApi(
             OverridePrice(it.id, it.customerId, it.productId, it.unitPriceCents, it.effectiveFrom, it.isActive, s.overrideNotes[it.id].orEmpty())
         }
 
+    override suspend fun setWorkerCanEditPrice(typeId: String, allowed: Boolean, by: String) {
+        val type = s.types.firstOrNull { it.id == typeId } ?: refuse("Unknown customer type")
+        if (type.workerCanEditPrice == allowed) refuse("${type.name} already has that setting")
+        prices.setWorkerCanEditPrice(typeId, allowed) // workers receive it at their next sync
+        fun d(b: Boolean) = if (b) "workers can edit price" else "workers cannot edit price"
+        changed(by, "Price rule ${type.name}", d(type.workerCanEditPrice), d(allowed)) { st ->
+            st.copy(types = st.types.map { if (it.id == typeId) it.copy(workerCanEditPrice = allowed) else it })
+        }
+    }
+
     override suspend fun overrides(customerId: String): List<OverridePrice> =
         overrideRows(customerId).sortedByDescending { it.effectiveFrom }
 

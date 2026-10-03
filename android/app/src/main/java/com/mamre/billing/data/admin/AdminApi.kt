@@ -69,6 +69,9 @@ interface AdminApi {
     suspend fun priceMatrix(): PriceMatrix
     suspend fun setDefaultPrice(productId: String, typeId: String, priceCents: Long, from: LocalDate, by: String)
 
+    /** The "Worker can edit price" flag of a customer type (change set C3). Change-logged; workers get it at their next sync. */
+    suspend fun setWorkerCanEditPrice(typeId: String, allowed: Boolean, by: String)
+
     /** Every override row of a customer, with history. */
     suspend fun overrides(customerId: String): List<OverridePrice>
     suspend fun setOverride(customerId: String, productId: String, priceCents: Long, from: LocalDate, note: String, by: String)

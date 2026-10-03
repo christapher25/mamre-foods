@@ -137,6 +137,13 @@ fun SalesListContent(ui: SalesListUi, onFilter: (InvoiceFilter) -> Unit, onOpen:
                         label = { it.label },
                         onSelect = { onFilter(ui.filter.copy(status = it)) },
                     )
+                    OptionChips(
+                        options = listOf(false, true),
+                        selected = ui.filter.priceChangedOnly,
+                        label = { if (it) "Price changed" else "Any price" },
+                        onSelect = { onFilter(ui.filter.copy(priceChangedOnly = it)) },
+                        perRow = 2,
+                    )
                     Text(
                         "${shown.size} invoice${if (shown.size == 1) "" else "s"}",
                         style = MaterialTheme.typography.bodySmall,
@@ -178,6 +185,7 @@ private fun InvoiceRow(inv: AdminInvoice, onOpen: (String) -> Unit) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatCents(inv.totalCents), style = MaterialTheme.typography.titleMedium)
                 if (inv.isVoid) StatusChip("VOID", kind = ChipKind.ERROR, modifier = Modifier.padding(top = Spacing.xs))
+                if (inv.hasChangedPrice) StatusChip("Price changed", kind = ChipKind.ACCENT, modifier = Modifier.padding(top = Spacing.xs))
             }
         }
     }
@@ -263,6 +271,15 @@ fun SalesDetailContent(ui: SalesDetailUi, onBack: () -> Unit, onVoid: (String) -
                         if (item.isCustomPacket) "${item.productName} (custom ${item.chapathisPerPacket} pcs)" else item.productName,
                         style = MaterialTheme.typography.titleSmall,
                     )
+                    if (item.priceOverridden) {
+                        Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                            StatusChip("Price changed", kind = ChipKind.ACCENT)
+                            Text(
+                                "List ${formatCents(item.listPriceCents)}, charged ${formatCents(item.unitPriceCents)}",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                     LabelValueRow("${item.qtyPackets} x ${formatCents(item.unitPriceCents)} (${item.chapathis} pcs)") {
                         Text(formatCents(item.lineTotalCents), style = MaterialTheme.typography.bodyLarge)
                     }

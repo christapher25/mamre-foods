@@ -39,6 +39,8 @@ data class InvoiceDraft(
     val lines: List<InvoiceLine>,
     val paidNowCents: Long,
     val method: PaymentMethod?,
+    /** The customer type's "worker can edit price" flag when the invoice was built (change set C3). */
+    val priceEditAllowed: Boolean = false,
 )
 
 /** Everything the worker screens read. Immutable: a new state replaces the old one. */
@@ -123,6 +125,10 @@ class DemoStore(
     fun confirmInvoice(draft: InvoiceDraft): InvoiceRecord {
         _state.value.invoices.firstOrNull { it.id == draft.id }?.let { return it }
         require(draft.lines.isNotEmpty()) { "an invoice needs at least one packet" }
+        // A worker may change a price only for a type whose flag allows it, even if a screen skipped its own check (C3).
+        require(draft.priceEditAllowed || draft.lines.none { it.priceOverridden }) {
+            "the price of this customer type cannot be changed by a worker"
+        }
         val total = invoiceTotal(draft.lines)
         val previous = draft.customerId?.let { _state.value.balanceOf(it) } ?: 0L
         val record = InvoiceRecord(

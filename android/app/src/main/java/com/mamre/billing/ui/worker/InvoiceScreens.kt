@@ -31,7 +31,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.money.formatCents
+import com.mamre.billing.domain.worker.PriceEditProblem
+import com.mamre.billing.domain.worker.PriceEditResult
+import com.mamre.billing.domain.worker.priceEditMessage
+import com.mamre.billing.ui.components.ChipKind
+import com.mamre.billing.ui.components.StatusChip
 import com.mamre.billing.domain.worker.PacketKey
 import com.mamre.billing.domain.worker.PayerKind
 import com.mamre.billing.domain.worker.PaymentCheck
@@ -151,6 +157,9 @@ fun BuilderScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onContinue: () -
                     onQty = vm::setQuantity,
                     onAddCustom = { size -> vm.addCustomPacket(row.product.id, size) },
                     onRemoveCustom = vm::removeCustomPacket,
+                    priceEditAllowed = ui.priceEditAllowed,
+                    onEditPrice = vm::editPrice,
+                    onResetPrice = vm::resetPrice,
                 )
             }
         }
@@ -180,8 +189,12 @@ fun PacketProductCard(
     onAddCustom: (Int) -> CustomPacketResult,
     onRemoveCustom: (PacketKey) -> Unit,
     modifier: Modifier = Modifier,
+    priceEditAllowed: Boolean = false,
+    onEditPrice: (PacketKey, String) -> PriceEditResult = { _, _ -> PriceEditResult.Rejected(PriceEditProblem.NOT_ALLOWED) },
+    onResetPrice: (PacketKey) -> Unit = {},
 ) {
     var adding by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<PacketRow?>(null) }
     val unit = row.unitPriceCents
     AppCard(
         modifier = modifier,
@@ -200,17 +213,26 @@ fun PacketProductCard(
                 modifier = Modifier.padding(top = Spacing.sm),
             )
             Text(
-                "${formatCents(p.listPriceCents)} per packet",
+                "${formatCents(p.chargedCents)} per packet",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (p.priceChanged) {
+                Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                    StatusChip("Price changed", kind = ChipKind.ACCENT)
+                    Text("List ${formatCents(p.listPriceCents)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             QuantityStepper(value = p.qty, onValueChange = { onQty(p.key, it) }, modifier = Modifier.padding(top = Spacing.sm))
             if (p.qty > 0) {
                 Text(
-                    "${p.qty} x ${formatCents(p.listPriceCents)} = ${formatCents(p.qty * p.listPriceCents)} (${p.qty * p.key.chapathisPerPacket} pcs)",
+                    "${p.qty} x ${formatCents(p.chargedCents)} = ${formatCents(p.qty * p.chargedCents)} (${p.qty * p.key.chapathisPerPacket} pcs)",
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = Spacing.sm),
                 )
+            }
+            if (priceEditAllowed) {
+                SecondaryButton("Edit price", onClick = { editing = p }, modifier = Modifier.padding(top = Spacing.sm))
             }
             if (!p.isStandard) {
                 SecondaryButton("Remove this size", onClick = { onRemoveCustom(p.key) }, modifier = Modifier.padding(top = Spacing.sm))
@@ -218,12 +240,74 @@ fun PacketProductCard(
         }
         SecondaryButton("Add custom packet", onClick = { adding = true }, modifier = Modifier.padding(top = Spacing.md))
     }
+    editing?.let { p ->
+        PriceEditSheet(
+            productName = row.product.name,
+            packet = p,
+            onSave = { text -> onEditPrice(p.key, text) },
+            onReset = { onResetPrice(p.key) },
+            onDismiss = { editing = null },
+        )
+    }
     if (adding) {
         CustomPacketDialog(
             productName = row.product.name,
             onAdd = onAddCustom,
             onDismiss = { adding = false },
         )
+    }
+}
+
+/**
+ * The small sheet for changing a price (change set C3): the list price, a field for the price per packet, a
+ * Reset button and the reason when the price is refused. Only reachable for customer types whose flag allows it.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun PriceEditSheet(
+    productName: String,
+    packet: PacketRow,
+    onSave: (String) -> PriceEditResult,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(centsToPlain(packet.chargedCents)) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = Spacing.lg).padding(bottom = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Text("Edit price", style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (packet.isStandard) productName else "$productName (${packet.key.chapathisPerPacket} pcs)",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text("List price: ${formatCents(packet.listPriceCents)} per packet", style = MaterialTheme.typography.bodyMedium)
+            LabeledTextField(
+                label = "Price per packet",
+                value = text,
+                onValueChange = {
+                    text = it
+                    problem = null
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                errorText = problem,
+            )
+            PrimaryButton("Save price", onClick = {
+                when (val r = onSave(text)) {
+                    is PriceEditResult.Ok -> onDismiss()
+                    is PriceEditResult.Rejected -> problem = priceEditMessage(r.problem, packet.listPriceCents)
+                }
+            })
+            SecondaryButton("Reset to list price", onClick = {
+                onReset()
+                onDismiss()
+            })
+        }
     }
 }
 
@@ -395,6 +479,12 @@ fun ConfirmScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onConfirmed: (St
                     )
                     LabelValueRow("${line.qtyPackets} x ${formatCents(line.unitPriceCents)}") {
                         AmountText(line.lineTotalCents, size = AmountSize.SMALL)
+                    }
+                    if (line.priceOverridden) {
+                        Row(Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm), verticalAlignment = Alignment.CenterVertically) {
+                            StatusChip("Price changed", kind = ChipKind.ACCENT)
+                            Text("List ${formatCents(line.listPriceCents)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }

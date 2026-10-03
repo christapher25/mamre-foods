@@ -101,6 +101,7 @@ fun filterInvoices(invoices: List<AdminInvoice>, filter: InvoiceFilter): List<Ad
             (q.isEmpty() || inv.number.lowercase().contains(q) || inv.customerName.lowercase().contains(q)) &&
                 (filter.month == null || YearMonth.from(inv.issuedAt) == filter.month) &&
                 (filter.customerId == null || inv.customerId == filter.customerId) &&
+                (!filter.priceChangedOnly || inv.hasChangedPrice) &&
                 when (filter.status) {
                     InvoiceStatusFilter.ALL -> true
                     InvoiceStatusFilter.ACTIVE -> !inv.isVoid

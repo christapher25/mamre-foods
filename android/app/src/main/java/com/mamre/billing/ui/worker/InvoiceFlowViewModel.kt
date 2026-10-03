@@ -16,6 +16,10 @@ import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
 import com.mamre.billing.domain.worker.PacketEntry
 import com.mamre.billing.domain.worker.PacketKey
 import com.mamre.billing.domain.worker.PayerKind
+import com.mamre.billing.domain.worker.PriceEditProblem
+import com.mamre.billing.domain.worker.PriceEditResult
+import com.mamre.billing.domain.worker.checkPriceEdit
+import com.mamre.billing.domain.worker.typeAllowsPriceEdit
 import com.mamre.billing.domain.worker.PaymentCheck
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.PaymentProblem
@@ -42,7 +46,16 @@ import kotlinx.coroutines.launch
 data class CustomerRow(val customer: Customer, val typeName: String, val balanceCents: Long)
 
 /** One kind of packet of a product on the builder: its size, how many are entered and its list price. */
-data class PacketRow(val key: PacketKey, val qty: Int, val listPriceCents: Long, val isStandard: Boolean)
+data class PacketRow(
+    val key: PacketKey,
+    val qty: Int,
+    val listPriceCents: Long,
+    val isStandard: Boolean,
+    /** What the customer pays per packet: the list price unless the worker changed it (change set C3). */
+    val chargedCents: Long = listPriceCents,
+) {
+    val priceChanged: Boolean get() = chargedCents != listPriceCents
+}
 
 /** A product with the price this customer pays; [price] decides whether it can be sold (Doc 1 s4.2). */
 data class ProductRow(val product: Product, val price: PriceResult, val packets: List<PacketRow> = emptyList()) {
@@ -68,6 +81,8 @@ data class InvoiceUi(
     val typeName: String = "",
     val products: List<ProductRow> = emptyList(),
     val lines: List<InvoiceLine> = emptyList(),
+    /** The customer type's "worker can edit price" flag (a walk-in follows Retail). */
+    val priceEditAllowed: Boolean = false,
     val totalCents: Long = 0,
     val payerKind: PayerKind = PayerKind.WALK_IN,
     val previousBalanceCents: Long = 0,
@@ -86,6 +101,8 @@ private data class Input(
     val packets: Map<PacketKey, Int> = emptyMap(),
     /** Custom packet sizes the worker opened for a product, kept even while their quantity is zero. */
     val customSizes: Map<String, List<Int>> = emptyMap(),
+    /** Worker price changes per packet kind, in cents; only used when the customer type allows them. */
+    val priceEdits: Map<PacketKey, Long> = emptyMap(),
     val amountText: String = "",
     val method: PaymentMethod = PaymentMethod.CASH,
 )
@@ -110,6 +127,7 @@ class InvoiceFlowViewModel @Inject constructor(
         if (snap == null) return@combine InvoiceUi(loading = true, deviceCode = deviceCode)
         val today = store.today()
         val customer = inp.customer
+        val editAllowed = typeAllowsPriceEdit(snap.book.customerTypes, customer?.typeId, walkIn = customer == null)
         val rows = snap.products.map { p ->
             val price = snap.priceFor(customer, p, today)
             val unit = (price as? PriceResult.Found)?.unitPriceCents
@@ -117,12 +135,14 @@ class InvoiceFlowViewModel @Inject constructor(
             val sizes = listOf(base.standardSize) + inp.customSizes[p.id].orEmpty().sorted()
             val packets = if (unit == null) emptyList() else sizes.map { s ->
                 val key = PacketKey(p.id, s)
-                PacketRow(key, inp.packets[key] ?: 0, customPacketPriceCents(unit, s, base.standardSize), s == base.standardSize)
+                val list = customPacketPriceCents(unit, s, base.standardSize)
+                val charged = inp.priceEdits[key]?.takeIf { editAllowed } ?: list
+                PacketRow(key, inp.packets[key] ?: 0, list, s == base.standardSize, charged)
             }
             base.copy(packets = packets)
         }
         val priced = rows.map { PricedProduct(it.product.id, it.product.name, it.unitPriceCents, it.standardSize) }
-        val lines = buildPacketLines(priced, inp.packets.map { (k, q) -> PacketEntry(k, q) })
+        val lines = buildPacketLines(priced, inp.packets.map { (k, q) -> PacketEntry(k, q, inp.priceEdits[k]) }, editAllowed)
         val total = invoiceTotal(lines)
         val kind = payerKind(customer)
         val previous = customer?.let { demo.balanceOf(it.id) } ?: 0L
@@ -139,6 +159,7 @@ class InvoiceFlowViewModel @Inject constructor(
             typeName = snap.typeName(customer),
             products = rows,
             lines = lines,
+            priceEditAllowed = editAllowed,
             totalCents = total,
             payerKind = kind,
             previousBalanceCents = previous,
@@ -161,7 +182,7 @@ class InvoiceFlowViewModel @Inject constructor(
     /** A different customer can mean different prices, so packets and the payment start again. */
     private fun choose(customer: Customer?) = input.update {
         if (it.chosen && it.customer?.id == customer?.id) it
-        else it.copy(chosen = true, customer = customer, packets = emptyMap(), customSizes = emptyMap(), amountText = "")
+        else it.copy(chosen = true, customer = customer, packets = emptyMap(), customSizes = emptyMap(), priceEdits = emptyMap(), amountText = "")
     }
 
     fun setQuantity(key: PacketKey, qty: Int) =
@@ -182,8 +203,28 @@ class InvoiceFlowViewModel @Inject constructor(
         it.copy(
             customSizes = it.customSizes + (key.productId to it.customSizes[key.productId].orEmpty().filter { s -> s != key.chapathisPerPacket }),
             packets = it.packets - key,
+            priceEdits = it.priceEdits - key,
         )
     }
+
+    /**
+     * Changes the price per packet of one packet kind, when the customer type allows it. A type that does not
+     * allow it is refused here, in the use case, whatever the screen did. Typing the list price clears the change.
+     */
+    fun editPrice(key: PacketKey, text: String): PriceEditResult {
+        val u = ui.value
+        val list = u.products.firstOrNull { it.product.id == key.productId }
+            ?.packets?.firstOrNull { it.key == key }?.listPriceCents
+            ?: return PriceEditResult.Rejected(PriceEditProblem.NOT_AN_AMOUNT)
+        val result = checkPriceEdit(u.priceEditAllowed, text, list)
+        if (result is PriceEditResult.Ok) {
+            input.update { it.copy(priceEdits = if (result.priceCents == list) it.priceEdits - key else it.priceEdits + (key to result.priceCents)) }
+        }
+        return result
+    }
+
+    /** Back to the list price. */
+    fun resetPrice(key: PacketKey) = input.update { it.copy(priceEdits = it.priceEdits - key) }
 
     /** Called on the way to the payment step: walk-in and cash customers start at the full total. */
     fun preparePayment() = input.update {
@@ -215,6 +256,7 @@ class InvoiceFlowViewModel @Inject constructor(
                 lines = u.lines,
                 paidNowCents = ok.amountCents,
                 method = if (ok.amountCents > 0) u.method else null,
+                priceEditAllowed = u.priceEditAllowed,
             ),
         )
     }
