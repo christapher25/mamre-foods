@@ -65,3 +65,10 @@ data class SyncStateEntity(
     @PrimaryKey val key: String,
     val value: Long,
 )
+
+/** The business settings from the catalog sync (change set E4): name, address, phone, receipt footer. */
+@Entity(tableName = "business_settings")
+data class SettingEntity(
+    @PrimaryKey val key: String,
+    val value: String,
+)

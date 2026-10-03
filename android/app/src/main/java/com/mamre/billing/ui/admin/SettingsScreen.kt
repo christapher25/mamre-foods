@@ -153,7 +153,7 @@ fun SettingsContent(
         ) {
             SectionHeader("Business details")
             Text(
-                "Printed on receipts.",
+                "Printed on bills: name, address (one line per text line), phone and footer. Salesmen receive this at their next sync.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

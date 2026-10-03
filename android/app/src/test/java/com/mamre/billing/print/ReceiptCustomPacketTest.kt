@@ -11,8 +11,7 @@ import org.junit.Test
 /** Change sets C2, C3 and D3: the item line names the chapathis per packet (standard or custom) and prints the charged price only. */
 class ReceiptCustomPacketTest {
     private val base = InvoiceReceipt(
-        businessName = "MAMRE FOODS",
-        addressLines = BUSINESS_ADDRESS_LINES,
+        header = TestHeaders.full,
         number = "MAM-W1-0043",
         issuedAt = LocalDateTime.of(2026, 10, 10, 14, 20),
         salesmanName = "Rajesh",

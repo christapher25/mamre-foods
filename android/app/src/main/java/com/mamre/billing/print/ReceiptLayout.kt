@@ -1,5 +1,6 @@
 package com.mamre.billing.print
 
+import com.mamre.billing.domain.model.BusinessHeader
 import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.money.formatCents
 import com.mamre.billing.domain.worker.PaymentMethod
@@ -12,8 +13,10 @@ const val RECEIPT_WIDTH = 32
 
 private const val RULE_CHAR = '-'
 private const val LABEL_WIDTH = 10
-private const val ADDRESS_PENDING = "(address / phone pending)"
-private const val THANK_YOU = "Thank you!"
+private const val ADDRESS_PHONE_PENDING = "(address / phone pending)"
+private const val ADDRESS_PENDING = "(address pending)"
+private const val PHONE_PENDING = "(phone pending)"
+private const val NAME_PENDING = "(business name pending)"
 private const val DUPLICATE_COPY = "DUPLICATE COPY"
 private const val VOID_MARK = "*** VOID ***"
 private val DATE = DateTimeFormatter.ofPattern("MM/dd/yyyy")
@@ -51,9 +54,8 @@ data class MonthSummary(
 )
 
 data class InvoiceReceipt(
-    val businessName: String,
-    /** One printed line each; empty until the business supplies them (Doc 1 P-6): the receipt then says so. */
-    val addressLines: List<String>,
+    /** Name, address lines, phone and footer from the synced business settings (change set E4). */
+    val header: BusinessHeader,
     val number: String,
     val issuedAt: LocalDateTime,
     /** The salesman's name, never the device code (change set D1). */
@@ -79,8 +81,7 @@ data class InvoiceReceipt(
 )
 
 data class PaymentReceipt(
-    val businessName: String,
-    val addressLines: List<String>,
+    val header: BusinessHeader,
     val receiptNumber: String,
     val paidAt: LocalDateTime,
     val salesmanName: String,
@@ -105,7 +106,7 @@ data class PaymentReceipt(
  * customer Balance after and the THIS MONTH summary; for a corporate account a signature block instead.
  */
 fun layoutInvoiceReceipt(r: InvoiceReceipt): List<String> = buildList {
-    addHeader(r.businessName, r.addressLines, r.duplicate, r.isVoid)
+    addHeader(r.header, r.duplicate, r.isVoid)
     addAll(labelled("Bill No:  ", r.number))
     add("Date:     ${r.issuedAt.format(DATE)}")
     add("Time:     ${r.issuedAt.format(TIME)}")
@@ -131,12 +132,12 @@ fun layoutInvoiceReceipt(r: InvoiceReceipt): List<String> = buildList {
         r.month?.let { addMonthSummary(it) }
     }
     add(rule())
-    add(centered(THANK_YOU))
+    addFooter(r.header.footer)
 }
 
 /** The receipt for a payment taken with no new invoice (Doc 1 s5.4, A-16). */
 fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
-    addHeader(r.businessName, r.addressLines, r.duplicate, isVoid = false)
+    addHeader(r.header, r.duplicate, isVoid = false)
     addAll(labelled("Receipt:  ", r.receiptNumber))
     add("Date:     ${r.paidAt.format(DATE)}")
     add("Time:     ${r.paidAt.format(TIME)}")
@@ -147,16 +148,28 @@ fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
     if (!r.isCorporate) add(leftRight("Balance after", formatCents(r.balanceAfterCents)))
     if (r.note.isNotBlank()) addAll(labelled("Note: ", r.note))
     add(rule())
-    add(centered(THANK_YOU))
+    addFooter(r.header.footer)
 }
 
-private fun MutableList<String>.addHeader(business: String, address: List<String>, duplicate: Boolean, isVoid: Boolean) {
-    addAll(wrap(business).map(::centered))
-    val lines = address.filter { it.isNotBlank() }.ifEmpty { listOf(ADDRESS_PENDING) }
-    for (line in lines) addAll(wrap(line).map(::centered))
+private fun MutableList<String>.addHeader(header: BusinessHeader, duplicate: Boolean, isVoid: Boolean) {
+    addAll(wrap(header.name.ifBlank { NAME_PENDING }).map(::centered))
+    val hasAddress = header.addressLines.isNotEmpty()
+    val hasPhone = header.phone.isNotBlank()
+    // A missing value prints a placeholder, never a made-up one (change set E4).
+    when {
+        !hasAddress && !hasPhone -> add(centered(ADDRESS_PHONE_PENDING))
+        !hasAddress -> add(centered(ADDRESS_PENDING))
+        else -> for (line in header.addressLines) addAll(wrap(line).map(::centered))
+    }
+    if (hasPhone) addAll(wrap("Ph: ${header.phone}").map(::centered)) else if (hasAddress) add(centered(PHONE_PENDING))
     if (duplicate) add(centered(DUPLICATE_COPY))
     if (isVoid) add(centered(VOID_MARK))
     add(rule())
+}
+
+/** The footer text of the business settings, centred; nothing when none is set. */
+private fun MutableList<String>.addFooter(footer: String) {
+    if (footer.isNotBlank()) addAll(wrap(footer).map(::centered))
 }
 
 /** THIS MONTH for a credit customer (Doc 1 s5.3): plain amounts like the rest of the bill, no dollar sign (change set E2). */

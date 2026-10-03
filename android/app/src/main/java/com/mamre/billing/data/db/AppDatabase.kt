@@ -13,8 +13,9 @@ import androidx.room.withTransaction
         PriceDefaultEntity::class,
         PriceOverrideEntity::class,
         SyncStateEntity::class,
+        SettingEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -25,6 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun priceDefaultDao(): PriceDefaultDao
     abstract fun priceOverrideDao(): PriceOverrideDao
     abstract fun syncStateDao(): SyncStateDao
+    abstract fun settingDao(): SettingDao
 }
 
 /** Runs several DAO calls as one unit. Fakes in tests just run the block. */

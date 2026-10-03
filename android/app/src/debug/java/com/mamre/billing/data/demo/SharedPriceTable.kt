@@ -1,6 +1,7 @@
 package com.mamre.billing.data.demo
 
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.SettingKeys
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -54,6 +55,9 @@ data class SharedCustomerRow(
     val isCorporate: Boolean = false,
 )
 
+/** One business setting (change set E4): the bill header and footer the Admin edits in Settings. */
+data class SharedSettingRow(val key: String, val value: String, val syncVersion: Long)
+
 data class SharedOverrideRow(
     val id: String,
     val customerId: String,
@@ -76,6 +80,7 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
         val customers: List<SharedCustomerRow>,
         val prices: List<SharedPriceRow>,
         val overrides: List<SharedOverrideRow>,
+        val settings: List<SharedSettingRow> = emptyList(),
     )
 
     private val typeRows = seed.types.toMutableList()
@@ -83,6 +88,7 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
     private val customerRows = seed.customers.toMutableList()
     private val priceRows = seed.prices.toMutableList()
     private val overrideRows = seed.overrides.toMutableList()
+    private val settingRows = seed.settings.toMutableList()
     private var current = baseVersion
 
     /** The highest sync version: the cursor a worker that is up to date holds. */
@@ -100,6 +106,10 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
     @Synchronized fun products(): List<SharedProductRow> = productRows.toList()
     @Synchronized fun customers(): List<SharedCustomerRow> = customerRows.toList()
     @Synchronized fun overrides(): List<SharedOverrideRow> = overrideRows.toList()
+
+    /** The business settings by key. */
+    @Synchronized fun settings(): Map<String, String> = settingRows.associate { it.key to it.value }
+    @Synchronized fun settingsAfter(cursor: Long) = settingRows.filter { it.syncVersion > cursor }
 
     /** Selling prices, history included (Doc 2 s4.2 PriceDefault). */
     @Synchronized fun all(): List<SharedPriceRow> = priceRows.toList()
@@ -140,6 +150,16 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
         require(typeRows.any { it.id == updated.typeId }) { "unknown customer type ${updated.typeId}" }
         customerRows[i] = updated
         return updated
+    }
+
+    /** Sets one business setting; an unchanged value raises no version. */
+    @Synchronized
+    fun setSetting(key: String, value: String): SharedSettingRow {
+        val i = settingRows.indexOfFirst { it.key == key }
+        if (i >= 0 && settingRows[i].value == value) return settingRows[i]
+        val row = SharedSettingRow(key, value, bump())
+        if (i >= 0) settingRows[i] = row else settingRows += row
+        return row
     }
 
     @Synchronized
@@ -253,7 +273,15 @@ class SharedPriceTable private constructor(baseVersion: Long, seed: Seed) {
                 SharedOverrideRow("po-1", DemoIds.RESTAURANT, DemoIds.CHAPATHI, 240, launch, true, v),
                 SharedOverrideRow("po-2", DemoIds.SHOP, DemoIds.FRESH, 285, start, true, v),
             )
-            return Seed(types, products, customers, prices, overrides)
+            // DEBUG SEED VALUES of the business settings. The address and phone are the ones the owner typed in the
+            // reference bill of change set D3 (docs: none, Doc 1 P-6 is pending); they exist only here, never in main.
+            val settings = listOf(
+                SharedSettingRow(SettingKeys.BUSINESS_NAME, "MAMRE FOODS", v),
+                SharedSettingRow(SettingKeys.ADDRESS, "1461 E Branch Hollow Dr\nCarrollton , Texas , 75007", v),
+                SharedSettingRow(SettingKeys.PHONE, "+1 (972) 927-2119", v),
+                SharedSettingRow(SettingKeys.FOOTER, "Thank you!", v),
+            )
+            return Seed(types, products, customers, prices, overrides, settings)
         }
 
         /** The standard packet: 12 chapathis (owner decision, change set C2, corrected in change set E). */

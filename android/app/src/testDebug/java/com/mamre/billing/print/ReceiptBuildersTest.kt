@@ -100,6 +100,6 @@ class ReceiptBuildersTest {
         assertEquals("MAM-W1-0001", receipt.number)
         assertEquals(listOf(ReceiptItem("Mamre Chapathi", 10, 250, 2500, 12)), receipt.items)
         assertTrue(receipt.duplicate)
-        assertEquals(BUSINESS_NAME, receipt.businessName)
+        assertEquals("MAMRE FOODS", receipt.header.name)
     }
 }

@@ -20,6 +20,7 @@ import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.admin.DEFAULT_WASTAGE_BP
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.SettingKeys
 import com.mamre.billing.domain.model.customerLabel
 import com.mamre.billing.domain.worker.InvoiceStatus
 import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
@@ -406,7 +407,12 @@ object AdminSeed {
             damage = damage.toList(),
             openingStock = openingStock,
             wastageBp = DEFAULT_WASTAGE_BP,
-            settings = BusinessSettings("Mamre Foods", "Address pending (Doc 1 P-6)", "Phone pending", "Thank you!"),
+            settings = prices.settings().let {
+                BusinessSettings(
+                    it[SettingKeys.BUSINESS_NAME].orEmpty(), it[SettingKeys.ADDRESS].orEmpty(),
+                    it[SettingKeys.PHONE].orEmpty(), it[SettingKeys.FOOTER].orEmpty(),
+                )
+            },
             overrideNotes = overrideNotes,
             workers = listOf(
                 WorkerAccount("w-1", "Rajesh", "user1", "W1", true),

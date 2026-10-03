@@ -5,6 +5,7 @@ import com.mamre.billing.data.FakeCustomerTypeDao
 import com.mamre.billing.data.FakePriceDefaultDao
 import com.mamre.billing.data.FakePriceOverrideDao
 import com.mamre.billing.data.FakeProductDao
+import com.mamre.billing.data.FakeSettingDao
 import com.mamre.billing.data.FakeSyncStateDao
 import com.mamre.billing.data.FakeTransactionRunner
 import com.mamre.billing.data.admin.FakeAdminApi
@@ -41,7 +42,7 @@ class WorkerSyncTest {
     private var offline = false
     private val repo = CatalogRepository(
         FakeProductDao(), FakeCustomerTypeDao(), FakeCustomerDao(), defaults, FakePriceOverrideDao(),
-        FakeSyncStateDao(), FakeTransactionRunner(),
+        FakeSyncStateDao(), FakeSettingDao(), FakeTransactionRunner(),
         CatalogRemote { cursor ->
             if (offline) throw IOException("no signal")
             api.catalog(api.login("user1", "user1").access, cursor)
@@ -109,7 +110,7 @@ class SharedCatalogSyncTest {
     private val types = FakeCustomerTypeDao()
     private val repo = CatalogRepository(
         FakeProductDao(), types, FakeCustomerDao(), FakePriceDefaultDao(), FakePriceOverrideDao(),
-        FakeSyncStateDao(), FakeTransactionRunner(),
+        FakeSyncStateDao(), FakeSettingDao(), FakeTransactionRunner(),
         CatalogRemote { cursor -> api.catalog(api.login("user1", "user1").access, cursor) },
     )
     private val sync = WorkerSync(repo, DemoStore(seed = DemoSeed.state()))

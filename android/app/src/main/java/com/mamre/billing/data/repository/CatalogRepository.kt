@@ -11,13 +11,17 @@ import com.mamre.billing.data.db.PriceOverrideDao
 import com.mamre.billing.data.db.PriceOverrideEntity
 import com.mamre.billing.data.db.ProductDao
 import com.mamre.billing.data.db.ProductEntity
+import com.mamre.billing.data.db.SettingDao
+import com.mamre.billing.data.db.SettingEntity
 import com.mamre.billing.data.db.SyncStateDao
 import com.mamre.billing.data.db.SyncStateEntity
 import com.mamre.billing.data.db.TransactionRunner
 import com.mamre.billing.data.db.toDomain
+import com.mamre.billing.domain.model.BusinessHeader
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.CustomerType
 import com.mamre.billing.domain.model.Product
+import com.mamre.billing.domain.model.businessHeaderOf
 import com.mamre.billing.domain.pricing.PriceBook
 import java.time.LocalDate
 
@@ -42,6 +46,7 @@ class CatalogRepository(
     private val priceDefaults: PriceDefaultDao,
     private val priceOverrides: PriceOverrideDao,
     private val syncState: SyncStateDao,
+    private val settings: SettingDao,
     private val transactions: TransactionRunner,
     private val remote: CatalogRemote,
 ) {
@@ -73,7 +78,9 @@ class CatalogRepository(
                 LocalDate.parse(it.effectiveFrom), it.isActive,
             )
         }
+        val settingRows = pull.settings.map { SettingEntity(it.key, it.value) }
         transactions.run {
+            settings.upsertAll(settingRows)
             products.upsertAll(productRows)
             customerTypes.upsertAll(typeRows)
             customers.upsertAll(customerRows)
@@ -82,6 +89,9 @@ class CatalogRepository(
             syncState.put(SyncStateEntity(CATALOG_CURSOR_KEY, pull.cursor))
         }
     }
+
+    /** The bill header from the business settings the last sync stored; empty values until the first sync (change set E4). */
+    suspend fun businessHeader(): BusinessHeader = businessHeaderOf(settings.getAll().associate { it.key to it.value })
 
     suspend fun activeProducts(): List<Product> = products.getActive().map { it.toDomain() }
 

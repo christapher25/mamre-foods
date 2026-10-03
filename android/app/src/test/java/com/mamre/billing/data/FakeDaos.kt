@@ -10,6 +10,8 @@ import com.mamre.billing.data.db.PriceOverrideDao
 import com.mamre.billing.data.db.PriceOverrideEntity
 import com.mamre.billing.data.db.ProductDao
 import com.mamre.billing.data.db.ProductEntity
+import com.mamre.billing.data.db.SettingDao
+import com.mamre.billing.data.db.SettingEntity
 import com.mamre.billing.data.db.SyncStateDao
 import com.mamre.billing.data.db.SyncStateEntity
 import com.mamre.billing.data.db.TransactionRunner
@@ -71,4 +73,12 @@ class FakeSyncStateDao : SyncStateDao {
 
 class FakeTransactionRunner : TransactionRunner {
     override suspend fun <T> run(block: suspend () -> T): T = block()
+}
+
+class FakeSettingDao : SettingDao {
+    val rows = linkedMapOf<String, String>()
+    override suspend fun upsertAll(rows: List<SettingEntity>) {
+        rows.forEach { this.rows[it.key] = it.value }
+    }
+    override suspend fun getAll() = rows.map { SettingEntity(it.key, it.value) }
 }

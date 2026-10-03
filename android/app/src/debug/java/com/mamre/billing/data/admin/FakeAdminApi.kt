@@ -50,6 +50,7 @@ import com.mamre.billing.domain.admin.validateNewPrice
 import com.mamre.billing.domain.admin.validateSettings
 import com.mamre.billing.domain.model.CustomerIdentity
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.model.SettingKeys
 import com.mamre.billing.domain.model.checkCustomerIdentity
 import com.mamre.billing.domain.model.identityProblemMessage
 import com.mamre.billing.domain.model.normalizeSpaces
@@ -400,6 +401,11 @@ class FakeAdminApi(
         if (validateSettings(settings).isNotEmpty()) refuse("The business needs a name")
         val old = s.settings
         fun d(b: BusinessSettings) = "${b.businessName} | ${b.address} | ${b.phone} | ${b.footerText}"
+        // The salesmen receive the bill header at their next sync (change set E4).
+        prices.setSetting(SettingKeys.BUSINESS_NAME, settings.businessName.trim())
+        prices.setSetting(SettingKeys.ADDRESS, settings.address.trim())
+        prices.setSetting(SettingKeys.PHONE, settings.phone.trim())
+        prices.setSetting(SettingKeys.FOOTER, settings.footerText.trim())
         changed(by, "Edit business settings", d(old), d(settings)) { it.copy(settings = settings) }
     }
 

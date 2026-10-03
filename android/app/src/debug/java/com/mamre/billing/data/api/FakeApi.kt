@@ -82,6 +82,7 @@ class FakeApi(
             priceOverrides = prices.overridesAfter(cursor).map {
                 PriceOverrideDto(it.id, it.customerId, it.productId, it.unitPriceCents, it.effectiveFrom.toString(), it.isActive)
             },
+            settings = prices.settingsAfter(cursor).map { SettingDto(it.key, it.value) },
         )
     }
 

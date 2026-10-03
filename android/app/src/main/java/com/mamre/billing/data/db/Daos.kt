@@ -67,3 +67,11 @@ interface SyncStateDao {
 
     @Upsert suspend fun put(row: SyncStateEntity)
 }
+
+@Dao
+interface SettingDao {
+    @Upsert suspend fun upsertAll(rows: List<SettingEntity>)
+
+    @Query("SELECT * FROM business_settings")
+    suspend fun getAll(): List<SettingEntity>
+}

@@ -104,6 +104,7 @@ object AppModule {
         priceDefaults = db.priceDefaultDao(),
         priceOverrides = db.priceOverrideDao(),
         syncState = db.syncStateDao(),
+        settings = db.settingDao(),
         transactions = transactions,
         remote = CatalogRemote { cursor -> session.authorized { api.catalog(it, cursor) } },
     )

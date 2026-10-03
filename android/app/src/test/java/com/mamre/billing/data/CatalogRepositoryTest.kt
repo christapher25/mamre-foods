@@ -42,7 +42,7 @@ class CatalogRepositoryTest {
     }
 
     private val repo = CatalogRepository(
-        products, types, customers, defaults, overrides, state, FakeTransactionRunner(), remote,
+        products, types, customers, defaults, overrides, state, FakeSettingDao(), FakeTransactionRunner(), remote,
     )
 
     private fun product(id: String = "p1", active: Boolean = true) =

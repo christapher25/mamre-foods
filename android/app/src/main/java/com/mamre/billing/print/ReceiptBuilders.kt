@@ -1,5 +1,6 @@
 package com.mamre.billing.print
 
+import com.mamre.billing.domain.model.BusinessHeader
 import com.mamre.billing.domain.worker.CreditEntry
 import com.mamre.billing.domain.worker.InvoiceEntry
 import com.mamre.billing.domain.worker.InvoiceRecord
@@ -11,19 +12,6 @@ import com.mamre.billing.domain.worker.ledgerBalance
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-/** The business name for the receipt header. */
-const val BUSINESS_NAME = "MAMRE FOODS"
-
-/**
- * The address block of the bill, one printed line each, as given in the owner's reference bill (change set D3). The
- * Admin's Business details are not linked to receipts yet, so this is the one source until they are (QUESTIONS).
- */
-val BUSINESS_ADDRESS_LINES: List<String> = listOf(
-    "1461 E Branch Hollow Dr",
-    "Carrollton , Texas , 75007",
-    "Ph: +1 (972) 927-2119",
-)
 
 private val MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)
 private const val NO_OPENING_BALANCE = 0L
@@ -37,15 +25,14 @@ fun invoiceReceiptOf(
     invoice: InvoiceRecord,
     customerLedger: List<LedgerEntry>,
     showMonthSummary: Boolean,
+    header: BusinessHeader,
     duplicate: Boolean = false,
-    addressLines: List<String> = BUSINESS_ADDRESS_LINES,
     isCorporate: Boolean = invoice.isCorporate,
 ): InvoiceReceipt {
     // A corporate account never gets a balance or a month summary on paper (change set D4): not even built.
     val month = if (showMonthSummary && !isCorporate) monthSummaryAt(invoice, customerLedger) else null
     return InvoiceReceipt(
-        businessName = BUSINESS_NAME,
-        addressLines = addressLines,
+        header = header,
         number = invoice.number,
         issuedAt = invoice.issuedAt,
         salesmanName = invoice.salesmanName,
@@ -85,12 +72,11 @@ private fun monthSummaryAt(invoice: InvoiceRecord, ledger: List<LedgerEntry>): M
 fun paymentReceiptOf(
     payment: PaymentRecord,
     balanceAfterCents: Long,
+    header: BusinessHeader,
     duplicate: Boolean = false,
-    addressLines: List<String> = BUSINESS_ADDRESS_LINES,
     isCorporate: Boolean = payment.isCorporate,
 ): PaymentReceipt = PaymentReceipt(
-    businessName = BUSINESS_NAME,
-    addressLines = addressLines,
+    header = header,
     receiptNumber = payment.receiptNumber,
     paidAt = payment.paidAt,
     salesmanName = payment.salesmanName,

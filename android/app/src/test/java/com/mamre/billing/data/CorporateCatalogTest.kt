@@ -16,7 +16,7 @@ class CorporateCatalogTest {
     private var next = CatalogPull(cursor = 1)
     private val repo = CatalogRepository(
         FakeProductDao(), FakeCustomerTypeDao(), FakeCustomerDao(), FakePriceDefaultDao(), FakePriceOverrideDao(),
-        FakeSyncStateDao(), FakeTransactionRunner(), CatalogRemote { next },
+        FakeSyncStateDao(), FakeSettingDao(), FakeTransactionRunner(), CatalogRemote { next },
     )
 
     private fun dto(id: String, corporate: Boolean) =

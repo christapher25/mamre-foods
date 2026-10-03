@@ -1,5 +1,6 @@
 package com.mamre.billing.print
 
+import com.mamre.billing.domain.model.BusinessHeader
 import com.mamre.billing.domain.worker.PaymentMethod
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -14,15 +15,12 @@ import org.junit.Test
  * corporate account a signature block and no balance. The customer type is never printed.
  */
 class ReceiptLayoutTest {
-    private val address = BUSINESS_ADDRESS_LINES
-
     private val chapathi12 = ReceiptItem("Mamre Chapathi", 70, 250, 17_500, 12)
     private val fresh12 = ReceiptItem("Mamre Fresh Chapathi", 25, 280, 7_000, 12)
 
     /** The owner's reference bill: a corporate credit bill for FreshMart, Downtown (1). */
     private val corporate = InvoiceReceipt(
-        businessName = "MAMRE FOODS",
-        addressLines = address,
+        header = TestHeaders.full,
         number = "MAM-W1-0042",
         issuedAt = LocalDateTime.of(2026, 10, 3, 7, 32),
         salesmanName = "Rajesh Thomas",
@@ -40,8 +38,7 @@ class ReceiptLayoutTest {
 
     /** A normal credit customer who paid part of the bill now, with the month summary. */
     private val credit = InvoiceReceipt(
-        businessName = "MAMRE FOODS",
-        addressLines = address,
+        header = TestHeaders.full,
         number = "MAM-W1-0042",
         issuedAt = LocalDateTime.of(2026, 10, 10, 14, 20),
         salesmanName = "Rajesh",
@@ -67,8 +64,7 @@ class ReceiptLayoutTest {
 
     /** A walk-in who paid cash for a standard and a custom packet. */
     private val walkIn = InvoiceReceipt(
-        businessName = "MAMRE FOODS",
-        addressLines = address,
+        header = TestHeaders.full,
         number = "MAM-W1-0043",
         issuedAt = LocalDateTime.of(2026, 10, 10, 14, 25),
         salesmanName = "Rajesh",
@@ -83,6 +79,9 @@ class ReceiptLayoutTest {
 
     /** A left and a right text on one 32-column line, built independently of the production code. */
     private fun lr(left: String, right: String) = left + " ".repeat(32 - left.length - right.length) + right
+
+    /** Centres text on 32 columns, built independently of the production code. */
+    private fun center(text: String) = " ".repeat((32 - text.length) / 2) + text
 
     private fun golden(name: String): List<String> =
         javaClass.getResourceAsStream("/golden/$name")!!
@@ -147,12 +146,38 @@ class ReceiptLayoutTest {
         assertEquals("          Restaurant Group", lines[i + 1])
     }
 
-    @Test fun anAddressReplacesThePendingLineAndNoAddressSaysSo() {
-        assertTrue(layoutInvoiceReceipt(credit).none { it.contains("pending") })
-        val none = layoutInvoiceReceipt(credit.copy(addressLines = emptyList()))
-        assertEquals("   (address / phone pending)", none[1])
-        val one = layoutInvoiceReceipt(credit.copy(addressLines = listOf("12 Main St 555-0100")))
-        assertEquals("      12 Main St 555-0100", one[1])
+    @Test fun theHeaderComesFromTheBusinessSettingsGivenToTheBill() {
+        val lines = layoutInvoiceReceipt(credit)
+        assertEquals(listOf("MAMRE FOODS", "1461 E Branch Hollow Dr", "Carrollton , Texas , 75007", "Ph: +1 (972) 927-2119").map(::center), lines.take(4))
+        val other = layoutInvoiceReceipt(credit.copy(header = BusinessHeader("Other Bakery", listOf("12 Main St"), "555-0100", "See you soon")))
+        assertEquals(listOf("Other Bakery", "12 Main St", "Ph: 555-0100").map(::center), other.take(3))
+        assertEquals(center("See you soon"), other.last())
+    }
+
+    @Test fun aMissingAddressAndPhonePrintThePlaceholder() {
+        val none = layoutInvoiceReceipt(credit.copy(header = BusinessHeader(name = "MAMRE FOODS", footer = "Thank you!")))
+        assertEquals(listOf("MAMRE FOODS", "(address / phone pending)").map(::center), none.take(2))
+        assertTrue(none.none { it.contains("Ph:") })
+        // A bill printed before the first sync has no settings at all.
+        val empty = layoutInvoiceReceipt(credit.copy(header = BusinessHeader()))
+        assertEquals(listOf("(business name pending)", "(address / phone pending)").map(::center), empty.take(2))
+        assertFalse(empty.any { it.contains("Carrollton") || it.contains("Branch Hollow") })
+    }
+
+    @Test fun oneMissingValueGetsItsOwnPlaceholderAndTheOtherIsStillPrinted() {
+        val noPhone = layoutInvoiceReceipt(credit.copy(header = TestHeaders.full.copy(phone = "")))
+        assertEquals(listOf("MAMRE FOODS", "1461 E Branch Hollow Dr", "Carrollton , Texas , 75007", "(phone pending)").map(::center), noPhone.take(4))
+        val noAddress = layoutInvoiceReceipt(credit.copy(header = TestHeaders.full.copy(addressLines = emptyList())))
+        assertEquals(listOf("MAMRE FOODS", "(address pending)", "Ph: +1 (972) 927-2119").map(::center), noAddress.take(3))
+    }
+
+    @Test fun theFooterIsTheSettingAndNothingIsPrintedWhenThereIsNone() {
+        val none = layoutInvoiceReceipt(credit.copy(header = TestHeaders.full.copy(footer = "")))
+        assertEquals("--------------------------------", none.last())
+        assertTrue(none.none { it.contains("Thank you") })
+        val long = layoutInvoiceReceipt(credit.copy(header = TestHeaders.full.copy(footer = "Thank you for your business, see you next week")))
+        assertTrue(long.all { it.length <= RECEIPT_WIDTH })
+        assertEquals(center("you next week"), long.last()) // wraps after "...business, see"
     }
 
     // ------------------------------------------------------------------ the item table
@@ -261,7 +286,7 @@ class ReceiptLayoutTest {
 
     @Test fun noLineIsWiderThan32ColumnsAndNoLineEndsInASpace() {
         val worst = credit.copy(
-            businessName = "MAMRE FOODS INCORPORATED OF TEXAS AND OHIO",
+            header = TestHeaders.full.copy(name = "MAMRE FOODS INCORPORATED OF TEXAS AND OHIO"),
             customerName = "A Very Long Restaurant Name That Goes On And On",
             items = listOf(ReceiptItem("Mamre Fresh Chapathi Extra Large Family Pack", 12345, 99999, 1_234_555_155, 200)),
             totalCents = 1_234_555_155,
@@ -290,8 +315,7 @@ class ReceiptLayoutTest {
     // ------------------------------------------------------------------ the payment receipt
 
     private val payment = PaymentReceipt(
-        businessName = "MAMRE FOODS",
-        addressLines = address,
+        header = TestHeaders.full,
         receiptNumber = "RCP-W1-0001",
         paidAt = LocalDateTime.of(2026, 10, 10, 14, 25),
         salesmanName = "Rajesh",

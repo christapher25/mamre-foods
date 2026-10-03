@@ -61,6 +61,7 @@ class ReceiptViewModel @Inject constructor(
             invoice = invoice,
             customerLedger = invoice.customerId?.let(state::ledgerOf).orEmpty(),
             showMonthSummary = customer?.paymentMode == PaymentMode.CREDIT,
+            header = catalog.businessHeader(),
             duplicate = duplicate,
         )
         return ReceiptUi(
@@ -73,7 +74,7 @@ class ReceiptViewModel @Inject constructor(
     private suspend fun paymentUi(id: String): ReceiptUi {
         val state = store.state.value
         val payment = state.payments.firstOrNull { it.id == id } ?: return ReceiptUi(title = "Receipt not found")
-        val receipt = paymentReceiptOf(payment, state.balanceOf(payment.customerId))
+        val receipt = paymentReceiptOf(payment, state.balanceOf(payment.customerId), catalog.businessHeader())
         return ReceiptUi(title = payment.receiptNumber, lines = layoutPaymentReceipt(receipt))
     }
 
