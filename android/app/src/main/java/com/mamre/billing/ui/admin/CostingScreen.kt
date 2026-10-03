@@ -227,7 +227,8 @@ fun CostingContent(
                             Column(Modifier.weight(1f)) {
                                 Text(line.materialName, style = MaterialTheme.typography.bodyLarge)
                                 if (line.qtyMb == null) {
-                                    StatusChip("$INCOMPLETE: quantity not set", kind = ChipKind.WARNING)
+                                    StatusChip(INCOMPLETE, kind = ChipKind.WARNING)
+                                    Text("Quantity not set", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 } else {
                                     Text(
                                         formatRecipeQuantity(line.qtyMb, line.baseUnit),
@@ -353,7 +354,7 @@ private fun ProductCostCard(
             SecondaryButton("Edit packet size", onClick = onEditSize)
         }
         if (yieldPerKg != null) {
-            LabelValueRow("Yield", Modifier.padding(top = Spacing.sm)) { Text("$yieldPerKg chapathis per kg of wheat") }
+            Text("Yield: $yieldPerKg chapathis per kg of wheat", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = Spacing.sm))
             SecondaryButton("Edit yield", onClick = onEditYield)
         }
     }
@@ -373,7 +374,7 @@ private fun CustomPacketCalculator(ui: CostingUi, onCalculate: (String?, String)
             modifier = Modifier.padding(top = Spacing.sm),
         )
         LabeledTextField(
-            label = "Chapathis in the packet (1 to 200)",
+            label = "Chapathis (1 to 200)",
             value = ui.calcText,
             onValueChange = { onCalculate(ui.calcProductId ?: ui.recipes.firstOrNull()?.productId, it.filter(Char::isDigit).take(3)) },
             errorText = ui.calcError,

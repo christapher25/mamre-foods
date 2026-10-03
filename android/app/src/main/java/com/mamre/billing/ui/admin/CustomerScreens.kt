@@ -137,7 +137,7 @@ fun CustomerListContent(
                         selected = ui.types.firstOrNull { it.id == ui.typeId },
                         label = { it?.name ?: "All" },
                         onSelect = { onType(it?.id) },
-                        perRow = 3,
+                        perRow = 2,
                     )
                 }
             }

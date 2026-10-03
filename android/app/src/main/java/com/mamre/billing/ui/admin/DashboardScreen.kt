@@ -149,7 +149,7 @@ private fun KpiGrid(r: DashboardReport) {
         )
         KpiRow(
             { m -> FigureCard("Gross profit", r.grossProfit, m) },
-            { m -> KpiCard("Indirect expenses", formatCents(r.indirectExpensesCents), m, supporting = "Shared per packet") },
+            { m -> KpiCard("Indirect expenses", formatCents(r.indirectExpensesCents), m, supporting = "Shared per chapathi") },
         )
         KpiRow(
             { m -> KpiCard("Packets sold", "${r.packetsSold}", m, supporting = "${r.chapathisSold} chapathis") },
