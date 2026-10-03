@@ -444,7 +444,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("Customer type", style = MaterialTheme.typography.titleSmall)
-            OptionChips(ui.types, ui.types.firstOrNull { it.id == typeId }, { it.name }, { typeId = it.id })
+            OptionChips(ui.types, ui.types.firstOrNull { it.id == typeId }, { it.name }, { typeId = it.id }, perRow = 2)
             if (tried && CustomerProblem.TYPE_REQUIRED in problems) {
                 Text("Choose a customer type", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
