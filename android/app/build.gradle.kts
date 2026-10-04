@@ -45,6 +45,22 @@ android {
         compose = true
         buildConfig = true
     }
+    testOptions {
+        unitTests {
+            // Robolectric runs the real Room database in the unit tests (DECISIONS 2026-10-04, L1 step 1).
+            isIncludeAndroidResources = true
+        }
+    }
+    sourceSets {
+        // The exported Room schemas are assets of the DEBUG build only (the unit tests read the debug variant's merged
+        // assets), so the migration helper can open every version. The release APK does not carry them.
+        getByName("debug").assets.directories.add("$projectDir/schemas")
+    }
+}
+
+ksp {
+    // Doc 2 s5.1: schemas are exported to android/app/schemas and committed.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -72,6 +88,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
