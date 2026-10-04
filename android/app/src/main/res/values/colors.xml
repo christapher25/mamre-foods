@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background behind Compose, the same value as BrandBackground in ui/theme. -->
+    <color name="window_background">#FFFAF7F2</color>
+</resources>

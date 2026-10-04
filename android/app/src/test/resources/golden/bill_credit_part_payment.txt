@@ -1,0 +1,32 @@
+          MAMRE FOODS
+       123 Example Street
+       Anytown, TX 00000
+     Ph: +1 (000) 000-0000
+--------------------------------
+Bill No:  MAM-W1-0042
+Date:     10/10/2026
+Time:     14:20
+Salesman: Rajesh
+Customer: Spice Garden
+          Irving
+--------------------------------
+Item Desc     Qty  Price     Amt
+MAMRE CHAPATHI 12NOS
+               10   2.50   25.00
+MAMRE FRESH CHAPATHI 12NOS
+               20   2.80   56.00
+--------------------------------
+TOTAL (USD)                81.00
+PAID (Cash)                30.00
+CREDIT                     51.00
+Balance after             121.00
+--------------------------------
+THIS MONTH (Oct 2026)
+Brought forward             0.00
+Invoiced                  201.00
+Payments:
+ 10/05 Zelle               50.00
+ 10/10 Cash                30.00
+TOTAL DUE                 121.00
+--------------------------------
+           Thank you!

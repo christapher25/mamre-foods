@@ -1,0 +1,17 @@
+          MAMRE FOODS
+       123 Example Street
+       Anytown, TX 00000
+     Ph: +1 (000) 000-0000
+--------------------------------
+Receipt:  RCP-W1-0001
+Date:     10/10/2026
+Time:     14:25
+Salesman: Rajesh
+Customer: Spice Garden
+          Irving
+--------------------------------
+Payment received (Zelle)   50.00
+Balance after              70.00
+Note: Paid at the door
+--------------------------------
+           Thank you!

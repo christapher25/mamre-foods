@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <!-- Off-white rounded square -->
+    <path
+        android:fillColor="#F7F0E3"
+        android:pathData="M254,24 H770 A230,230 0 0 1 1000,254 V770 A230,230 0 0 1 770,1000 H254 A230,230 0 0 1 24,770 V254 A230,230 0 0 1 254,24 Z"
+        android:strokeColor="#E5D8C2"
+        android:strokeWidth="8" />
+    <!-- Shadow -->
+    <path
+        android:pathData="M300,762 L300,322 L512,582 L724,322 L724,762"
+        android:strokeColor="#3A1B09"
+        android:strokeAlpha="0.2"
+        android:strokeWidth="170"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Letter M -->
+    <path
+        android:pathData="M300,740 L300,300 L512,560 L724,300 L724,740"
+        android:strokeColor="#6E3C1B"
+        android:strokeWidth="170"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Highlight -->
+    <path
+        android:pathData="M270,706 L270,270 L482,530 L694,270 L694,706"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.26"
+        android:strokeWidth="34"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

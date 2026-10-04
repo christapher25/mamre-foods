@@ -1,0 +1,27 @@
+          MAMRE FOODS
+       123 Example Street
+       Anytown, TX 00000
+     Ph: +1 (000) 000-0000
+--------------------------------
+Bill No:  MAM-W1-0042
+Date:     10/03/2026
+Time:     07:32
+Salesman: Rajesh Thomas
+Customer: FreshMart
+          Downtown (1)
+--------------------------------
+Item Desc     Qty  Price     Amt
+MAMRE CHAPATHI 12NOS
+               70   2.50  175.00
+MAMRE FRESH CHAPATHI 12NOS
+               25   2.80   70.00
+--------------------------------
+TOTAL (USD)               245.00
+CREDIT                    245.00
+--------------------------------
+Received by:
+
+________________________________
+Sign and stamp
+--------------------------------
+           Thank you!
