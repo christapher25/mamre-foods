@@ -1,5 +1,6 @@
 package com.mamre.billing.data.demo
 
+import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.domain.worker.InvoiceLine
 import com.mamre.billing.domain.worker.InvoiceRecord
 import com.mamre.billing.domain.worker.PaymentMethod
@@ -8,12 +9,12 @@ import java.time.LocalDateTime
 
 /** Ids shared by FakeApi's catalog and the demo ledger. DEMO DATA. */
 object DemoIds {
-    const val FRESH = "00000000-0000-4000-8000-0000000000f1"
-    const val CHAPATHI = "00000000-0000-4000-8000-0000000000f2"
-    const val RESTAURANT_TYPE = "00000000-0000-4000-8000-0000000000e1"
-    const val SHOP_TYPE = "00000000-0000-4000-8000-0000000000e2"
-    const val RETAIL_TYPE = "00000000-0000-4000-8000-0000000000e3"
-    const val CATERING_TYPE = "00000000-0000-4000-8000-0000000000e4"
+    const val FRESH = ReferenceIds.PRODUCT_FRESH
+    const val CHAPATHI = ReferenceIds.PRODUCT_CHAPATHI
+    const val RESTAURANT_TYPE = ReferenceIds.TYPE_RESTAURANT
+    const val SHOP_TYPE = ReferenceIds.TYPE_SHOP
+    const val RETAIL_TYPE = ReferenceIds.TYPE_RETAIL
+    const val CATERING_TYPE = ReferenceIds.TYPE_CATERING
     const val RESTAURANT = "00000000-0000-4000-8000-0000000000c1"
     const val SHOP = "00000000-0000-4000-8000-0000000000c2"
     const val RETAIL_CUSTOMER = "00000000-0000-4000-8000-0000000000c3"

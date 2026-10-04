@@ -1,5 +1,6 @@
-package com.mamre.billing.data.admin
+package com.mamre.billing.domain.books
 
+import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.domain.admin.AdminPayment
 import com.mamre.billing.domain.admin.AdminReturn
 import com.mamre.billing.domain.admin.AppliedPayment
@@ -37,21 +38,21 @@ import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
 /**
- * THE SERVER STAND-IN. Doc 2 s1.1 makes the server the source of truth for costing and reports, and
- * the device never recomputes them. These functions exist only so [FakeAdminApi] can give the Admin
- * screens figures that agree with each other; a real server replaces them with API calls, and the
- * release build, which has no fake, does not contain them. Nothing in domain/admin or ui/admin
- * computes cost, usage, profit or balances.
+ * The books: ledger, allocation, ageing, usage, stock, costing and the month reports (Doc 1 s6, s9, s11; Doc 2 s11).
+ * Pure functions over a [BooksSnapshot] (plain data, no database, no clock): the Admin repository loads a snapshot from
+ * Room and calls these; tests build a snapshot by hand. Nothing in ui/ computes cost, usage, profit or balances.
+ * Version 1 shows the ledger, balances and stock; the Dashboard and Costing screens are hidden in step 2 but the
+ * costing code stays for version 2 (Doc 2 s11, A-28).
  *
- * Money is Long cents. Cost per packet is a Long in ten-thousandths of a dollar. Material quantities
- * are Long thousandths of the base unit ("mb"). All integer arithmetic, rounding half up.
+ * Money is Long cents. Cost per packet is a Long in ten-thousandths of a dollar. Material quantities are Long
+ * thousandths of the base unit ("mb"). All integer arithmetic, rounding half up.
  *
  * Direct expense (owner change, supersedes Doc 1 A-11): a material's price in a month is the weighted
  * average of opening stock and that month's purchases; usage is (gross invoiced packets + replacement
  * packets + production-damaged packets) x recipe quantity x (1 + wastage), except packing, which has no
  * wastage and is counted for invoiced + replacement packets only (damaged packets are spoiled before packing); direct expense is the cost consumed of every material, packing included.
  */
-object ServerLogic {
+object BooksLogic {
     private const val TT_PER_CENT = 100L
     private const val DAYS_30 = 30L
     private const val DAYS_60 = 60L
@@ -66,7 +67,7 @@ object ServerLogic {
 
     // ------------------------------------------------------------------ ledger and allocation
 
-    fun ledger(s: ServerState, customerId: String): List<LedgerEntry> = buildList {
+    fun ledger(s: BooksSnapshot, customerId: String): List<LedgerEntry> = buildList {
         s.invoices.filter { it.customerId == customerId }
             .forEach { add(InvoiceEntry(it.issuedAt.toLocalDate(), it.totalCents, it.isVoid)) }
         s.payments.filter { it.customerId == customerId }
@@ -75,11 +76,11 @@ object ServerLogic {
             .forEach { add(CreditEntry(it.date, it.creditCents)) }
     }
 
-    fun opening(s: ServerState, customerId: String): Long =
+    fun opening(s: BooksSnapshot, customerId: String): Long =
         s.customers.firstOrNull { it.id == customerId }?.openingBalanceCents ?: 0L
 
     /** Balance = opening + non-void invoices - credits - payments up to [end] (Doc 1 s6.3). */
-    fun balance(s: ServerState, customerId: String, end: LocalDate? = null): Long {
+    fun balance(s: BooksSnapshot, customerId: String, end: LocalDate? = null): Long {
         val entries = ledger(s, customerId).let { all -> if (end == null) all else all.filter { !it.date.isAfter(end) } }
         return ledgerBalance(opening(s, customerId), entries)
     }
@@ -93,7 +94,7 @@ object ServerLogic {
         val dateByInvoice: Map<String, LocalDate>,
     )
 
-    fun allocate(s: ServerState, customerId: String): Allocation {
+    fun allocate(s: BooksSnapshot, customerId: String): Allocation {
         val invoices = s.invoices.filter { it.customerId == customerId && !it.isVoid }.sortedBy { it.issuedAt }
         // A Credit return linked to an invoice lowers what is owed on that invoice.
         val linkedCredit = s.returns.filter { it.customerId == customerId && it.resolution == ReturnResolution.CREDIT && it.invoiceId != null }
@@ -140,7 +141,7 @@ object ServerLogic {
         return Allocation(due, applied, openingDue, surplus, dates)
     }
 
-    fun invoiceDetail(s: ServerState, id: String): InvoiceDetail? {
+    fun invoiceDetail(s: BooksSnapshot, id: String): InvoiceDetail? {
         val inv = s.invoices.firstOrNull { it.id == id } ?: return null
         val credits = s.returns.filter { it.invoiceId == inv.id && it.resolution == ReturnResolution.CREDIT }
             .map { InvoiceCredit(it.date, it.productName, it.qtyPackets, it.creditCents, it.reason) }
@@ -158,7 +159,7 @@ object ServerLogic {
         return InvoiceDetail(inv, a.appliedByInvoice[inv.id].orEmpty(), credits, a.dueByInvoice[inv.id] ?: 0L)
     }
 
-    fun customerSummary(s: ServerState, customerId: String, month: YearMonth): CustomerMonthSummary {
+    fun customerSummary(s: BooksSnapshot, customerId: String, month: YearMonth): CustomerMonthSummary {
         val entries = ledger(s, customerId)
         val opening = broughtForward(opening(s, customerId), entries, month)
         val inMonth = entries.filter { YearMonth.from(it.date) == month }
@@ -175,7 +176,7 @@ object ServerLogic {
         )
     }
 
-    fun balances(s: ServerState): List<BalanceRow> = s.customers.map { c ->
+    fun balances(s: BooksSnapshot): List<BalanceRow> = s.customers.map { c ->
         val bal = balance(s, c.id)
         val a = allocate(s, c.id)
         var current = 0L
@@ -195,37 +196,37 @@ object ServerLogic {
     // ------------------------------------------------------------------ packets and chapathis
 
     /** Packets invoiced (gross, void excluded) in the month, per product. Packing uses these. */
-    fun invoicedPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+    fun invoicedPackets(s: BooksSnapshot, month: YearMonth): Map<String, Long> =
         s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
             .flatMap { it.items }.groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
 
     /** Chapathis invoiced (gross, void excluded) in the month, per product: packets x chapathis per packet. */
-    fun invoicedChapathis(s: ServerState, month: YearMonth): Map<String, Long> =
+    fun invoicedChapathis(s: BooksSnapshot, month: YearMonth): Map<String, Long> =
         s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
             .flatMap { it.items }.groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.chapathis.toLong() } }
 
-    private fun replacementRows(s: ServerState, month: YearMonth) =
+    private fun replacementRows(s: BooksSnapshot, month: YearMonth) =
         s.returns.filter { it.resolution == ReturnResolution.REPLACEMENT && YearMonth.from(it.date) == month }
 
-    private fun replacementPackets(s: ServerState, month: YearMonth): Map<String, Long> =
+    private fun replacementPackets(s: BooksSnapshot, month: YearMonth): Map<String, Long> =
         replacementRows(s, month).groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() } }
 
-    private fun replacementChapathis(s: ServerState, month: YearMonth): Map<String, Long> =
+    private fun replacementChapathis(s: BooksSnapshot, month: YearMonth): Map<String, Long> =
         replacementRows(s, month).groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.qtyPackets.toLong() * it.chapathisPerPacket } }
 
-    private fun damagedChapathis(s: ServerState, month: YearMonth): Map<String, Long> =
+    private fun damagedChapathis(s: BooksSnapshot, month: YearMonth): Map<String, Long> =
         s.damage.filter { YearMonth.from(it.date) == month }
             .groupBy { it.productId }.mapValues { (_, v) -> v.sumOf { it.chapathis.toLong() } }
 
     /** Packets that left the business in a bag: invoiced + replacement. Damaged chapathis are spoiled before packing. */
-    fun packetsBagged(s: ServerState, month: YearMonth): Map<String, Long> {
+    fun packetsBagged(s: BooksSnapshot, month: YearMonth): Map<String, Long> {
         val a = invoicedPackets(s, month)
         val b = replacementPackets(s, month)
         return (a.keys + b.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) }
     }
 
     /** Everything made in the month per product, in chapathis: invoiced + replacement + damaged. */
-    fun chapathisMade(s: ServerState, month: YearMonth): Map<String, Long> {
+    fun chapathisMade(s: BooksSnapshot, month: YearMonth): Map<String, Long> {
         val a = invoicedChapathis(s, month)
         val b = replacementChapathis(s, month)
         val c = damagedChapathis(s, month)
@@ -236,7 +237,7 @@ object ServerLogic {
      * Net chapathis sold: invoiced less credited by returns (Doc 1 s9.4, A-9). Used for the indirect share only;
      * packets of different sizes are not comparable, so the share is spread over chapathis.
      */
-    fun netChapathis(s: ServerState, productId: String?, month: YearMonth): Long {
+    fun netChapathis(s: BooksSnapshot, productId: String?, month: YearMonth): Long {
         val sold = s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }
             .sumOf { inv -> inv.items.filter { productId == null || it.productId == productId }.sumOf { it.chapathis.toLong() } }
         val credited = s.returns.filter { it.resolution == ReturnResolution.CREDIT && YearMonth.from(it.date) == month && (productId == null || it.productId == productId) }
@@ -244,7 +245,7 @@ object ServerLogic {
         return sold - credited
     }
 
-    fun indirectTotalCents(s: ServerState, month: YearMonth): Long =
+    fun indirectTotalCents(s: BooksSnapshot, month: YearMonth): Long =
         s.expenses.filter { it.kind == ExpenseKind.INDIRECT && YearMonth.from(it.date) == month }.sumOf { it.amountCents }
 
     // ------------------------------------------------------------------ materials: usage, stock, price
@@ -268,7 +269,7 @@ object ServerLogic {
     )
 
     private fun missingQuantity(material: Material, product: String?): String {
-        val note = if (material.id == SeedIds.SORBATE) SORBATE_NOTE else ""
+        val note = if (material.id == ReferenceIds.MATERIAL_SORBATE) SORBATE_NOTE else ""
         return if (product == null) "${material.name} quantity per kg of wheat$note" else "${material.name} quantity per kg of wheat for $product$note"
     }
 
@@ -279,7 +280,7 @@ object ServerLogic {
      * Ingredients: TOTAL chapathis x quantity per kg of wheat / yield, over all products in ONE step, rounded half
      * up in milli-units, then x (1 + wastage). Packing: one piece per packet bagged, no yield and no wastage.
      */
-    private fun usage(s: ServerState, material: Material, madeChapathis: Map<String, Long>, baggedPackets: Map<String, Long>): Pair<Long?, List<String>> {
+    private fun usage(s: BooksSnapshot, material: Material, madeChapathis: Map<String, Long>, baggedPackets: Map<String, Long>): Pair<Long?, List<String>> {
         val missing = mutableListOf<String>()
         if (material.isPacking) {
             var sum = 0L
@@ -305,7 +306,7 @@ object ServerLogic {
         return divHalfUp(numerator * (BP + s.wastageBp), common * BP) to emptyList()
     }
 
-    private fun chainStart(s: ServerState): YearMonth {
+    private fun chainStart(s: BooksSnapshot): YearMonth {
         val months = s.invoices.map { YearMonth.from(it.issuedAt) } + s.purchases.map { YearMonth.from(it.date) } +
             s.damage.map { YearMonth.from(it.date) } + s.returns.map { YearMonth.from(it.date) }
         return months.minOrNull() ?: YearMonth.from(s.today)
@@ -314,7 +315,7 @@ object ServerLogic {
     private data class Carry(val qty: Long?, val value: Long?, val price: Price?)
 
     /** Walks the months from the first one of data to [target], carrying stock and value forward. */
-    private fun materialsFor(s: ServerState, target: YearMonth): List<MonthMaterial> {
+    private fun materialsFor(s: BooksSnapshot, target: YearMonth): List<MonthMaterial> {
         val carry = s.materials.associate { m ->
             val o = s.openingStock[m.id]
             m.id to Carry(o?.qtyMb ?: 0L, o?.valueCents ?: 0L, null)
@@ -330,7 +331,7 @@ object ServerLogic {
         }
     }
 
-    private fun monthOf(s: ServerState, m: Material, month: YearMonth, packets: Map<String, Long>, bagged: Map<String, Long>, c: Carry): MonthMaterial {
+    private fun monthOf(s: BooksSnapshot, m: Material, month: YearMonth, packets: Map<String, Long>, bagged: Map<String, Long>, c: Carry): MonthMaterial {
         val bought = s.purchases.filter { it.materialId == m.id && YearMonth.from(it.date) == month }
         val bQty = bought.sumOf { it.qtyMb }
         val bCents = bought.sumOf { it.totalCents }
@@ -367,7 +368,7 @@ object ServerLogic {
         if (value != null) Figure.Known(value) else Figure.Incomplete(missing.distinct())
 
     /** The month's materials: opening stock, bought, used, closing stock, average price, cost consumed (B6). */
-    fun stock(s: ServerState, month: YearMonth): StockReport {
+    fun stock(s: BooksSnapshot, month: YearMonth): StockReport {
         val rows = materialsFor(s, month).map { r ->
             val m = r.material
             val openMissing = listOf("${m.name} stock (an earlier month is incomplete)")
@@ -402,7 +403,7 @@ object ServerLogic {
     }
 
     /** Month direct expense: the cost of all the materials consumed, packing included. */
-    fun directExpense(s: ServerState, month: YearMonth): Figure = stock(s, month).costConsumedTotal
+    fun directExpense(s: BooksSnapshot, month: YearMonth): Figure = stock(s, month).costConsumedTotal
 
     // ------------------------------------------------------------------ costing per chapathi and per packet
 
@@ -424,7 +425,7 @@ object ServerLogic {
 
     /** One chapathis-sized piece of the month's weighted average prices, for building costs. */
     private fun costFor(
-        s: ServerState,
+        s: BooksSnapshot,
         product: com.mamre.billing.domain.admin.AdminProduct,
         monthMaterials: Map<String, MonthMaterial>,
         chapathis: Int,
@@ -467,7 +468,7 @@ object ServerLogic {
     }
 
     /** Cost per standard packet for every product (a custom packet is asked for with [packetCost]). */
-    fun costing(s: ServerState, month: YearMonth): CostingReport {
+    fun costing(s: BooksSnapshot, month: YearMonth): CostingReport {
         val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
         val net = netChapathis(s, null, month)
         val indirectCents = indirectTotalCents(s, month)
@@ -476,7 +477,7 @@ object ServerLogic {
     }
 
     /** Cost of a packet of [chapathis]: per chapathi x N plus one packing piece (change set C2). */
-    fun packetCost(s: ServerState, month: YearMonth, productId: String, chapathis: Int): ProductCost {
+    fun packetCost(s: BooksSnapshot, month: YearMonth, productId: String, chapathis: Int): ProductCost {
         val product = s.products.first { it.id == productId }
         val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
         return costFor(s, product, monthMaterials, chapathis, indirectTotalCents(s, month), netChapathis(s, null, month))
@@ -484,7 +485,7 @@ object ServerLogic {
 
     // ------------------------------------------------------------------ reports
 
-    fun netSalesCents(s: ServerState, month: YearMonth): Long =
+    fun netSalesCents(s: BooksSnapshot, month: YearMonth): Long =
         s.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == month }.sumOf { it.totalCents } -
             s.returns.filter { YearMonth.from(it.date) == month }.sumOf { it.creditCents }
 
@@ -493,7 +494,7 @@ object ServerLogic {
      * indirect expenses (owner change: damage, wastage and replacements are already inside direct expense).
      * A month whose direct expense is incomplete has no gross or net profit, never a partial number.
      */
-    fun dashboard(s: ServerState, month: YearMonth, earliest: YearMonth): DashboardReport {
+    fun dashboard(s: BooksSnapshot, month: YearMonth, earliest: YearMonth): DashboardReport {
         val netSales = netSalesCents(s, month)
         val end = month.atEndOfMonth()
         val cash = s.payments.filter { YearMonth.from(it.date) == month }.sumOf { it.amountCents }
@@ -535,7 +536,7 @@ object ServerLogic {
         )
     }
 
-    fun expensesReport(s: ServerState, month: YearMonth): ExpensesReport {
+    fun expensesReport(s: BooksSnapshot, month: YearMonth): ExpensesReport {
         val inMonth = s.expenses.filter { YearMonth.from(it.date) == month }
         return ExpensesReport(
             month = month,
@@ -548,7 +549,7 @@ object ServerLogic {
         )
     }
 
-    fun returnsReport(s: ServerState, month: YearMonth): ReturnsReport {
+    fun returnsReport(s: BooksSnapshot, month: YearMonth): ReturnsReport {
         val monthMaterials = materialsFor(s, month).associateBy { it.material.id }
         val net = netChapathis(s, null, month)
         val indirect = indirectTotalCents(s, month)
@@ -580,6 +581,6 @@ object ServerLogic {
         )
     }
 
-    fun paymentsOf(s: ServerState, customerId: String): List<AdminPayment> =
+    fun paymentsOf(s: BooksSnapshot, customerId: String): List<AdminPayment> =
         s.payments.filter { it.customerId == customerId }.sortedByDescending { it.date }
 }

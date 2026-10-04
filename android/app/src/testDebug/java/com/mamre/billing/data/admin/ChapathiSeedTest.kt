@@ -1,5 +1,6 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.domain.books.BooksLogic
 import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.Figure
 import com.mamre.billing.domain.admin.StockRow
@@ -49,7 +50,7 @@ class ChapathiSeedTest {
 
     @Test fun theSeedBuysEnoughMaterialsSoWheatNeverRunsOutInAFullMonth() {
         for (m in listOf(YearMonth.of(2026, 5), YearMonth.of(2026, 7), YearMonth.of(2026, 9))) {
-            val wheat: StockRow = ServerLogic.stock(state, m).rows.first { it.material.id == SeedIds.WHEAT }
+            val wheat: StockRow = BooksLogic.stock(state, m).rows.first { it.material.id == SeedIds.WHEAT }
             val closing = wheat.closingQtyMb as Figure.Known
             assertFalse("closing wheat in $m", closing.value < 0)
             assertFalse(wheat.negativeStock)
@@ -62,7 +63,7 @@ class ChapathiSeedTest {
 
     @Test fun chapathisSoldIsPacketsTimesSizeOnTheDashboard() {
         val sep = YearMonth.of(2026, 9)
-        val d = ServerLogic.dashboard(state, sep, YearMonth.of(2026, 4))
+        val d = BooksLogic.dashboard(state, sep, YearMonth.of(2026, 4))
         val items = state.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == sep }.flatMap { it.items }
         assertEquals(items.sumOf { it.qtyPackets }, d.packetsSold)
         assertEquals(items.sumOf { it.qtyPackets.toLong() * it.chapathisPerPacket }, d.chapathisSold)

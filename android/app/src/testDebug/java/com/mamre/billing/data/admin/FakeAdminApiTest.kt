@@ -1,5 +1,6 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.domain.books.BooksLogic
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminInvoice
 import com.mamre.billing.domain.admin.AdminPayment
@@ -203,11 +204,11 @@ class FakeAdminApiTest {
             paymentInvoiceIds = emptyMap(),
             returns = emptyList(),
         )
-        assertEquals(12000L, ServerLogic.balance(s, "c"))
-        assertEquals(0L, ServerLogic.invoiceDetail(s, "i1")!!.amountDueCents)
-        assertEquals(6000L, ServerLogic.invoiceDetail(s, "i2")!!.amountDueCents)
-        assertEquals(6000L, ServerLogic.invoiceDetail(s, "i3")!!.amountDueCents)
-        val a = ServerLogic.invoiceDetail(s, "i2")!!.payments.single()
+        assertEquals(12000L, BooksLogic.balance(s, "c"))
+        assertEquals(0L, BooksLogic.invoiceDetail(s, "i1")!!.amountDueCents)
+        assertEquals(6000L, BooksLogic.invoiceDetail(s, "i2")!!.amountDueCents)
+        assertEquals(6000L, BooksLogic.invoiceDetail(s, "i3")!!.amountDueCents)
+        val a = BooksLogic.invoiceDetail(s, "i2")!!.payments.single()
         assertEquals(3000L, a.amountCents) // $30.00 of the payment went to invoice 2
     }
 
@@ -315,11 +316,11 @@ class FakeAdminApiTest {
             )
         }
         // The Doc 1 s9.5 packet is 12 chapathis; the standard packet is now 6, so ask for 12.
-        val fresh = ServerLogic.packetCost(s, YearMonth.of(2026, 9), SeedIds.FRESH, 12) as ProductCost.Complete
+        val fresh = BooksLogic.packetCost(s, YearMonth.of(2026, 9), SeedIds.FRESH, 12) as ProductCost.Complete
         assertEquals(5475L, fresh.lines.sumOf { it.tt }) // $0.5475 ingredients
         assertEquals(5475L, fresh.ingredientsTt)
         assertEquals(6975L, fresh.ingredientsTt + fresh.packingTt) // $0.6975 with packing
-        val indirect = ServerLogic.divHalfUp(900_00L * 100, 6000) // $900 over 6,000 net packets
+        val indirect = BooksLogic.divHalfUp(900_00L * 100, 6000) // $900 over 6,000 net packets
         assertEquals(1500L, indirect) // $0.1500
         assertEquals(8475L, 6975L + indirect) // $0.8475
     }

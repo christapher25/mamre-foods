@@ -1,5 +1,8 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.domain.books.BooksLogic
+import com.mamre.billing.domain.books.BooksSnapshot
+import com.mamre.billing.domain.books.DamageRow
 import com.mamre.billing.data.demo.SharedCustomerRow
 import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.AdminCustomer
@@ -77,7 +80,7 @@ class FakeAdminApi(
     private val clock: Clock = Clock.systemDefaultZone(),
     /** The one price table shared with the worker's FakeApi (DECISIONS 2026-10-03). */
     private val prices: SharedPriceTable = SharedPriceTable.seeded(LocalDate.now(clock)),
-    seed: ServerState = AdminSeed.build(LocalDate.now(clock), prices),
+    seed: BooksSnapshot = AdminSeed.build(LocalDate.now(clock), prices),
 ) : AdminApi {
     private val state = MutableStateFlow(seed)
     private val _revision = MutableStateFlow(0L)
@@ -88,9 +91,9 @@ class FakeAdminApi(
     override val revision: StateFlow<Long> = _revision.asStateFlow()
     override val changeLog: StateFlow<List<ChangeLogEntry>> = _log.asStateFlow()
 
-    private val s: ServerState get() = state.value
+    private val s: BooksSnapshot get() = state.value
 
-    private fun changed(who: String, what: String, before: String, after: String, change: (ServerState) -> ServerState) {
+    private fun changed(who: String, what: String, before: String, after: String, change: (BooksSnapshot) -> BooksSnapshot) {
         state.update(change)
         counter++
         _log.update { listOf(ChangeLogEntry(counter, LocalDateTime.now(clock), who, what, before, after)) + it }
@@ -104,13 +107,13 @@ class FakeAdminApi(
         return DataSpan(first, YearMonth.from(today))
     }
 
-    override suspend fun dashboard(month: YearMonth): DashboardReport = ServerLogic.dashboard(s, month, span().first)
+    override suspend fun dashboard(month: YearMonth): DashboardReport = BooksLogic.dashboard(s, month, span().first)
 
     // ------------------------------------------------------------------ sales
 
     override suspend fun invoices(): List<AdminInvoice> = s.invoices
 
-    override suspend fun invoiceDetail(id: String): InvoiceDetail? = ServerLogic.invoiceDetail(s, id)
+    override suspend fun invoiceDetail(id: String): InvoiceDetail? = BooksLogic.invoiceDetail(s, id)
 
     override suspend fun voidInvoice(id: String, reason: String, by: String): InvoiceDetail {
         val clean = cleanVoidReason(reason) ?: refuse("A void needs a reason")
@@ -124,7 +127,7 @@ class FakeAdminApi(
                 },
             )
         }
-        return ServerLogic.invoiceDetail(s, id)!!
+        return BooksLogic.invoiceDetail(s, id)!!
     }
 
     // ------------------------------------------------------------------ customers
@@ -132,9 +135,9 @@ class FakeAdminApi(
     override suspend fun customerTypes(): List<AdminCustomerType> = s.types
     override suspend fun customers(): List<AdminCustomer> = s.customers.sortedBy { it.label.lowercase() }
     override suspend fun customer(id: String): AdminCustomer? = s.customers.firstOrNull { it.id == id }
-    override suspend fun customerBalance(id: String): Long = ServerLogic.balance(s, id)
+    override suspend fun customerBalance(id: String): Long = BooksLogic.balance(s, id)
     override suspend fun customerSummary(id: String, month: YearMonth): CustomerMonthSummary =
-        ServerLogic.customerSummary(s, id, month)
+        BooksLogic.customerSummary(s, id, month)
 
     private fun checkForm(form: CustomerForm, editingId: String? = null) {
         val problems = validateCustomerForm(form)
@@ -243,7 +246,7 @@ class FakeAdminApi(
 
     // ------------------------------------------------------------------ costing, materials, purchases
 
-    override suspend fun costing(month: YearMonth): CostingReport = ServerLogic.costing(s, month)
+    override suspend fun costing(month: YearMonth): CostingReport = BooksLogic.costing(s, month)
     override suspend fun materials(): List<Material> = s.materials
 
     override suspend fun recipes(): List<ProductRecipe> = s.products.map { p ->
@@ -281,7 +284,7 @@ class FakeAdminApi(
         changed(by, "Wastage", "${formatWastage(old)}%", "${formatWastage(basisPoints)}%") { it.copy(wastageBp = basisPoints) }
     }
 
-    override suspend fun stock(month: YearMonth): StockReport = ServerLogic.stock(s, month)
+    override suspend fun stock(month: YearMonth): StockReport = BooksLogic.stock(s, month)
 
     override suspend fun purchases(month: YearMonth): List<Purchase> =
         s.purchases.filter { YearMonth.from(it.date) == month }.sortedByDescending { it.date }
@@ -350,13 +353,13 @@ class FakeAdminApi(
     override suspend fun packetCost(month: YearMonth, productId: String, chapathis: Int): ProductCost {
         if (s.products.none { it.id == productId }) refuse("Unknown product")
         if (!isValidPacketSize(chapathis)) refuse("A packet holds 1 to $MAX_PACKET_SIZE chapathis")
-        return ServerLogic.packetCost(s, month, productId, chapathis)
+        return BooksLogic.packetCost(s, month, productId, chapathis)
     }
 
     // ------------------------------------------------------------------ expenses
 
     override suspend fun expenseCategories(): List<ExpenseCategory> = s.categories
-    override suspend fun expenses(month: YearMonth): ExpensesReport = ServerLogic.expensesReport(s, month)
+    override suspend fun expenses(month: YearMonth): ExpensesReport = BooksLogic.expensesReport(s, month)
 
     override suspend fun addExpense(categoryId: String, date: LocalDate, amountCents: Long, description: String, by: String): Expense {
         val check = validateExpense(categoryId, date, centsToPlain(amountCents))
@@ -392,8 +395,8 @@ class FakeAdminApi(
 
     // ------------------------------------------------------------------ returns, balances, settings
 
-    override suspend fun returnsReport(month: YearMonth): ReturnsReport = ServerLogic.returnsReport(s, month)
-    override suspend fun balances(): List<BalanceRow> = ServerLogic.balances(s)
+    override suspend fun returnsReport(month: YearMonth): ReturnsReport = BooksLogic.returnsReport(s, month)
+    override suspend fun balances(): List<BalanceRow> = BooksLogic.balances(s)
 
     override suspend fun settings(): BusinessSettings = s.settings
 

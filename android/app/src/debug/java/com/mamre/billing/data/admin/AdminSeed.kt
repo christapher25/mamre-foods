@@ -1,5 +1,11 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.domain.books.BooksSnapshot
+import com.mamre.billing.domain.books.ReturnRow
+import com.mamre.billing.domain.books.DamageRow
+import com.mamre.billing.domain.books.RecipeEntry
+import com.mamre.billing.domain.books.OpeningStock
+import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminCustomerType
 import com.mamre.billing.domain.admin.AdminInvoice
@@ -40,13 +46,13 @@ object SeedIds {
     const val RESTAURANT = DemoIds.RESTAURANT_TYPE
     const val SHOP = DemoIds.SHOP_TYPE
     const val RETAIL = DemoIds.RETAIL_TYPE
-    const val WHEAT = "i-wheat"
-    const val OIL = "i-oil"
-    const val SUGAR = "i-sugar"
-    const val SALT = "i-salt"
-    const val BAKING_POWDER = "i-baking-powder"
-    const val SORBATE = "i-sorbate"
-    const val PACKING = "i-packing"
+    const val WHEAT = ReferenceIds.MATERIAL_WHEAT
+    const val OIL = ReferenceIds.MATERIAL_OIL
+    const val SUGAR = ReferenceIds.MATERIAL_SUGAR
+    const val SALT = ReferenceIds.MATERIAL_SALT
+    const val BAKING_POWDER = ReferenceIds.MATERIAL_BAKING_POWDER
+    const val SORBATE = ReferenceIds.MATERIAL_SORBATE
+    const val PACKING = ReferenceIds.MATERIAL_PACKING
     const val CATERING = DemoIds.CATERING_TYPE
     // Customers use the worker's ids where both sides had one, so each customer exists once (change set C1).
     const val SPICE_GARDEN = DemoIds.RESTAURANT
@@ -117,7 +123,7 @@ object AdminSeed {
         Behaviour(SeedIds.FRESHMART_WESTSIDE, 56, 4, 0, payPercent = 50),
     )
 
-    fun build(today: LocalDate, prices: SharedPriceTable = SharedPriceTable.seeded(today)): ServerState {
+    fun build(today: LocalDate, prices: SharedPriceTable = SharedPriceTable.seeded(today)): BooksSnapshot {
         val sharedCustomers = prices.customers().associateBy { it.id }
         val customerSeeds = behaviours.map { b ->
             val row = sharedCustomers.getValue(b.id)
@@ -391,7 +397,7 @@ object AdminSeed {
             month = month.plusMonths(1)
         }
 
-        return ServerState(
+        return BooksSnapshot(
             types = types,
             products = products,
             customers = customers,

@@ -1,4 +1,4 @@
-package com.mamre.billing.data.admin
+package com.mamre.billing.domain.books
 
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminCustomerType
@@ -17,13 +17,10 @@ import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnResolution
 import java.time.LocalDate
 
-// DEMO DATA. This is the stand-in for the server database (Doc 2 s1.1: the server is the source of
-// truth for prices, costing and reports). It is the Admin's own data set and is not linked to the
-// worker's DemoStore (owner decision); the only link is the shared selling price table. Nothing here
-// is real: prices, quantities and names are invented. Selling prices are not stored here: they live
-// in the shared table.
+// Plain data the books are calculated from (Doc 2 s4.2): every table the reports need, as domain models. Built from Room by
+// the Admin repository (version 1) or by hand in tests. Selling prices are not stored here: they are the price tables.
 
-/** A customer return as the server stores it (Doc 2 s4.2 ReturnRecord). */
+/** A customer return (Doc 2 s4.2 ReturnRecord) (Doc 2 s4.2 ReturnRecord). */
 data class ReturnRow(
     val id: String,
     val date: LocalDate,
@@ -61,7 +58,7 @@ data class RecipeEntry(val materialId: String, val qtyMb: Long?)
 /** Stock held before the first month of data, with the money it was worth. */
 data class OpeningStock(val qtyMb: Long, val valueCents: Long)
 
-data class ServerState(
+data class BooksSnapshot(
     val types: List<AdminCustomerType>,
     val products: List<AdminProduct>,
     val customers: List<AdminCustomer>,
