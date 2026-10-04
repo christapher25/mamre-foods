@@ -2,10 +2,10 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 2 OF 3
 # Technical Architecture and Data Model
 How the system is built: stack, data, API, sync, printing, security and testing
 
-Version: 1.1 (amended 3 October 2026)
-Date: 3 October 2026
+Version: 1.2 (local-first, 4 October 2026)
+Date: 4 October 2026
 Implements: Doc 1: Product Specification. This document may never change business behaviour.
-Status: Locked decisions, amended 3 October 2026 to match Doc 1 version 1.1. Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
+Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
 Companion documents: Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
@@ -16,25 +16,21 @@ Companion documents: Doc 3: Agent Operating Guide and Build Plan.
 ==============================================================================
 
 ```
-WORKER APP (Android)  <-- HTTPS / JSON sync -->  SERVER  <-- HTTPS web pages -->  ADMIN (laptop browser)
-
-WORKER APP: Kotlin + Jetpack Compose, Room local database, outbox + WorkManager sync,
-            pricing + ledger on device, receipt printer (58 mm), fully offline, no cost/profit data.
-SERVER:     Django 5 + DRF API, PostgreSQL (source of truth), sync push/pull endpoints,
-            allocation + ledger, costing engine + reports, audit log, daily backups, Railway or Render.
-ADMIN:      server-rendered pages (Django templates, HTMX, Tailwind), Odoo-style lists and forms,
-            monthly reports, PDF and Excel export, prices, costs, expenses.
+SCREENS (PIN lock, Sales area, Admin area) -> LOGIC (pricing, bills, ledger, returns, purchases, expenses)
+   -> DATABASE ON THE PHONE (Room / SQLite, tested migrations, entries never edited, no network)
+PRINTER (58 mm) and EXPORT (CSV files via the share menu) hang off the screens and the database.
+VERSION 2 (parked): server and database, sync, laptop dashboard, monthly dashboard, costing, separate logins.
 ```
 
 ### 1.1 Principles
 
-- Server is the source of truth for catalog, prices, costing and reports. The device is the source for new invoices, payments and returns, because they are created offline.
-- Offline first. Everything a worker does on the handheld works with no signal.
-- Money is integer cents. Never floating point. Ingredient quantities use Decimal.
-- Append-only financial records. Nothing is edited or deleted; use void or credit.
-- UUIDs created on the device make every sync safe to repeat (idempotent).
-- Workers never receive cost data. It is excluded at the API layer, not just hidden in the UI.
-- One backend codebase serves both the mobile API and the Admin dashboard.
+- Version 1 is local-first. One Android handheld holds all the data. There is no server and no network. The release app declares no INTERNET permission.
+- One Owner, two areas. After the PIN the Owner switches between the Sales area and the Admin area. The areas are separate in code, so version 2 can give them to different people.
+- Money is integer cents. Never floating point. Material quantities are Long milli-units.
+- Entries are never edited or deleted. A bill is voided, a purchase or expense is reversed by a linked entry.
+- The database is never wiped. From the first real release every change to its structure is a tested migration, never a destructive one.
+- Demo code lives only in the debug source set. A release app starts with reference data only.
+- The table shapes follow the server design (UUID ids, cents, immutable entries), so version 2 can import the version 1 export.
 
 ==============================================================================
 ## 2. Technology Decisions (Locked)
@@ -42,17 +38,16 @@ ADMIN:      server-rendered pages (Django templates, HTMX, Tailwind), Odoo-style
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | Python 3.12, Django 5, Django REST Framework | One project, several apps (section 3) |
-| Database | PostgreSQL 16 | SQLite allowed for quick local tests only |
-| Admin UI | Django templates, HTMX, Tailwind CSS | Server-rendered. No separate SPA. |
-| Reports | reportlab (PDF), openpyxl (Excel) | Pure Python, easy to host |
-| Mobile app | Kotlin, Jetpack Compose, Room, WorkManager, Retrofit with kotlinx.serialization, Hilt | Native, because printing needs the device SDK |
+| App | Kotlin, Jetpack Compose with Material 3, Navigation Compose, Hilt | Native, because printing needs the device library |
+| Database | Room (SQLite) with exported schemas and tested migrations | One database file on the phone |
+| PIN | Salted PBKDF2 from javax.crypto | No extra library |
+| Export | CSV written with the standard library; the Android share sheet | No extra library |
+| Printing | ReceiptPrinter interface; MockPrinter now; the handheld's own library once the model is known (P-1) | Layout is a pure function |
 | Android versions | minSdk 26 by default | Confirm from the real device (P-1) |
-| Auth | SimpleJWT for workers, Django sessions for Admin | Long-lived refresh token so offline use survives |
-| Hosting | Railway or Render with managed PostgreSQL | Roughly $5 to $10 a month |
-| CI | GitHub Actions: pytest, ruff, Gradle unit tests | Required green before merge |
-| Tests | pytest-django, JUnit, Room tests | Money logic needs tests first |
-| Monitoring | Sentry free tier plus provider logs | Errors only, no personal data in events |
+| Build | Gradle. Debug and release builds. The release is signed | Section 8 |
+| CI | GitHub Actions runs the unit tests on pull requests that touch android/ | Required green before merge |
+| Tests | JUnit, kotlinx-coroutines-test, Room migration tests | Money logic needs tests first |
+| Parked for version 2 | Django 5, DRF, PostgreSQL, HTMX and Tailwind, hosting, Retrofit, WorkManager | In the repository, not used by version 1 |
 
 >> [RULE]
 > No new dependency may be added without a note in the pull request explaining why. Prefer the standard library and what is already listed above.
@@ -66,34 +61,22 @@ mamre/
   CLAUDE.md                  rules every agent reads first
   docs/
     01-product-spec.txt  02-architecture.txt  03-agent-guide.txt
-    api/openapi.yaml         the API contract
     DECISIONS.md             every decision, one line each
     QUESTIONS.md             open questions for the owner
-  backend/
-    manage.py
-    config/                  settings, urls, wsgi
-    apps/
-      accounts/              users, roles, devices
-      catalog/               products, customer types, customers, prices
-      sales/                 invoices, payments, allocations, returns, ledger
-      sync/                  mobile sync endpoints
-      production/            materials, purchases, recipes, damage
-      expenses/              categories, entries
-      costing/               pure costing engine (no database access)
-      reports/               monthly report queries and exports
-      dashboard/             Admin UI views, templates, static
-    tests/
-  android/
+    api/openapi.yaml         the server contract (parked, version 2)
+  android/                   the version 1 app
     app/src/main/java/com/mamre/billing/
-      data/    room, api, repositories
-      domain/  models, pricing, ledger, use cases
-      print/   ReceiptPrinter, SymcodePrinter, MockPrinter, ReceiptLayout
-      sync/    outbox, workers
-      ui/      screens, theme
+      data/    Room entities, DAOs, repositories, first-run seed
+      domain/  models, pricing, ledger, material rules, use cases
+      print/   ReceiptPrinter, MockPrinter, bill layout
+      ui/      lock, sales, admin, components, theme
+    app/src/debug/          demo data and fakes (never in a release build)
+    app/src/test/           unit tests
+  backend/                   Django server, parked for version 2
 ```
 
->> [CROSS-APP RULE]
-> Each backend app exposes services.py (all writes) and selectors.py (all reads). Other apps call these functions and never edit another app's tables directly. This is what stops parallel agents colliding.
+>> [LAYERING RULE]
+> Business rules live in domain/ as pure functions, called by use cases that write through the repositories in one transaction. Screens only validate and display.
 
 ==============================================================================
 ## 4. Data Model
@@ -101,233 +84,216 @@ mamre/
 
 ### 4.1 Conventions
 
-- Primary key: UUID v4 on every table. Device-created rows get their UUID on the device.
-- Money columns end in _cents (BigInteger). Cost per chapathi is a Long in ten-thousandths of a dollar. Material quantities are Longs in milli-units (1,000 = 1 g, 1 ml or 1 piece). Wastage is stored in basis points (200 = 2%). No floats anywhere.
-- Times are stored in UTC. Month boundaries use the business time zone from settings.
-- Every row has created_at and updated_at. Device-created rows also have device_id, client_created_at, server_received_at.
-- Catalog rows have a monotonic sync_version for pull cursors.
-- No hard deletes of financial rows. Use status, is_active or a linked reversing row.
+- Primary key: UUID v4 on every table, so version 2 can import the data.
+- Money columns end in _cents (Long). Cost per chapathi is a Long in ten-thousandths of a dollar. Material quantities are Longs in milli-units (1,000 = 1 g, 1 ml or 1 piece). Wastage is stored in basis points (200 = 2%). No floats.
+- Times are stored as UTC epoch milliseconds. Month grouping uses the phone's time zone.
+- No update or delete methods exist for bills, bill items, payments, returns, purchases, expenses or production damage. The only change is a bill going active to void. A test scans the DAO interfaces.
+- Every table is declared in Room with a version number and an exported schema.
 
 ### 4.2 Tables
 
 | Table | Key fields | Rules |
 |---|---|---|
-| accounts User | id, username, full_name, role (admin or worker), is_active | Role enforced on every endpoint. |
-| Device | id, code (W1), name, user_id, last_sync_at, app_version | One code per device. Code appears in invoice numbers. |
-| catalog Product | id, code, name, standard_packet_size (default 12), yield_per_kg (default 32), is_active | Adding a product needs no code change. Packing cost comes from the packing material. |
-| CustomerType | id, name, worker_can_edit_price, is_active | Restaurant, Shop, Retail, Catering. Flag defaults: Retail and Catering ON, others OFF. Synced to workers. Changes are audited. |
-| Customer | id, name, type_id, phone, address, payment_mode (cash or credit), opening_balance_cents, notes, is_active | Walk-in is not a row; it is a null customer. |
-| PriceDefault | id, product_id, customer_type_id, unit_price_cents (per standard packet), effective_from | History kept. Latest effective row wins. |
-| PriceOverride | id, customer_id, product_id, unit_price_cents, effective_from, note, is_active | Beats PriceDefault. Admin only. |
-| sales Invoice | id, number (unique), customer_id (null for walk-in), customer_name, customer_type, worker_id, device_id, issued_at, total_cents, status (active or void), void_reason, voided_by, voided_at | Immutable except active to void by Admin. |
-| InvoiceItem | id, invoice_id, product_id, product_name, qty_packets, chapathis_per_packet, unit_price_cents (charged, per packet), list_price_cents, price_overridden, line_total_cents | Price is a snapshot. line_total = qty_packets x unit_price. price_overridden is true when the charged price differs from the list price. |
-| Payment | id, receipt_number, customer_id (null for walk-in), invoice_id (optional), amount_cents, method (cash, zelle, check, card, other), paid_at, worker_id, device_id, note | Append-only. |
-| PaymentAllocation | id, payment_id, invoice_id, amount_cents | Created by the server (oldest first). Sum per payment must not exceed the payment. |
-| ReturnRecord | id, customer_id, invoice_id (optional), product_id, qty_packets, chapathis_per_packet, reason, resolution (credit or replacement), unit_price_cents, credit_cents, occurred_at, recorded_by, device_id, note | Credit reduces balance. Replacement does not. |
-| materials Material | id, name, base_unit (g, ml or piece), purchase_unit, base_per_purchase_unit, is_packing | Shared by both products: wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. |
-| MaterialPurchase | id, material_id, purchased_on, qty_milli, total_paid_cents, note, reverses_id (optional), reason (required when reversing), entered_by | Add-only. A mistake is corrected by a reversing row (negative quantity and amount, reason, linked to the original). A row is reversed once; a reversal is never reversed. |
-| OpeningStock | id, material_id, month (YYYY-MM), qty_milli, value_cents | Set once per material when records start. Later months are calculated. |
+| Reference CustomerType | id, name, salesman_can_edit_price, is_active | Restaurant, Shop, Retail, Catering. Switch defaults: Retail and Catering ON. Changes are logged. |
+| Product | id, code, name, standard_packet_size (12), yield_per_kg (32), is_active | Packing cost comes from the packing material. |
+| Customer | id, name, location, type_id, phone, address, payment_mode (cash or credit), is_corporate, opening_balance_cents, notes, is_active | Unique on name plus location (ignoring case and spaces). Walk-in is not a row. |
+| PriceDefault | id, product_id, customer_type_id, unit_price_cents (per standard packet), effective_from | History kept. A newer row needs a later date. |
+| PriceOverride | id, customer_id, product_id, unit_price_cents, effective_from, note, is_active | Beats PriceDefault. |
+| Setting | key, value | owner_name, device_code, business_name, address lines, phone, footer_text, wastage_bp, lock_minutes, pin_hash, pin_salt, next_bill_seq, next_receipt_seq. |
+| Billing Invoice | id, number (unique), customer_id (null for walk-in), customer_name, customer_location, is_corporate, salesman_name, issued_at, total_cents, status (active or void), void_reason, voided_at | Immutable except active to void. |
+| InvoiceItem | id, invoice_id, product_id, product_name, qty_packets, chapathis_per_packet, unit_price_cents (charged, per packet), list_price_cents, price_overridden, line_total_cents | Price is a snapshot. line_total = qty_packets x unit_price. |
+| Payment | id, receipt_number, customer_id (null for walk-in), invoice_id (optional), amount_cents, method (cash, zelle, check, card, other), paid_at, note | Append-only. |
+| ReturnRecord | id, customer_id, invoice_id (optional), product_id, qty_packets, chapathis_per_packet, reason, resolution (credit or replacement), unit_price_cents, credit_cents, occurred_at, note | Credit reduces balance. Replacement does not. |
+| Materials Material | id, name, base_unit (g, ml or piece), purchase_unit, base_per_purchase_unit, is_packing | Wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. |
+| MaterialPurchase | id, material_id, purchased_on, qty_milli, total_paid_cents, note, reverses_id (optional), reason (required when reversing) | Add-only. A mistake is corrected by a linked reversing row. A row is reversed once; a reversal is never reversed. |
+| OpeningStock | id, material_id, month (YYYY-MM), qty_milli, value_cents | Set once per material. |
 | RecipeItem | id, product_id, material_id, qty_milli_per_kg_wheat | Wheat is a material with 1,000 g as the basis. Potassium sorbate only on Mamre Chapathi. |
-| ProductionDamage | id, product_id, damaged_on, chapathis, note, entered_by | Add-only. Counts in material usage. Not a customer return. |
-| expenses ExpenseCategory | id, name, kind (direct or indirect), is_active | Indirect categories at launch: see Doc 1 section 10. |
-| Expense | id, category_id, expense_date, amount_cents, description, reverses_id (optional), reason, entered_by | Admin only in v1. Add-only with reversing entries. |
-| system AppSetting | key, value | Business name, address, phone, time zone, footer text, wastage_bp (default 200, allowed 0 to 500). |
-| MonthLock | id, month (YYYY-MM), locked_by, locked_at | Blocks back-dated entries. |
-| AuditLog | id, user_id, action, entity, entity_id, before_json, after_json, at | Written for price changes, price-edit switch changes, voids, locks, balance corrections. |
-| SyncBatchLog | id, device_id, received_at, counts_json, status | One row per push. |
+| ProductionDamage | id, product_id, damaged_on, chapathis, note | Add-only. Counts in material usage. |
+| ExpenseCategory, Expense | category: id, name, kind (direct or indirect). Expense: id, category_id, expense_date, amount_cents, description, reverses_id, reason | Add-only with reversing entries. |
+| ChangeLog | id, at, what, before_text, after_text | Written for price changes, price-switch changes, voids, settings changes, customer edits. |
+| PaymentAllocation | id, payment_id, invoice_id, amount_cents | Optional in version 1: oldest-first allocation can be derived from bills and payments. |
+| Version 2 only User, Device, MonthLock, SyncBatchLog | not in the version 1 database | Come with the server. |
 
 ### 4.3 Invariants (must always hold)
 
 | ID | Invariant |
 |---|---|
-| I-1 | No floating point for money or quantities anywhere (database, backend, Android, reports). |
-| I-2 | line_total_cents = qty_packets x unit_price_cents (price per packet). invoice.total_cents = sum of line totals. Where a price is derived (custom packet default), round half up in integer arithmetic. |
-| I-3 | Invoice number is unique and matches ^MAM-[A-Z0-9]+-[0-9]{4,}$. |
-| I-4 | Invoices and their items never change after saving, except status active to void by an Admin. |
-| I-5 | Sum of allocations for a payment is at most the payment. Unallocated remainder is credit on account. |
-| I-6 | Balance = opening + non-void invoices - credits - payments. Always computed, never stored as editable. |
-| I-7 | The price used is the one the device held when the invoice was made, stored on the line with the list price. |
-| I-8 | Worker-facing responses contain sell prices only. No keys containing cost, profit, expense. |
-| I-9 | No hard deletes of invoices, payments, allocations, returns, purchases, expenses or damage. |
-| I-10 | A locked month accepts no new entries dated inside it. |
-| I-11 | Sync push is idempotent: sending the same UUID twice creates one record. |
-| I-12 | All stored times are UTC. Month grouping uses the business time zone. |
-| I-13 | A worker may change a line's price only if the customer type's worker_can_edit_price is on; the change is stored as price_overridden. |
-| I-14 | Purchases, expenses and production damage are never edited or deleted. A correction is a linked reversing row with a reason. |
+| I-1 | No floating point for money or quantities anywhere. |
+| I-2 | line_total_cents = qty_packets x unit_price_cents (price per packet). Bill total = sum of line totals. Where a price is derived (a custom packet default), round half up in integer arithmetic. |
+| I-3 | Bill number is unique and matches ^MAM-[A-Z0-9]+-[0-9]{4,}$. The sequence is saved in the same transaction as the bill and never reused. |
+| I-4 | Bills and their items never change after saving, except status active to void in the Admin area. |
+| I-6 | Balance = opening + non-void bills - credits - payments. Always computed, never stored as editable. |
+| I-7 | The price used is the one held when the bill was made, stored on the line with the list price. |
+| I-8 | The Sales area and every printed bill contain no cost, profit or expense data. |
+| I-9 | No deletes of bills, payments, returns, purchases, expenses or damage. |
+| I-13 | A line's price may differ from the list price only if the customer type's switch is on; the change is stored as price_overridden. Above 0 and at most 10 times the list price. |
+| I-14 | Purchases, expenses and damage are never edited or deleted. A correction is a linked reversing row with a reason. |
+| I-15 | A migration never deletes or recreates user data. Destructive migration is forbidden after the first real release. |
+| I-16 | A corporate customer's balance is never built into a bill, a payment receipt or any Sales-area screen. |
 
 ==============================================================================
-## 5. API Contract (Mobile)
+## 5. Local Storage, Migrations and Export
 ==============================================================================
 
-Base path /api/v1/. JSON only. HTTPS only. The full contract lives in docs/api/openapi.yaml and is changed first, before code. Admin pages are server-rendered and are not part of this API.
+### 5.1 Database and migrations
 
-| Method and path | Role | Purpose |
-|---|---|---|
-| POST /auth/login | Worker | Username and password. Returns access and refresh tokens. |
-| POST /auth/refresh | Worker | New access token. Refresh lifetime about 30 days. |
-| GET /me | Worker | Worker profile and device code. |
-| GET /sync/catalog?cursor=N | Worker | Products (with standard_packet_size), customer types (with worker_can_edit_price), customers, price defaults and overrides, business header settings. No cost data. A customer or type the Admin adds reaches the worker here. |
-| GET /sync/customer-activity?cursor=N | Worker | Invoices, payments and credits per customer so the device can print a month summary. |
-| POST /sync/push | Worker | Invoices with items, payments, returns. Idempotent. Returns a status per record. |
+- One Room database, mamre.db. Schemas are exported to android/app/schemas and committed.
+- Every schema change is a numbered, written migration with a test that opens the old schema, migrates, and checks the data survived. No destructive migration from the first real release (I-15).
+- All writes go through use cases in one transaction. DAOs expose no update or delete for protected tables (I-9).
 
-### 5.1 Push request and response
+### 5.2 First run (release build)
 
-Comments below are for illustration and are not valid JSON.
+A release app starts with reference data only: the four customer types with their price-edit switches; the two products (standard packet 12, yield 32); the materials list; the recipe per 1 kg of wheat (wheat 1 kg, oil 80 ml, sugar 20 g, salt 15 g, baking powder 2 g; sorbate unset); the expense categories; and default settings (business name Mamre Foods, device code W1, wastage 2%, lock after 5 minutes). It has no customers, prices, bills or demo data. The debug build seeds demo data from src/debug. The first screen asks the Owner to choose a PIN.
 
-```
-POST /api/v1/sync/push
-{
-  "device_code": "W1",
-  "invoices": [{
-    "id": "7f1c...e2",                    // UUID made on the device
-    "number": "MAM-W1-0042",
-    "customer_id": "a93b...10",           // null for walk-in
-    "issued_at": "2026-10-10T14:20:11-05:00",
-    "items": [
-      {"id": "...", "product_id": "...", "qty_packets": 10, "chapathis_per_packet": 12,
-       "unit_price_cents": 250, "list_price_cents": 250, "price_overridden": false},
-      {"id": "...", "product_id": "...", "qty_packets": 20, "chapathis_per_packet": 12,
-       "unit_price_cents": 280, "list_price_cents": 280, "price_overridden": false}
-    ],
-    "total_cents": 8100
-  }],
-  "payments": [{
-    "id": "...", "invoice_id": "7f1c...e2", "amount_cents": 3000,
-    "method": "cash", "paid_at": "2026-10-10T14:21:02-05:00"
-  }],
-  "returns": []
-}
+### 5.3 Export to files
 
-200 OK
-{ "results": [
-    {"type": "invoice", "id": "7f1c...e2", "status": "accepted"},
-    {"type": "payment", "id": "...", "status": "accepted",
-     "allocated": [{"invoice_id": "7f1c...e2", "amount_cents": 3000}]} ],
-  "server_time": "2026-10-10T19:25:00Z", "catalog_cursor": 18402 }
-```
-
-### 5.2 Errors, versioning and price overrides
-
-- Error body: {"code": "...", "message": "...", "details": {}}.
-- Per-record push status: accepted, duplicate (already stored, treated as success) or rejected with a reason and a retryable flag. One bad record never blocks the others.
-- The app sends X-App-Version. A server may answer 426 to force an update.
-- Allocation of payments to invoices is done by the server. The device shows a provisional balance (last synced balance plus unsynced records).
-- Price overrides (planned, backend change set pending). The server stores the unit price as sent (I-7). If price_overridden is true and the customer type's switch is off when the record arrives, the invoice is still accepted and is flagged "unauthorised override" for Admin review. It is never rejected or lost.
-
-### 5.3 Admin endpoints (planned, not built)
-
-The Admin view in the Android app and the laptop dashboard need Admin endpoints for customers and types (including the price-edit switch), prices and overrides, material purchases, opening stock, recipes, wastage, production damage, expenses, voiding an invoice, and the monthly report. Admin login on mobile needs /auth/login and /me to allow role admin; today they refuse it. Worker tokens must never reach these endpoints, and Admin screens on the phone need the PIN lock first.
+- Admin area, Export: writes one CSV per table plus manifest.txt (data version, export time, row counts): customers, customer_types, products, prices, invoices, invoice_items, payments, returns, materials, purchases, expenses, production_damage, settings (PIN excluded), change_log.
+- UTF-8, header row, UUIDs, money in cents, quantities in milli-units, times in ISO 8601.
+- The Owner shares the files with the Android share sheet or saves them to a folder he picks.
+- There is no import in version 1. Version 2 imports these files.
 
 ==============================================================================
-## 6. Offline Sync Design
+## 6. PIN Lock and Local Security
 ==============================================================================
 
-1. Outbox pattern. Creating an invoice, payment or return writes the record and an outbox row in one local transaction. Nothing is lost if the app is killed.
-2. Triggers. WorkManager runs about every 15 minutes, when the network returns, and on a manual Sync now button, with exponential backoff.
-3. Push order. Invoices first, then payments and returns that refer to them.
-4. Pull. Cursor-based using sync_version. The device applies upserts and treats is_active=false as removal.
-5. Conflicts. Catalog: server wins. Device-created records are append-only, so they cannot conflict. A duplicate invoice number from different device codes is impossible by design; if it happens the record is rejected and the Admin is alerted.
-6. Outbox cleanup. An outbox row is deleted only after the server acknowledges it. The app shows the number of unsynced records. Logout is blocked while records are unsynced.
-7. Clock. The device time is stored as client_created_at. The server records its own receive time. A difference over 24 hours is flagged for the Admin.
-8. Lost device. The Admin deactivates the user, which revokes tokens. The app locks after inactivity with a PIN or biometric.
+- At first run the Owner chooses a PIN of 4 to 6 digits. It is stored only as a salted PBKDF2 hash. The plain PIN is never stored or logged.
+- The app locks after the number of minutes in Settings (default 5) and whenever it has been in the background longer than that. Five wrong PINs in a row add a growing delay.
+- The Owner can change the PIN while unlocked. There is no PIN recovery in version 1. A forgotten PIN means clearing the app's data, which deletes everything (Doc 1 A-26). The Owner should choose a PIN he will remember.
+- The Sales and Admin areas are separate navigation graphs with a route guard. Cost and profit data is not shown anywhere in version 1.
+- The release app requests no INTERNET permission, so no data can leave the phone except through an export the Owner starts. Export files are plain text with customer data: share them only with people you trust.
+- The database is not encrypted beyond Android's own device encryption. Set a screen lock on the phone.
+- Android backups of the app are turned off, so nothing is copied to the cloud behind the Owner's back.
 
 ==============================================================================
 ## 7. Printing Design
 ==============================================================================
 
-- Interface ReceiptPrinter { suspend fun print(doc): PrintResult } with three implementations: MockPrinter (on-screen preview and log, used until P-1 is solved), SymcodePrinter (vendor SDK), and an optional Bluetooth ESC/POS fallback.
-- ReceiptLayout is a pure function: invoice data in, a list of text lines out, 32 characters wide for a 58 mm printer (verify on the real device). It is tested with golden-file tests.
-- Order of operations: save invoice, then print. A print failure shows Retry and Reprint and never loses the invoice.
-- A reprint carries the line DUPLICATE COPY.
+- Interface ReceiptPrinter { suspend fun print(doc): PrintResult } with MockPrinter (an on-screen preview, used until P-1 is solved) and the handheld's own library once the model is known.
+- The bill layout is a pure function: bill data in, a list of text lines out, 32 characters wide for a 58 mm printer (verify on the real device). It is tested with golden files.
+- Order of operations: save the bill, then print. A print failure shows Retry and Reprint and never loses the bill.
+- The header comes from Settings. No business detail is written in the code (Doc 1 A-31).
 
-### 7.1 Reference layout (32 columns)
+### 7.1 Reference layout: a corporate credit bill
 
-Prices below are invented for illustration. This receipt matches the numbers in the API example.
+Names and numbers are invented for illustration. Item rows use the columns Item Desc 13, Qty 4, Price 7, Amt 8. There is no dollar sign and no Type line.
 
 ```
           MAMRE FOODS
    (address / phone pending)
 --------------------------------
-Invoice: MAM-W1-0042
-Date:    10/10/2026 14:20
-Worker:  W1
-Customer: Spice Garden
-Type:     Restaurant
+Bill No:  MAM-W1-0042
+Date:     10/03/2026
+Time:     07:32
+Salesman: Rajesh
+Customer: FreshMart
+          Downtown
 --------------------------------
-Mamre Chapathi
-  10 x $2.50              $25.00
-Mamre Fresh Chapathi
-  20 x $2.80              $56.00
+Item Desc     Qty  Price     Amt
+MAMRE CHAPATHI 12NOS
+               70   2.50  175.00
+MAMRE FRESH CHAPATHI 12NOS
+               25   2.80   70.00
 --------------------------------
-TOTAL                     $81.00
-Paid now (Cash)           $30.00
-Balance after            $121.00
+TOTAL (USD)               245.00
+CREDIT                    245.00
 --------------------------------
-THIS MONTH (Oct 2026)
-Brought forward            $0.00
-Invoiced                 $201.00
-Payments:
- 10/05 Zelle              $50.00
- 10/10 Cash               $30.00
-TOTAL DUE                $121.00
+Received by:
+
+________________________________
+Sign and stamp
 --------------------------------
            Thank you!
 ```
 
+### 7.2 Reference layout: a normal credit bill with a part payment
+
+```
+          MAMRE FOODS
+   (address / phone pending)
+--------------------------------
+Bill No:  MAM-W1-0042
+Date:     10/03/2026
+Time:     07:32
+Salesman: Rajesh
+Customer: Spice Garden
+          Irving
+--------------------------------
+Item Desc     Qty  Price     Amt
+MAMRE CHAPATHI 12NOS
+               10   2.50   25.00
+MAMRE FRESH CHAPATHI 12NOS
+               20   2.80   56.00
+--------------------------------
+TOTAL (USD)                81.00
+PAID (Cash)                30.00
+CREDIT                     51.00
+Balance after             171.00
+--------------------------------
+THIS MONTH (Oct 2026)
+Brought forward           120.00
+Invoiced                   81.00
+Payments:
+ 10/10 Cash                30.00
+TOTAL DUE                 171.00
+--------------------------------
+           Thank you!
+```
+
+A cash walk-in bill has no CREDIT line, no Balance after and no THIS MONTH block. A payment receipt (a payment with no new bill) uses the same header and plain numbers.
+
 ==============================================================================
-## 8. Security and Privacy
+## 8. Release, Signing and Updates
 ==============================================================================
 
-- Roles are enforced server-side with DRF permissions on every endpoint, never only in the UI.
-- Worker serializers are separate from Admin serializers. A test fails the build if any worker response contains a key matching cost, profit or expense.
-- HTTPS only, HSTS on, secrets in environment variables, .env never committed, .env.example provided.
-- Passwords use Django's hashers. Login is rate limited. Admin uses a separate login from workers.
-- On the device, tokens are kept in EncryptedSharedPreferences and the app locks after inactivity.
-- AuditLog records price changes, voids, month locks and balance corrections.
-- Daily database backup kept at least 14 days. A restore drill must be done before go-live.
-- Only the personal data needed is stored: customer name, phone and address.
+- Make one signing key once, with a strong password, and keep the key file and the password in two safe places outside the repository. The key is never committed. If it is lost, an update cannot install over the old app, and the data is lost (Doc 1 A-30).
+- Every release raises the version code. An APK signed with the same key installs over the old app and keeps the data.
+- Install: copy the APK to the phone, allow 'install unknown apps' for the file manager or browser, open the APK. Never uninstall the app; uninstalling deletes all its data.
+- Before each release: run all tests, build the release APK, unzip it and confirm it contains no fake API, demo credentials, demo seed data or demo address (this check is a required acceptance test).
+- Tag each release in git (v1.0.0 and so on) and keep the signed APK of each release.
+- An install guide (one page, with pictures) is part of the release.
 
 ==============================================================================
-## 9. Admin Surfaces
+## 9. Admin Area (Version 1)
 ==============================================================================
 
-There are two Admin surfaces on the same server and rules: the laptop dashboard (server-rendered, planned) and the Admin view inside the Android app (built on demo data, bottom bar Dashboard, Sales, Customers, Prices, More). Look and feel for the laptop: clean and dense, in the style of Odoo's lists and forms, with a left sidebar menu, breadcrumb bar, searchable and filterable lists, form views, status chips and pagination. Do not copy Odoo's branding.
+The Admin area is a bottom-bar section of the same app: Sales, Customers, Prices, More. Look and feel: clean and dense lists and forms, in the style of the Admin screens already built. In version 1 the Dashboard and Costing screens are hidden behind a build flag; their code stays for version 2.
 
-| Menu | Screens | Main actions |
+| Screen | Contents | Main actions |
 |---|---|---|
-| Dashboard | This month at a glance: net sales, cash collected, outstanding, direct expense, gross profit, indirect expenses, net profit; charts | Open report, jump to overdue customers |
-| Sales | Invoices with filters (month, customer, status, price changed), Payments, Returns and damage | Search, view, void invoice with a reason |
-| Customers | Customer list with type chips (Restaurant, Shop, Retail, Catering), ledger per customer with month summary | Add, edit, set override prices |
-| Prices | Price matrix per product and customer type, price history, Price rules (worker can edit price, per type) | Set a new price with an effective date; switch price editing |
-| Costing | Cost per chapathi and per standard packet, custom packet calculator, recipe, yield, wastage | Edit recipe quantities and wastage (change-logged) |
-| Expenses | Materials tab (purchases, monthly stock table) and Other expenses tab | Add a purchase or expense; add a reversing entry |
+| Sales | Bills with filters (month, customer, status, price changed). Read-only detail. | Search, view, void with a reason |
+| Customers | List with type chips, month summary per customer, corporate switch, location | Add, edit, set override prices |
+| Prices | Price matrix per product and customer type, history, Price rules (switch per type) | Set a new price with an effective date; switch price editing |
+| Expenses | Materials tab (purchases, stock table) and Other expenses tab | Add a purchase or expense; add a reversing entry |
 | Returns and damage | Customer returns (view) and production damage (chapathis) | Add production damage |
 | Balances | Customers by balance with ageing (current, 30+, 60+) | Open a customer |
-| Settings | Business details, wastage, workers and devices, month lock | Add worker, lock month |
+| Settings | Owner name, business details, wastage, PIN, lock time, Export | Edit, export |
+| Hidden in version 1 | Dashboard and Costing | Version 2 |
 
 ==============================================================================
-## 10. Worker App Screens
+## 10. Sales Area Screens
 ==============================================================================
 
 | Screen | Contents | Rules |
 |---|---|---|
-| Login | Username, password, Mamre logo | Remembers session. PIN lock after inactivity (planned). |
-| Home | New invoice, Record payment, Return, Today's invoices, Sync status | Shows count of unsynced records. Count only, never totals. |
-| Select customer | Four type tiles (Restaurant, Shop, Retail, Catering) with counts, then that type's customers with search. Walk-in under Retail. Shows balance for the selected customer | Cannot add customers (A-13). New customers appear after Sync now. |
-| Invoice builder | Product cards. Each line is Standard (12) or Custom (1 to 200 chapathis) with a packet stepper, a running total, and Edit price where the type allows | Price read-only unless the type's switch is on. A changed price shows a "Price changed" chip. Blocks any product with no price. |
-| Edit price sheet | Price per packet, list price, Reset to list price | Above $0 and at most 10 times the list price. Only when allowed. |
-| Payment step | Amount received now, method | Walk-in must pay in full. Credit customers may pay $0. |
-| Confirm and print | Summary, Confirm button | Confirm saves, queues sync, prints. Back never loses data. |
+| PIN lock | PIN entry, first-run PIN setup, Mamre logo | Locks after inactivity. |
+| Home | New bill, Record payment, Return, Today's bills, switch to the Admin area | Counts only, never totals. |
+| Select customer | Four type tiles (Restaurant, Shop, Retail, Catering) with counts, then that type's customers with search. Walk-in under Retail. Balance shown except for corporate accounts | Customers are added in the Admin area. |
+| Bill builder | Product cards. Each line is Standard (12) or Custom (1 to 200 chapathis) with a packet stepper, a running total, and Edit price where the type allows | Price read-only unless the type's switch is on. Blocks any product with no price. |
+| Edit price sheet | Price per packet, list price, Reset to list price | Above 0 and at most 10 times the list price. |
+| Payment step | Amount received now, method | Walk-in must pay in full. No balance lines for corporate accounts. |
+| Confirm and print | Summary, Confirm button | Confirm saves and prints. Back never loses data. |
 | Record payment | Customer, amount, method, note | Prints a receipt on confirm. |
-| Return | Customer, product, packets, reason, credit or replacement | Logged with the worker. |
-| Today's invoices | List with totals | Reprint marked DUPLICATE COPY. |
-| Sync and settings | Pending count, Sync now, app version, logout | Logout blocked while records are unsynced. |
+| Return | Customer, product, packets, reason, credit or replacement | Credit or replacement. |
+| Today's bills | List with totals | Reprint marked DUPLICATE COPY. |
 
-UX rules: touch targets at least 48 dp, one-handed use, large totals, no cost or profit anywhere, a confirmation before the final submit, and no lost input on rotation or back. Receipts show "(N pcs)" only for custom packets, and the 32-column golden file for standard packets must keep passing.
+UX rules: touch targets at least 48 dp, one-handed use, large totals, no cost or profit anywhere, a confirmation before the final submit, and no lost input on rotation or back.
 
 ==============================================================================
 ## 11. Costing Engine Specification
 ==============================================================================
+
+>> [VERSION 1 AND VERSION 2]
+> The costing engine is built and tested, but the Costing screen and the Dashboard are hidden in version 1 (Doc 1 A-28). Version 1 stores every input; version 2 shows the results.
 
 The module costing/engine.py is pure: it takes plain data in and returns plain data out, with no database access. The formulas are in Doc 1 section 9.
 
@@ -364,28 +330,28 @@ indirect_per_chapathi(month):
 
 | Area | Required tests |
 |---|---|
-| Pricing | Override beats default. Missing price blocks the invoice. Snapshot survives a later price change. Custom packet price rounds half up (250 per standard packet of 12 gives 208 for 10 chapathis and 188 for 9; 230 gives 192 for 10). Walk-in uses Retail. |
-| Price editing | A locked type cannot change a price even if the screen is bypassed. An editable type stores list price and price_overridden. Reset returns to the list price. The 10 times cap holds. |
-| Ledger | Doc 1 section 6.5 example: Invoice 1 paid, Invoice 2 has $60 left, closing $120. Void invoices are excluded. Return credit reduces balance. Overpayment becomes credit. |
-| Sync | Push the same batch twice: one record. Kill the app between save and sync: nothing lost. Mixed good and bad records: good ones accepted. A customer added by the Admin appears on the worker only after Sync now. |
-| Security | Worker responses contain no cost, profit or expense keys. Worker token cannot reach Admin pages. |
-| Materials and costing | The golden cases in section 11. Purchases are never edited or deleted. A reversing entry nets out. Negative closing stock warns. A missing price gives INCOMPLETE. Usage uses gross invoiced chapathis. Packing excludes damaged chapathis. |
-| Printing | ReceiptLayout golden file at 32 columns. Print failure keeps the invoice. |
-| Month lock | Back-dated entry into a locked month is refused. |
-| Immutability | Edit or delete of an invoice, payment, purchase or expense is impossible through the API and Admin. |
-| Release build | The release package contains no fake API, no demo logins and no demo seed data. |
+| Pricing | Override beats default. Missing price blocks the sale. Snapshot survives a later price change. Custom packet price rounds half up (250 per 12 gives 208 for 10 chapathis and 188 for 9). Walk-in uses Retail. |
+| Price editing | A locked type cannot change a price even if the screen is bypassed. An editable type stores the list price and price_overridden. Above 0 and at most 10 times the list price. |
+| Ledger | Doc 1 section 6.5 example. Void bills are excluded. A return credit reduces the balance. Overpayment becomes credit. |
+| Corporate account | No balance on the bill, payment receipt, payment step, confirm screen or customer card, while the Admin ledger still counts it. Tests look at the builders' data and the layout. |
+| Database | A migration test per schema version keeps data. No DAO method updates or deletes a protected table. First run creates reference data only. |
+| Lock and PIN | A wrong PIN is refused. Only a salted hash is stored. The app locks after the set time. |
+| Export | Every table is written. Row counts match the app. The PIN is never exported. |
+| Materials and costing | Golden cases in section 11. Purchases never edited or deleted. A reversing entry nets out. Negative stock warns. A missing price gives INCOMPLETE. Packing excludes damaged chapathis. |
+| Printing | Golden files at 32 columns for the corporate bill, the normal credit bill, the cash walk-in bill and the payment receipt. A print failure keeps the bill. |
+| Release build | The release package contains no fake API, no demo logins, no demo data and no demo address. |
 
-Manual end-to-end check: turn on airplane mode, make an invoice and print it, turn the network on, confirm the invoice appears once in the Admin view and the customer's balance matches the receipt.
+Manual check before real use: make bills of every kind on the real handheld, print them, void one, export, and check the balances against the paper.
 
 ==============================================================================
-## 13. Deployment and Operations
+## 13. Parked for Version 2
 ==============================================================================
 
-- Environments: local, and production (staging optional). Settings come from environment variables.
-- Required variables: SECRET_KEY, DATABASE_URL, ALLOWED_HOSTS, SENTRY_DSN, TIME_ZONE.
-- Migrations run on each deploy. CI runs makemigrations --check.
-- Backups: provider snapshot or scheduled pg_dump, daily, 14 days retained, restore tested.
-- Android release: signed APK installed directly on the handheld (the device may not have a store). Keep the keystore out of git and backed up safely by the owner.
-- Demo code (fake API, demo logins, demo seeds) lives only in the Android debug source set. A release build must not contain it; verify by inspecting the release package.
-- The Android local database needs proper migrations before real invoices are stored on a device, so an app update never erases data.
-- Versioning: tag a release at the end of every phase gate (v0.1, v0.2 and so on).
+Nothing in this section is built into version 1. It stays in the repository so version 2 can start from it.
+
+- Server: Django 5, DRF and PostgreSQL in backend/: accounts, catalog, sales and sync, merged and tested. It does not yet know the version 1.1 and 1.2 rules (Catering, the price-edit switch, location, the corporate flag, salesman names, purchases and materials).
+- API and sync: the contract in docs/api/openapi.yaml (login, catalog pull, bill push, customer activity). Mismatches to fix first: the business header setting names, the packet size field name, the missing customer fields, and the price-edit switch on the customer type.
+- Laptop dashboard: server-rendered Admin pages in the style of Odoo's lists and forms.
+- Dashboards and reports: the monthly dashboard, profit analytics, the Costing screen, PDF and Excel export.
+- People and safety: separate salesman logins, server backups, import of the version 1 export, month lock.
+- Deployment: a small hosted server with daily backups and a tested restore.

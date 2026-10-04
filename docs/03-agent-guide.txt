@@ -2,11 +2,11 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 3 OF 3
 # Agent Operating Guide and Build Plan
 Roles, git workflow, rules, drift control and ready-to-paste prompts for working with multiple Claude Code agents
 
-Version: 1.1 (amended 3 October 2026)
-Date: 3 October 2026
+Version: 1.2 (local-first, 4 October 2026)
+Date: 4 October 2026
 Audience: Every Claude Code agent on this project, and the owner who supervises them.
 Companion documents: Doc 1: Product Specification (what).  Doc 2: Technical Architecture and Data Model (how).
-Status: Process rules, amended 3 October 2026 to match Doc 1 version 1.1 (rule N4 changed, phases updated). They change only with owner approval.
+Status: Process rules, amended 4 October 2026 to match Doc 1 version 1.2 (local-first) (rule N4 changed, phases updated). They change only with owner approval.
 
 >> [HOW TO USE THIS DOCUMENT]
 > Give an agent this document, Doc 1 and Doc 2 at the start of a session. If an agent starts drifting, paste the Drift Reset prompt from section 9.2. If an agent cannot open a PDF, paste the relevant text or ask for the Markdown copy.
@@ -30,70 +30,64 @@ Status: Process rules, amended 3 October 2026 to match Doc 1 version 1.1 (rule N
 ## 2. The Project on One Page
 ==============================================================================
 
-- What: billing and accounting for Mamre Foods, a US half-cooked chapathi business. Products: Mamre Chapathi and Mamre Fresh Chapathi. Currency USD. No tax.
-- Packets: a standard packet is 12 chapathis (editable per product). A custom packet holds 1 to 200 chapathis and is available for every customer type. Material usage is counted in chapathis.
-- Who: one Worker on an Android handheld with a 58 mm printer (invoices, payments, returns), and an Admin on a laptop dashboard and in an Admin view inside the Android app (prices, customers, purchases, expenses, reports).
-- Customers: Restaurant, Shop, Retail and Catering (a walk-in follows Retail). Credit customers are billed per calendar month with part-payments. Payments clear the oldest invoice first. A customer the Admin adds reaches workers at their next sync.
-- Prices: default per customer type and product, plus an Admin override per customer. The worker can change a line's price only for customer types whose switch "Worker can edit price" is on (Retail and Catering by default). A changed price is stored with the list price and flagged.
-- Money: integer cents everywhere. Balance = opening + invoices - credits - payments, always computed.
-- Invoices: immutable once confirmed. Corrections are Admin void or a return credit.
-- Add-only records: purchases, expenses and production damage are never edited or deleted. A mistake is a linked reversing entry with a reason.
-- Costing: calculated from material purchases, usage (sales + replacements + damage x recipe x (1 + wastage 2%)) and weighted-average price. Net profit = gross profit - indirect expenses. Workers never see cost, profit or reports.
-- Offline first: the app works with no signal and syncs later. UUIDs make sync idempotent. Invoice numbers look like MAM-W1-0042.
-- Stack: Django 5 + DRF + PostgreSQL + HTMX/Tailwind; Kotlin + Compose + Room on Android. Demo code (fake API, demo logins, seeds) lives only in the debug source set.
-- Not here: tax, payroll, customer portal, online payments, loyalty, anything not in Doc 1.
+- What: billing for Mamre Foods, a US half-cooked chapathi business. Products: Mamre Chapathi and Mamre Fresh Chapathi. Currency USD. No tax.
+- Version 1 is local-first: one Android handheld with a 58 mm printer, one Owner who is both salesman and admin, a PIN, no server and no network. All data is stored on the phone. No automatic backups (the Owner enters data by hand for the first two months). Export to files.
+- Version 2 (parked): server, sync, laptop dashboard, monthly dashboard, Costing screen, profit analytics, separate salesman logins, backups.
+- Packets: a standard packet is 12 chapathis (editable per product). A custom packet holds 1 to 200 chapathis, for every customer type. Material usage is counted in chapathis.
+- Customers: Restaurant, Shop, Retail and Catering (a walk-in follows Retail). Name plus location is unique. A corporate account never shows a balance on a bill or in the Sales area, but the balance is tracked.
+- Prices: default per customer type and product, plus an override per customer. A line's price can be changed only for customer types whose switch 'Salesman can edit price' is on (Retail and Catering by default); it is stored with the list price and flagged.
+- Money: integer cents everywhere. Balance = opening + bills - credits - payments, always computed.
+- Entries: a confirmed bill is never edited (void or credit). Purchases, expenses and damage are add-only; a mistake is a linked reversing entry with a reason.
+- Costing: version 1 stores the inputs (purchases, recipe, wastage 2%, expenses, damage). The Dashboard and Costing screens are hidden until version 2.
+- Bills: 32 columns, no dollar sign, no Type line, items shown as NAME 12NOS, header from Settings, corporate bills end with a signature block.
+- Safety: the database is never wiped (tested migrations only). Demo code lives only in the debug source set. A release app starts with reference data only.
+- Stack: Kotlin, Compose, Room, Hilt. The Django backend is parked.
+- Not here: tax, payroll, customer portal, online payments, loyalty, multiple devices, Arabic text, anything not in Doc 1.
 
 ==============================================================================
 ## 3. Agent Roster
 ==============================================================================
 
-Roles are fixed by folder ownership. An agent edits only the folders it owns. Run at most 2 to 3 agents at the same time, and never two sessions in one folder: the owner is the reviewer and the bottleneck.
+Roles are fixed by folder ownership. An agent edits only the folders it owns. Never run two sessions in one folder. The owner is the reviewer and the bottleneck.
 
-| Agent | Branch prefix | Owns (may edit) | Depends on |
+| Agent | Branch prefix | Owns (may edit) | Status |
 |---|---|---|---|
-| A1 Core accounts, catalog, auth, settings, audit | feat/core-* | backend/config, backend/apps/accounts, backend/apps/catalog, docs/api/openapi.yaml (core part) | Nothing. Starts first. |
-| A2 Sales and Ledger invoices, payments, allocation, returns, sync API | feat/sales-* | backend/apps/sales, backend/apps/sync | A1 catalog and accounts |
-| A3 Android worker app and the Admin view | feat/android-* | android/ only | openapi.yaml; fakes (debug only) until the API exists |
-| A4 Materials, Costing and Reports materials, purchases, usage, expenses, costing, reports | feat/costing-* | backend/apps/production, expenses, costing, reports | A1; sales selectors for reports |
-| A5 Admin UI laptop dashboard screens | feat/admin-* | backend/apps/dashboard | Services and selectors of the other apps |
-| R Reviewer read-only | none | Nothing. Reports findings only. | The branch under review |
+| A3 Android the version 1 app | feat/android-* | android/ only | The only active agent. |
+| A1 Core, A2 Sales backend | feat/core-*, feat/sales-* | backend/ | Merged. Parked until version 2. |
+| A4, A5 materials and costing backend, laptop dashboard | feat/costing-*, feat/admin-* | backend/ | Not started. Version 2. |
+| R Reviewer read-only | none | Nothing. Reports findings only. | Runs before every merge. |
 
 Owner (Christapher) approves every merge into main and every change to Doc 1, Doc 2 or Doc 3.
 
 >> [INFO]
-> Status on 3 October 2026. A1 (P0, P1) and A2 (P2) are merged: backend catalog, auth, sales, sync. A3 built the Android demo for worker and Admin on branches feat/android-shell and feat/android-admin; it is not merged and not yet connected to the real server. A4 and A5 have not started. The backend does not yet know the v1.1 rules (see phase P2b).
+> Status on 4 October 2026. The Android demo (worker and Admin screens on fake data, in the debug source set) is merged into main. The real local database, the PIN lock, Settings and Export are next. Printing waits for the handheld's model number (P-1).
 
 ### 3.1 File ownership matrix
 
 | Path | Owner | Others |
 |---|---|---|
-| backend/config/ (settings, urls) | A1 | Append-only: register your app, one small commit, mention it in the PR |
-| backend/apps/accounts, catalog | A1 | Read through selectors.py only |
-| backend/apps/sales, sync | A2 | Read through selectors.py only |
-| backend/apps/production, expenses, costing, reports | A4 | Read through selectors.py only |
-| backend/apps/dashboard | A5 | None |
 | android/ | A3 | None |
-| docs/api/openapi.yaml | A1 creates, A2 extends | Change the contract before the code |
+| backend/ and docs/api/openapi.yaml | Parked | No edits until a version 2 phase starts |
 | docs/DECISIONS.md, docs/QUESTIONS.md | Everyone | Append-only, one line per entry |
-| docs/01-product-spec.txt, 02-architecture.txt, 03-agent-guide.txt, CLAUDE.md, .github/, requirements, build.gradle | Owner | Propose in a PR; do not edit silently |
+| docs/01-product-spec.txt, 02-architecture.txt, 03-agent-guide.txt, CLAUDE.md, .github/, build files | Owner | Propose in a PR; do not edit silently |
 
 ==============================================================================
 ## 4. Build Phases and Gates
 ==============================================================================
 
-A phase starts only when the previous gate has passed and its work is merged into main. Parallel tracks are listed explicitly.
+A phase starts only when the previous gate has passed and its work is merged into main. One agent works at a time on version 1.
 
-| Phase | Goal | Agents | Gate to pass |
-|---|---|---|---|
-| P0 Foundation | Repo scaffold, CI, docs in repo, empty Django apps, openapi.yaml skeleton, CLAUDE.md | A1 | Done and merged. |
-| P1 Catalog and auth | Products, types, customers, prices, login, catalog sync, settings | A1 backend; A3 app shell | Backend done and merged. Android shell built, not merged. |
-| P2 Invoicing and ledger | Invoices, payments, allocation, balances, push sync | A2 backend; A3 offline outbox and sync | Backend done and merged. Android outbox, real API client, Room migrations and device login still to do. |
-| P2b Catch-up for the v1.1 rules | Catering type, worker_can_edit_price in the catalog sync, invoice item fields (chapathis_per_packet, list_price_cents, price_overridden), unauthorised-override flag, Admin login on mobile, Admin endpoints for customers, types and prices | A1, A2 | The Android demo's customer, price and invoice flows work against the real server. |
-| P3 Printing | ReceiptLayout, MockPrinter, then SymcodePrinter once P-1 arrives | A3 | 32-column golden test passes. A real print works on the device. |
-| P4 Returns and damage | Return records, credits, replacements; production damage in chapathis | A2; A3; A5 | Credit reduces balance. Replacement does not. Damage counts in usage. |
-| P5 Materials and costing | Materials, purchases (add-only with reversing entries), opening stock, usage, wastage, weighted-average price, costing, expenses | A4; A5 | Golden cases in Doc 2 section 11 pass. |
-| P6 Reports | Monthly report, materials table, ageing, price changes, PDF and Excel export | A4; A5 | Report totals reconcile with the ledger and purchases. |
-| P7 Hardening and release | Security tests, PIN lock, Admin on phone security, backup restore drill, release package check, real-world trial, business details, signed APK | R plus all agents, owner testing | All acceptance tests pass. Restore drill done. Owner signs off. |
+| Phase | Goal | Gate to pass |
+|---|---|---|
+| L0 Demo app | Worker and Admin screens, bills, costing screens, on fake data (debug only) | Done and merged. |
+| L1 Real local database | Promote the demo logic into the main source set on Room: reference data seed, repositories, use cases in transactions, no update or delete on protected tables, exported schemas and tested migrations | Every screen runs on the real database; the release app starts empty; migration tests pass. |
+| L2 PIN lock and Settings | First-run PIN, lock after inactivity, owner name, business header, device code, wastage, lock time | Bills print the header from Settings; PIN tests pass. |
+| L3 Export | CSV files and manifest from the Admin area, shared with the share sheet | Every table exported; row counts match. |
+| L4 Version 1 cut | Hide the Dashboard and Costing screens behind a flag; remove the INTERNET permission; remove the network client from release | Release package check passes. |
+| L5 Printing | ReceiptPrinter on the handheld's library (needs the model number, P-1) | Golden bills print correctly on the device. |
+| L6 Signed release | Signing key, version code, install guide | A signed APK installs over a previous one and keeps the data. |
+| L7 Trial | The Owner enters real data by hand for 1 to 2 months | Owner signs off. |
+| V2 (parked) | Server, sync, laptop, dashboard, Costing screen, backups, import of the export | Planned after the trial. |
 
 ==============================================================================
 ## 5. Git and Worktree Workflow
@@ -160,26 +154,28 @@ Settings, URLs, requirements and Gradle files are shared. Change them with the s
 | # | Never |
 |---|---|
 | N1 | Use floating point for money or quantities, or round anywhere except where Doc 2 says. |
-| N2 | Put cost, profit, expense or report data in anything a worker can see or receive. |
-| N3 | Edit or delete an invoice, payment, allocation, return, purchase, expense or production damage entry. Use void, credit or a linked reversing entry. |
-| N4 | Let a worker change a price unless the customer type's "Worker can edit price" switch is on. When it is on, store the list price and price_overridden with the line. Never let a worker give a discount any other way. |
+| N2 | Show cost, profit or expense data in the Sales area or on a bill. In version 1 it is not shown anywhere. |
+| N3 | Edit or delete a bill, payment, return, purchase, expense or production damage entry. Use void, credit or a linked reversing entry. |
+| N4 | Let the price of a line differ from the list price unless the customer type's switch is on. When it is on, store the list price and price_overridden with the line, above 0 and at most 10 times the list price. |
 | N5 | Treat a missing price, cost or quantity as zero. Show INCOMPLETE or block the action. |
-| N6 | Invent a feature, rule, field, price or material quantity that is not in Doc 1 or Doc 2. |
+| N6 | Invent a feature, rule, field, price or quantity that is not in Doc 1 or Doc 2. |
 | N7 | Edit files outside the folders you own, or refactor code unrelated to your task. |
-| N8 | Add a dependency, change the stack, or change an API shape without owner approval. |
+| N8 | Add a dependency, change the stack, or change a table without owner approval. |
 | N9 | Delete, skip or weaken a test to make it pass. Fix the code. |
-| N10 | Commit secrets, push to main, or force-push a shared branch. |
-| N11 | Change a table, migration or serializer of another agent's app. |
-| N12 | Leave a TODO in merged code without an entry in docs/QUESTIONS.md. |
-| N13 | Ship demo code (fake API, demo logins, seed data) in a release build. |
+| N10 | Commit secrets, passwords or the signing key; push to main; force-push a shared branch. |
+| N13 | Ship demo code (fake API, demo logins, seed data, demo address) in a release build. |
 | N14 | Run two agent sessions in the same folder at once. |
+| N15 | Use a destructive Room migration after the first real release. Every schema change is a tested migration. |
+| N16 | Show a balance for a corporate account on a bill, a receipt or any Sales-area screen. |
+| N17 | Write a business detail (name, address, phone) in the code. It comes from Settings. |
+| N18 | Request the INTERNET permission in the version 1 release app. |
 
 ### 7.2 Always
 
 - Name the Doc 1 or Doc 2 section for every behaviour you implement.
 - Keep business logic in pure functions that can be tested without a database or a screen.
-- Handle the offline case, the empty case, and the zero case.
-- Make writes idempotent where sync can repeat them.
+- Handle the empty case, the zero case and the first-run case.
+- Write through use cases in one transaction.
 - Ask through docs/QUESTIONS.md when unsure, then continue with something unrelated.
 
 ==============================================================================
@@ -296,33 +292,35 @@ Review branch [BRANCH] against main:
 ### 10.1 For every change
 
 1. Implements a named section of Doc 1 or Doc 2, and nothing more.
-2. Tests written and passing, including offline, empty and zero cases where relevant.
-3. CI green: tests, lint, makemigrations --check.
+2. Tests written and passing, including empty, zero and first-run cases where relevant.
+3. CI green: the unit tests.
 4. No rule in section 7.1 broken. Reviewer reports PASS.
 5. docs/DECISIONS.md updated if a decision was made. docs/QUESTIONS.md updated if anything is open.
 6. Pull request description lists the sections implemented and how to test.
 
-### 10.2 Acceptance tests (must exist and pass before the release)
+### 10.2 Acceptance tests for version 1
 
 | ID | Test | Source |
 |---|---|---|
-| AT-1 | Ledger example: invoices 120, 90, 60 and a 150 payment give closing balance $120.00; Invoice 1 paid; Invoice 2 owes $60.00 | Doc 1 s6.5 |
-| AT-2 | An override price beats the default price. A missing price blocks invoicing. | Doc 1 s4.2 |
-| AT-3 | Pushing the same invoice batch twice stores exactly one invoice. | Doc 2 I-11 |
-| AT-4 | No worker API response contains a key with cost, profit or expense. | Doc 2 I-8 |
-| AT-5 | Receipt layout matches the 32-column golden file for standard packets. | Doc 2 s7 |
+| AT-1 | Ledger example: bills 120, 90, 60 and a 150 payment give closing balance $120.00; Bill 1 paid; Bill 2 owes $60.00 | Doc 1 s6.5 |
+| AT-2 | An override price beats the default price. A missing price blocks the sale. | Doc 1 s4.2 |
+| AT-5 | Bill layouts match the 32-column golden files (corporate, normal credit, cash walk-in, payment receipt). | Doc 2 s7 |
 | AT-6 | Materials golden case: 12,000 chapathis with 2% wastage use 382.5 kg of wheat; 400 kg bought for $440.00 gives $1.10 per kg, cost consumed $420.75, closing stock 17.5 kg. A standard 12-chapathi packet at the Doc 1 s9.7 prices costs $0.5475 ingredients, $0.6975 direct, $0.8475 full. | Doc 1 s9.7 |
-| AT-7 | A voided invoice is excluded from the balance and keeps its number. | Doc 1 s5.4 |
-| AT-8 | A back-dated entry into a locked month is refused. | Doc 1 s6.4 |
+| AT-7 | A voided bill is excluded from the balance and keeps its number. | Doc 1 s5.4 |
 | AT-9 | A return credit reduces the balance; a replacement does not. | Doc 1 s7.1 |
-| AT-10 | No invoice, payment, purchase or expense can be deleted or edited through the API or Admin. | Doc 2 I-4, I-9, I-14 |
-| AT-11 | A print failure does not lose the invoice, and Reprint works. | Doc 1 s5.4 |
-| AT-12 | Airplane mode invoice later appears once in Admin; balances match the receipt. | Doc 2 s12 |
-| AT-13 | A worker can change a price only for a type whose switch is on; the line stores the list price and price_overridden; a locked type refuses even if the screen is bypassed. | Doc 1 s4.3 |
+| AT-10 | No bill, payment, purchase or expense can be edited or deleted through any use case or DAO. | Doc 2 I-4, I-9, I-14 |
+| AT-11 | A print failure does not lose the bill, and Reprint works. | Doc 1 s5.4 |
+| AT-13 | The price of a line can differ from the list price only for a type whose switch is on; the line stores the list price and price_overridden; the limits hold in every use case. | Doc 1 s4.3 |
 | AT-14 | Custom packet default price rounds half up: 250 per standard packet of 12 gives 208 for 10 chapathis and 188 for 9; 230 gives 192 for 10. | Doc 1 s4.2 |
 | AT-15 | A reversing entry nets a purchase or expense out; the original stays visible; a reversal cannot be reversed. | Doc 1 s9.4 |
-| AT-16 | A customer added by the Admin reaches the worker only after Sync now. | Doc 1 s4.1 |
-| AT-17 | The release package contains no fake API, no demo logins and no demo seed data. | Doc 2 s13 |
+| AT-17 | The release package contains no fake API, no demo logins, no demo data and no demo address. | Doc 2 s8 |
+| AT-18 | Each database migration keeps existing data (a test per schema version). | Doc 2 I-15 |
+| AT-19 | A wrong PIN is refused; only a salted hash is stored; the app locks after the set time. | Doc 2 s6 |
+| AT-20 | Export writes every table, row counts match the app, and the PIN is not exported. | Doc 2 s5.3 |
+| AT-21 | A first-run release database holds reference data only: no customers, prices or bills. | Doc 2 s5.2 |
+| AT-22 | A corporate account's balance appears on no bill, receipt or Sales-area screen, and still appears in the Admin area. | Doc 1 s4.1 |
+
+Version 2 will add: idempotent sync, no cost data in worker responses, month lock, airplane-mode end to end, and a customer reaching the salesman only after sync.
 
 ==============================================================================
 ## 11. Environment Notes (Windows laptop)
@@ -346,32 +344,33 @@ Paste this into CLAUDE.md at the repository root. Agents read it automatically.
 
 Read docs/01-product-spec.txt, docs/02-architecture.txt and
 docs/03-agent-guide.txt. Doc 1 wins on behaviour, Doc 2 on technology.
+Version 1 is a local-first Android app: one Owner, one phone, no server.
 
 ## Always
 - Stay inside the folders you own (Doc 3 section 3.1).
 - Name the spec section for every behaviour you add.
 - Money is integer cents. Material quantities are Long milli-units.
-- Tests first for pricing, allocation, balances, usage and costing.
-- Work offline-first and make writes idempotent.
+- Tests first for pricing, ledger, usage and every database migration.
+- Write through use cases in one transaction.
 - Put decisions in docs/DECISIONS.md, questions in docs/QUESTIONS.md.
 - Before starting, check that no other session is working in your folder.
 
 ## Never
-- Show cost, profit or expense data to a worker (API or UI).
-- Edit or delete invoices, payments, returns, purchases, expenses or damage
+- Show cost, profit or expense data in the Sales area or on a bill.
+- Edit or delete bills, payments, returns, purchases, expenses or damage
   entries. Correct with void, credit or a reversing entry.
-- Let a worker change a price unless the customer type's "worker can edit
-  price" switch is on. Treat a missing price or cost as zero.
-- Invent features, prices or quantities. Add dependencies silently.
-- Weaken tests. Push to main. Edit another agent's folders.
+- Let a line's price differ from the list price unless the customer
+  type's switch is on. Treat a missing price or cost as zero.
+- Show a corporate account's balance on a bill or in the Sales area.
+- Use a destructive Room migration. Write a business detail in code.
 - Ship demo code (fake API, demo logins, seeds) in a release build.
+- Commit secrets or the signing key. Add dependencies silently.
+- Weaken tests. Push to main. Edit another agent's folders.
 
 ## If unsure
 Stop. Write the question in docs/QUESTIONS.md. Do not guess.
 
 ## Commands
-- Backend tests:  cd backend && pytest
-- Lint:           cd backend && ruff check .
-- Migrations:     cd backend && python manage.py makemigrations --check
 - Android tests:  cd android && ./gradlew test
+- Release build:  cd android && ./gradlew assembleRelease
 ```
