@@ -14,7 +14,6 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val MONTH_LABEL = DateTimeFormatter.ofPattern("MMM yyyy", Locale.US)
-private const val NO_OPENING_BALANCE = 0L
 
 /**
  * Turns a saved invoice into receipt data. For a credit customer it adds the month summary
@@ -28,9 +27,11 @@ fun invoiceReceiptOf(
     header: BusinessHeader,
     duplicate: Boolean = false,
     isCorporate: Boolean = invoice.isCorporate,
+    /** The customer's opening balance (Doc 1 s4.1): it is part of what is brought forward and of the total due. */
+    openingBalanceCents: Long = 0L,
 ): InvoiceReceipt {
     // A corporate account never gets a balance or a month summary on paper (change set D4): not even built.
-    val month = if (showMonthSummary && !isCorporate) monthSummaryAt(invoice, customerLedger) else null
+    val month = if (showMonthSummary && !isCorporate) monthSummaryAt(invoice, customerLedger, openingBalanceCents) else null
     return InvoiceReceipt(
         header = header,
         number = invoice.number,
@@ -52,20 +53,20 @@ fun invoiceReceiptOf(
     )
 }
 
-private fun monthSummaryAt(invoice: InvoiceRecord, ledger: List<LedgerEntry>): MonthSummary {
+private fun monthSummaryAt(invoice: InvoiceRecord, ledger: List<LedgerEntry>, openingCents: Long): MonthSummary {
     val day = invoice.issuedAt.toLocalDate()
     val month = YearMonth.from(day)
     val upToInvoice = ledger.filter { !it.date.isAfter(day) }
     val inMonth = upToInvoice.filter { YearMonth.from(it.date) == month }
     return MonthSummary(
         monthLabel = month.format(MONTH_LABEL),
-        broughtForwardCents = broughtForward(NO_OPENING_BALANCE, upToInvoice, month),
+        broughtForwardCents = broughtForward(openingCents, upToInvoice, month),
         invoicedCents = inMonth.filterIsInstance<InvoiceEntry>().filter { !it.isVoid }.sumOf { it.totalCents },
         creditsCents = inMonth.filterIsInstance<CreditEntry>().sumOf { it.creditCents },
         payments = inMonth.filterIsInstance<PaymentEntry>()
             .sortedBy { it.date }
             .map { MonthPayment(it.date, it.method, it.amountCents) },
-        totalDueCents = ledgerBalance(NO_OPENING_BALANCE, upToInvoice),
+        totalDueCents = ledgerBalance(openingCents, upToInvoice),
     )
 }
 
