@@ -2,9 +2,12 @@
 
 Doc 2 section 3, cross-app rule: other apps call this module, never the tables.
 """
+from django.core.exceptions import ValidationError
+
 from .models import (
     Customer,
     CustomerType,
+    PaymentMode,
     PriceDefault,
     PriceOverride,
     Product,
@@ -72,3 +75,29 @@ def changes_since(cursor):
         "settings": settings_changed_since(cursor, HEADER_SETTING_KEYS, ceiling),
         "cursor": ceiling,
     }
+
+
+def get_customer(customer_id):
+    """The customer with this id, or None. A malformed id is None, never an error."""
+    try:
+        return Customer.objects.filter(pk=customer_id).first()
+    except (ValueError, TypeError, ValidationError):
+        return None
+
+
+def get_product(product_id):
+    """The product with this id, or None. A malformed id is None, never an error."""
+    try:
+        return Product.objects.filter(pk=product_id).first()
+    except (ValueError, TypeError, ValidationError):
+        return None
+
+
+def credit_customers():
+    """Every credit-mode customer, active or not (their ledger outlives deactivation)."""
+    return list(Customer.objects.filter(payment_mode=PaymentMode.CREDIT).order_by("name"))
+
+
+def current_cursor():
+    """The catalog sync counter as it stands now (Doc 2 s5.1 catalog_cursor)."""
+    return SyncCounter.objects.values_list("value", flat=True).first() or 0

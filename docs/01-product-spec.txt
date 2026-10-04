@@ -2,10 +2,10 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 1 OF 3
 # Product Specification
 What the Mamre Foods billing and accounting system must do
 
-Version: 1.0 (baseline)
-Date: 1 October 2026
+Version: 1.1 (amended 3 October 2026)
+Date: 3 October 2026
 Owner / approver: Christapher (builder). Business owner and Admin user: his father.
-Status: Approved baseline. Any change needs owner approval and a new version number.
+Status: Approved. Amended on 3 October 2026 (see the change log at the end). Any change needs owner approval and a new version number.
 Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
@@ -17,14 +17,14 @@ Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent
 
 ### 1.1 Business context
 
-Mamre Foods is a small US-based food business. It makes half-cooked chapathi, packs it in packets of 12, and sells to restaurants, shops and retail customers. Some customers pay once a month, some pay in parts. The business owner (the Admin) reviews everything on a laptop. A field Worker creates invoices on an Android handheld device that has a built-in thermal printer. All money is in US dollars. Tax handling is out of scope.
+Mamre Foods is a small US-based food business. It makes half-cooked chapathi, packs it in packets of 12 (the standard packet), and sells to restaurants, shops, retail and catering customers. Some customers pay once a month, some pay in parts. The business owner (the Admin) reviews everything on a laptop. A field Worker creates invoices on an Android handheld device that has a built-in thermal printer. All money is in US dollars. Tax handling is out of scope.
 
 ### 1.2 Goals
 
 1. Create an invoice in the field in under a minute, with or without internet, and print it.
 2. Keep every customer's balance correct to the cent, including monthly credit and part-payments.
 3. Record customer returns and production damage.
-4. Calculate the cost per packet from the recipe, ingredient prices and expenses, so nobody has to guess it.
+4. Calculate the cost per packet from material purchases, usage and expenses, so nobody has to guess it.
 5. Give the Admin a detailed monthly report of sales, expenses and profit.
 
 ### 1.3 Non-goals for version 1
@@ -42,18 +42,22 @@ Tax or VAT, payroll, multiple currencies, online payment gateways, a customer po
 ## 2. Users and Permissions
 ==============================================================================
 
-| Capability | Worker (Android handheld) | Admin (laptop browser) |
+The Worker uses the Android handheld. The Admin uses the laptop dashboard and can also open an Admin view inside the Android app. That view was built first on demo data; it needs real Admin endpoints and a PIN lock before real use (Doc 3).
+
+| Capability | Worker (Android handheld) | Admin (laptop browser or phone app) |
 |---|---|---|
 | Login | Own username and password (one worker now, more later) | Separate admin login |
 | Create invoice | Yes | No (corrects via void or credit) |
-| Choose or change prices | No. Prices come from the price list. | Sets all prices and overrides |
+| Choose or change prices | Prices come from the price list. A worker may change a line's price per packet ONLY for customer types where the Admin has switched on "Worker can edit price" (Retail and Catering by default). Every changed price is flagged (section 4.3). | Sets all prices, override prices and the per-type switch |
+| Custom packets | Yes: any number of chapathis from 1 to 200 | View |
 | Record a payment | Yes (receipt prints on confirm) | Yes |
-| Record a customer return | Yes | Yes (can edit) |
+| Record a customer return | Yes | View only (correct by adding a new entry) |
 | See a customer's balance and payments | Yes, for the selected customer | Yes, all customers |
 | Void an invoice | No | Yes, with a reason |
-| Products, customers, price lists | No (A-13) | Full control |
-| Production batches, recipes, ingredient prices | No | Yes |
-| Expenses | No in v1 (A-14) | Yes |
+| Products, customers, price lists | No (A-13). A customer the Admin adds reaches the worker's app at the next sync. | Full control |
+| Material purchases, recipes, wastage | No | Yes (purchases are add-only) |
+| Production damage | No | Yes (add-only) |
+| Expenses | No in v1 (A-14) | Yes (add-only) |
 | Cost, profit, reports, exports | Never | Yes |
 | Manage workers and devices | No | Yes |
 | Lock a month | No | Yes |
@@ -64,13 +68,13 @@ Tax or VAT, payroll, multiple currencies, online payment gateways, a customer po
 
 Two products at launch, both sold half-cooked. Adding a new product must be a simple Admin form with no code change.
 
-| Product | Description | Packet size | Packing cost |
-|---|---|---|---|
-| Mamre Fresh Chapathi | Half-cooked chapathi, no preservative | 12 (editable) | $0.15 approx (editable) |
-| Mamre Chapathi | Half-cooked chapathi with potassium sorbate as preservative | 12 (editable) | $0.15 approx (editable) |
+| Product | Description | Standard packet |
+|---|---|---|
+| Mamre Fresh Chapathi | Half-cooked chapathi, no preservative | 12 chapathis (editable) |
+| Mamre Chapathi | Half-cooked chapathi with potassium sorbate as preservative | 12 chapathis (editable) |
 
-- Product fields: name, code, units per packet, packing cost, active flag.
-- The sales unit is the packet. Quantity on an invoice is a whole number of packets (A-1).
+- Product fields: name, code, standard packet size, yield per kg of wheat (32), active flag. Packing is a material (section 9), not a product field.
+- The sales unit is the packet. A packet is standard (12 chapathis, A-19) or custom (1 to 200 chapathis, available for every customer type). Each invoice line stores its packets and the chapathis per packet, so one invoice can mix sizes of the same product on separate lines (A-1).
 - A new product can be sold as soon as it has prices. Its cost shows as incomplete until a recipe exists.
 
 ==============================================================================
@@ -79,7 +83,7 @@ Two products at launch, both sold half-cooked. Adding a new product must be a si
 
 ### 4.1 Customer types and customers
 
-Customer types at launch: Restaurant, Shop, Retail. The Admin may add types. A saved customer has: name, type, phone, address, payment mode (Cash or Credit), optional opening balance, notes, active flag. A walk-in sale is an anonymous retail sale with no ledger; it must be paid in full at the time of sale. Only the Admin creates saved customers (A-13).
+Customer types: Restaurant, Shop, Retail and Catering. The Admin may add types. A saved customer has: name, type, phone, address, payment mode (Cash or Credit), optional opening balance, notes, active flag. A walk-in sale is an anonymous Retail sale with no ledger; it follows the Retail price list and the Retail price-edit setting, and must be paid in full at the time of sale. Only the Admin creates saved customers (A-13). A customer the Admin adds or edits reaches every worker's app at its next sync.
 
 ### 4.2 Price resolution order
 
@@ -87,11 +91,18 @@ Customer types at launch: Restaurant, Shop, Retail. The Admin may add types. A s
 2. Otherwise the default price for that customer type and product.
 3. Otherwise no price: the product cannot be invoiced. The app shows "No price set - contact admin". Never default to zero.
 
+Price of a custom packet (unless changed by the worker where allowed) = list price per standard packet x N chapathis / standard packet size, rounded half up, integer arithmetic only. Examples: 250 cents per standard packet of 12 gives 208 cents for 10 chapathis and 188 cents for 9 (a half rounds up); 230 cents gives 192 cents for 10 chapathis.
+
 ### 4.3 Price rules
 
-- Prices carry an effective-from date. History is kept.
-- Each invoice line stores a snapshot of the unit price used. Later price changes never alter existing invoices.
-- Workers cannot edit a price or give a discount. A discount exists only as an Admin-set override price for a specific customer (A-2).
+- Prices carry an effective-from date. History is kept. A new price for a type and product needs a later effective date than the current one.
+- Each invoice line stores a snapshot of the unit price charged and the list price at that time. Later price changes never alter existing invoices.
+- Worker price editing (amends A-2). Each customer type has a switch "Worker can edit price", set by the Admin, change-logged and synced to workers. Default: ON for Retail and Catering, OFF for Restaurant and Shop. When ON, the worker may set the price per packet on any line (above $0 and at most 10 times the list price, as a typing guard). When OFF the price is read-only.
+- A changed price is stored with the list price and a flag price_overridden. The Admin sees "List $2.60, charged $2.47" on the invoice and a "Price changed" filter. The receipt shows only the charged price.
+- Discounts for a regular customer are still done as an Admin-set override price.
+
+>> [NOTE]
+> Risk. Where price editing is on, a worker could undercharge and keep the difference. The Admin should review the Price changed list regularly. A minimum price per product is an open question (P-11).
 
 ==============================================================================
 ## 5. Invoicing
@@ -99,8 +110,8 @@ Customer types at launch: Restaurant, Shop, Retail. The Admin may add types. A s
 
 ### 5.1 Worker flow
 
-1. Choose a customer (search) or Walk-in.
-2. Add products and packet quantities. Prices and the total appear automatically.
+1. Choose the customer type (Restaurant, Shop, Retail, Catering), then the customer, or Walk-in under Retail.
+2. Add products. For each line choose Standard (12) or a Custom packet (1 to 200 chapathis) and the number of packets. Prices and the total appear automatically; the price can be changed only where the type allows it.
 3. Payment step: amount received now (may be $0 for credit customers) and method.
 4. Worker confirms. The invoice is saved on the device, printed, and queued for sync.
 
@@ -111,7 +122,7 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code (W1, W2...) 
 ### 5.3 What an invoice shows
 
 - Business name (and address and phone once supplied, P-6), invoice number, date and time, worker, customer name and type.
-- Line items: product, packets, unit price, line total. Invoice total.
+- Line items: product, packets, unit price charged, line total. A custom packet shows "(N pcs)". Invoice total.
 - Payment received at this visit (amount and method) and balance after this invoice.
 - For credit customers, a month summary: balance brought forward, invoiced this month, credits from returns, each payment this month (date, amount, method), and total due.
 
@@ -164,16 +175,16 @@ Allocation of the $150 payment: $120.00 clears Invoice 1 completely; $30.00 goes
 ## 7. Returns and Damage
 ==============================================================================
 
-### 7.1 Customer returns (recorded by worker or Admin)
+### 7.1 Customer returns (recorded by worker)
 
-Fields: customer, product, packets, reason (Damaged, Quality complaint, Wrong item, Expired, Other), optional linked invoice, and a resolution:
+Fields: customer, product, packets (with their size), reason (Damaged, Quality complaint, Wrong item, Expired, Other), optional linked invoice, and a resolution:
 
 - Credit: reduces the customer's balance at the unit price on the linked invoice, or the customer's current price if no invoice is linked.
-- Replacement: free replacement packets are handed over. The balance does not change. The cost of replacement packets is reported as a loss.
+- Replacement: free replacement packets are handed over. The balance does not change. The replacement chapathis are used up like any others and are counted in material usage (section 9). Their cost is shown on the returns list for information only.
 
 ### 7.2 Production damage
 
-Chapathi damaged during production is recorded by the Admin on the production batch as damaged packets (A-7). Damage raises the cost per good packet (section 9).
+Chapathi damaged during production is entered by the Admin in chapathis (date, product, chapathis, note) and is add-only (A-7). It counts in material usage, so it raises the cost of every packet sold. It appears on the returns and damage list but is not a customer return.
 
 ### 7.3 Handling of returned goods
 
@@ -183,9 +194,7 @@ Returned product is half-cooked and perishable, so it is not restocked; it is a 
 ## 8. Production and Stock
 ==============================================================================
 
-- A production batch records: date, product, kg of wheat flour used, packets packed, packets damaged, notes. Good packets = packed - damaged.
-- Expected yield = kg wheat x 32 chapathis / 12 per packet (editable per batch). The Admin sees the variance between expected and actual.
-- Stock on hand per product = good packets produced - packets invoiced - replacement packets. It is informational, Admin only. A negative figure shows a warning but never blocks a sale, because production entries may lag (A-8).
+Batch records and finished-goods stock are not part of v1 (A-8 withdrawn). The amount of each material used is calculated from what was sold, replaced and damaged (section 9), and the Admin tracks raw-material stock from purchases. A negative closing stock shows a warning, because it usually means a purchase was not entered. It never blocks a sale.
 
 ==============================================================================
 ## 9. Costing
@@ -193,48 +202,71 @@ Returned product is half-cooked and perishable, so it is not restocked; it is a 
 
 ### 9.1 Principles
 
-- Cost price is calculated by the system from revenue, recipe, ingredient prices and expenses. It is never typed in by hand.
-- Workers never see cost.
+- Cost is calculated by the system from purchases, recipe, sales and damage. It is never typed in by hand, and workers never see it.
+- Both products share one list of materials, so one bag of wheat serves both.
 - Missing inputs are flagged as incomplete. A missing value is never silently treated as zero.
 
 ### 9.2 Recipe basis: per 1 kg of whole wheat flour
 
-| Ingredient | Quantity per 1 kg wheat | Mamre Fresh Chapathi | Mamre Chapathi |
+| Material | Quantity per 1 kg wheat | Mamre Fresh Chapathi | Mamre Chapathi |
 |---|---|---|---|
 | Whole wheat flour | 1 kg | Yes | Yes |
 | Oil | 80 ml | Yes | Yes |
 | Sugar | 20 g | Yes | Yes |
 | Salt | 15 g | Yes | Yes |
 | Baking powder | 2 g | Yes | Yes |
-| Potassium sorbate | PENDING (P-2) | No | Yes |
-| Yield | 32 chapathis per kg (can vary per batch) | Yes | Yes |
-| Packing | About $0.15 per packet (editable) | Yes | Yes |
+| Potassium sorbate | PENDING (P-2), in grams | No | Yes |
+| Yield | 32 chapathis per kg (editable) | Yes | Yes |
+| Packing | 1 piece per packet, bought like any material | Yes | Yes |
 
-### 9.3 Quantities per packet of 12
+### 9.3 Quantities per chapathi and per standard packet of 12
 
-A packet of 12 uses 12 / 32 = 0.375 kg of wheat. Other ingredients scale the same way.
-
-| Ingredient | Per packet | Working |
+| Material | Per chapathi | Standard packet (12) |
 |---|---|---|
-| Whole wheat flour | 375 g | 1000 g x 0.375 |
-| Oil | 30 ml | 80 ml x 0.375 |
-| Sugar | 7.5 g | 20 g x 0.375 |
-| Salt | 5.625 g | 15 g x 0.375 |
-| Baking powder | 0.75 g | 2 g x 0.375 |
-| Potassium sorbate (Mamre Chapathi only) | PENDING (P-2) | quantity per kg x 0.375 |
-| Packing | $0.15 | fixed per packet |
+| Whole wheat flour | 31.25 g | 375 g |
+| Oil | 2.5 ml | 30 ml |
+| Sugar | 0.625 g | 7.5 g |
+| Salt | 0.46875 g | 5.625 g |
+| Baking powder | 0.0625 g | 0.75 g |
+| Potassium sorbate (Mamre Chapathi only) | PENDING (P-2) | PENDING (P-2) |
+| Packing | n/a | 1 piece |
 
-### 9.4 Calculation rules
+A custom packet of N chapathis uses N times the per-chapathi quantities and one packing piece.
 
-1. Ingredient prices are entered by the Admin per purchase unit (for example $ per kg or per litre) with an effective date. A batch uses the price effective on the batch date.
-2. Direct cost per good packet = (batch ingredient cost / good packets in batch) + packing cost.
-3. Monthly direct cost per packet, per product = total ingredient cost of that month's batches / total good packets of those batches + packing cost. If a product has no batch in the month, use its most recent batch (A-10, average cost method).
-4. Indirect cost per packet for a month = total indirect expenses of the month / net packets sold in the month, both products together, equal per packet (A-9). Net packets sold = packets invoiced - packets credited through returns.
-5. Full cost per packet = direct cost per packet + indirect cost per packet.
+### 9.4 Purchases and stock
 
-### 9.5 Worked example (illustrative prices, NOT real)
+- The Admin enters each purchase: material, date, quantity and unit, total paid, a note. A helper turns bags x kg per bag into kilograms. Purchases are add-only. A mistake is corrected by a reversing entry (negative quantity and amount, a required reason, linked to the original). An entry can be reversed once and a reversal cannot be reversed (A-18).
+- Opening stock is entered once per material when records start; later months carry forward.
+- Price per unit = weighted average = (value of opening stock + value of purchases) / (opening quantity + quantity bought) (A-10).
+- Closing stock = opening stock + bought - used. A negative result shows a warning. A material that was used but has no price makes the result INCOMPLETE.
 
-Invented prices, used only to show the arithmetic and as a test vector: wheat $1.10/kg, oil $4.00/L, sugar $1.00/kg, salt $0.80/kg, baking powder $4.00/kg; monthly indirect expenses $900 over 6,000 net packets. Mamre Fresh Chapathi, before damage:
+### 9.5 Usage
+
+>> [RULE]
+> Used (per material) = (chapathis invoiced + replacement chapathis + production-damaged chapathis) x recipe quantity per chapathi x (1 + wastage).
+> Chapathis invoiced = packets x chapathis per packet, over non-void invoices, gross: return credits are not subtracted, because returned goods were already made. Wastage is a setting, default 2%, adjustable from 0% to 5%, and applies to ingredients only. Potassium sorbate is counted only for Mamre Chapathi.
+> Packing used = packets invoiced + replacement packets, with no wastage. Damaged chapathis are lost before packing, so they use materials but no packing (A-20, A-22).
+
+### 9.6 Calculation rules
+
+1. Cost consumed per material = used x price per unit. Direct expense for the month = cost consumed over all ingredients + packing consumed.
+2. Direct cost per packet, per product = (ingredient cost per chapathi x chapathis in the packet) + packing price per piece.
+3. Indirect cost per chapathi for a month = total indirect expenses / net chapathis sold, both products together, equal per chapathi (A-9). Net chapathis = invoiced chapathis - chapathis credited through returns.
+4. Full cost per packet = direct cost per packet + indirect cost per chapathi x chapathis in the packet.
+
+### 9.7 Worked examples (illustrative prices, NOT real)
+
+Stock example. In a month 12,000 chapathis are invoiced, replaced or damaged. Wastage is 2%.
+
+| Item | Result |
+|---|---|
+| Wheat needed before wastage (12,000 x 31.25 g) | 375 kg |
+| Wheat used with 2% wastage | 382.5 kg |
+| Bought: 400 kg for $440.00 | $1.10 per kg |
+| Cost consumed (382.5 kg x $1.10) | $420.75 |
+| Closing stock (400 - 382.5) | 17.5 kg |
+
+Cost of a standard packet of 12 chapathis (Mamre Fresh Chapathi, before wastage). Invented prices: wheat $1.10/kg, oil $4.00/L, sugar $1.00/kg, salt $0.80/kg, baking powder $4.00/kg; monthly indirect expenses $900 over 72,000 net chapathis ($0.0125 each).
 
 | Item | Quantity | Price | Cost |
 |---|---|---|---|
@@ -244,10 +276,12 @@ Invented prices, used only to show the arithmetic and as a test vector: wheat $1
 | Salt | 0.005625 kg | $0.80 / kg | $0.0045 |
 | Baking powder | 0.00075 kg | $4.00 / kg | $0.0030 |
 | Ingredients subtotal |  |  | $0.5475 |
-| Packing | 1 packet | $0.15 | $0.1500 |
+| Packing | 1 piece | $0.15 | $0.1500 |
 | Direct cost per packet |  |  | $0.6975 |
-| Indirect share ($900 / 6,000) |  |  | $0.1500 |
+| Indirect share (12 x $0.0125) |  |  | $0.1500 |
 | Full cost per packet |  |  | $0.8475 |
+
+A custom packet of 6 chapathis at the same prices and no wastage: ingredients $0.27375, direct cost $0.42375, indirect share $0.075, full cost $0.49875 (shown to four decimals as $0.2738, $0.4238 and $0.4988). With 2% wastage on ingredients, the standard packet's direct cost is $0.5475 x 1.02 + $0.15 = $0.70845 (shown as $0.7085).
 
 ==============================================================================
 ## 10. Expenses
@@ -255,13 +289,13 @@ Invented prices, used only to show the arithmetic and as a test vector: wheat $1
 
 ### 10.1 Direct expenses
 
-Ingredients (wheat flour, oil, sugar, salt, baking powder, potassium sorbate) and packing. In v1 these are computed from recipe x price x batch, not typed from purchase invoices (A-11).
+Direct expense is the cost of the materials used (wheat, oil, sugar, salt, baking powder, potassium sorbate) plus packing, calculated from purchases and usage as described in section 9. It replaces the earlier recipe-times-batch method (A-11 withdrawn).
 
 ### 10.2 Indirect expenses
 
 Categories at launch: Electricity, Water, Machine, Labour, Maintenance, Delivery charge, Fuel, Other. An entry has: date, category, amount, description. The Admin logs expenses at first; worker logging of fuel and delivery is a later version. Machine cost is entered as a monthly amount (rent, lease or an amortised share) (A-12).
 
-Categories carry a direct or indirect flag and the Admin can add more.
+Expense entries are add-only. A mistake is corrected by a reversing entry with a reason, as for purchases (A-18). The Admin can add categories.
 
 ==============================================================================
 ## 11. Reports (Admin Only)
@@ -269,22 +303,25 @@ Categories carry a direct or indirect flag and the Admin can add more.
 
 The monthly report is available on screen and as PDF and Excel. It contains:
 
-1. Sales summary: packets and revenue by product and by customer type; invoiced total, credits, net sales.
+1. Sales summary: packets, chapathis and revenue by product and by customer type (Restaurant, Shop, Retail, Catering); invoiced total, credits, net sales.
 2. Collections: cash received in the month by method; outstanding balance at month end.
-3. Direct cost and gross profit.
-4. Indirect expenses by category, with the total.
-5. Net profit.
-6. Customer balances with ageing (current, 30+ days, 60+ days).
-7. Returns and damage detail, including replacement cost and production damage.
-8. Cost per packet table per product: direct, indirect share, full cost.
-9. Activity per worker: invoices and totals.
+3. Direct expense and gross profit.
+4. Materials: a monthly table per material with opening stock, bought, used, closing stock, average price and cost consumed, with warnings for negative stock and missing prices.
+5. Indirect expenses by category, with the total.
+6. Net profit.
+7. Customer balances with ageing (current, 30+ days, 60+ days).
+8. Returns and damage: customer returns, replacement cost (for information) and production damage.
+9. Cost per chapathi and per standard packet per product: direct, indirect share, full cost.
+10. Price changes: invoice lines where the charged price differs from the list price.
+11. Activity per worker: invoices and totals.
 
 >> [PROFIT DEFINITIONS]
 > Net sales = non-void invoices - return credits.
-> Gross profit = net sales - direct cost of packets sold.
-> Net profit = gross profit - indirect expenses - replacement cost.
+> Direct expense = cost consumed of all materials + packing consumed (section 9).
+> Gross profit = net sales - direct expense.
+> Net profit = gross profit - indirect expenses.
 > Cash collected = payments received in the month (a separate cash view; it never replaces the sales view).
-> Production damage is already inside cost per good packet, so it is shown for information and is not subtracted a second time.
+> Production damage, wastage and replacement packets are already inside direct expense, so they are shown for information and are never subtracted a second time.
 
 ==============================================================================
 ## 12. Assumptions Register
@@ -294,23 +331,29 @@ Each assumption stands until the owner changes it. An agent must not silently ch
 
 | ID | Assumption |
 |---|---|
-| A-1 | Sales are in whole packets only. Loose chapathis are not sold. |
-| A-2 | Workers give no ad-hoc discounts. Discounts exist only as Admin override prices. |
+| A-1 | Sales are in whole packets. A packet is standard (12 chapathis, per product) or custom (1 to 200 chapathis). |
+| A-2 | WITHDRAWN. Replaced by section 4.3: workers may edit the price only for customer types whose switch is on. |
 | A-3 | Accepted methods: Cash, Zelle, Check, Card, Other. |
 | A-4 | Overpayment is allowed and shown as credit on account. |
 | A-5 | The Admin can lock a month; corrections then go in the current month. |
 | A-6 | Returned goods are not restocked. They are a write-off. |
-| A-7 | Production damage is measured in packets. |
-| A-8 | Stock is informational and Admin-only. Negative stock warns but never blocks a sale. |
-| A-9 | Indirect expenses are shared equally per net packet sold, across both products. |
-| A-10 | Average cost method. No FIFO inventory valuation. |
-| A-11 | Direct cost is computed from recipe x ingredient price x batch, not from purchase invoices. |
+| A-7 | Production damage and replacement goods are counted in chapathis. |
+| A-8 | WITHDRAWN. No batch records or finished-goods stock in v1. Raw-material stock is tracked instead. |
+| A-9 | Indirect expenses are shared equally per net chapathi sold, across both products. |
+| A-10 | Weighted-average price per material. No FIFO valuation. |
+| A-11 | WITHDRAWN. Direct cost now comes from material purchases and calculated usage (section 9). |
 | A-12 | Machine cost is a monthly amount entered by the Admin. |
-| A-13 | Workers cannot create saved customers or edit products. Admin only. |
+| A-13 | Workers cannot create saved customers or edit products. Admin only. New customers reach workers at the next sync. |
 | A-14 | One worker now, with a unique login per worker. Worker expense entry comes later. |
 | A-15 | Device: Android handheld with a built-in 58 mm thermal printer (to confirm, P-1). |
 | A-16 | A receipt prints when the worker confirms a payment. |
 | A-17 | Confirmed invoices are immutable. Void or credit is the only correction. |
+| A-18 | Purchases, expenses and production damage are add-only. A mistake is corrected by a linked reversing entry with a reason. |
+| A-19 | The standard packet is 12 chapathis (owner confirmed on 3 October 2026), editable per product. |
+| A-20 | Wastage defaults to 2%, adjustable from 0% to 5%, applied to ingredients only. |
+| A-21 | The Android app also has an Admin view. It is built on demo data and needs real Admin endpoints and a PIN lock before real use. |
+| A-22 | Packing is counted once per packet, for invoiced and replacement packets. |
+| A-23 | A walk-in follows the Retail price list and the Retail price-edit setting. |
 
 ==============================================================================
 ## 13. Pending Inputs
@@ -321,14 +364,15 @@ The business must supply these. Until then the build uses clearly marked placeho
 | ID | Needed | What it blocks / interim approach |
 |---|---|---|
 | P-1 | Exact handheld model, printer SDK, paper width | Real printing. Build with a mock printer. |
-| P-2 | Potassium sorbate quantity per kg of wheat | Mamre Chapathi cost shows "incomplete". |
-| P-3 | Current ingredient prices | Cost per packet. Use test data only. |
-| P-4 | Selling price per product per customer type | Invoicing. Use test data only. |
+| P-2 | Potassium sorbate quantity per kg of wheat (grams) | Mamre Chapathi cost shows "incomplete". |
+| P-3 | Current material prices and opening stock (enter as purchases) | Cost per packet. Use test data only. |
+| P-4 | Selling price per product per customer type, including Catering | Invoicing. Use test data only. |
 | P-5 | Typical packets sold per day or month | Sizing only. Not blocking. |
-| P-6 | Business address, phone, logo, thank-you text | Invoice header. Placeholder text. |
+| P-6 | Business address, phone, logo files, thank-you text | Invoice header. Placeholder text. |
 | P-7 | Business time zone | Month boundaries. Default to a setting the Admin edits. |
 | P-8 | Existing customers and opening balances | Optional import. Start empty otherwise. |
 | P-9 | Confirm both products share the same base recipe and yield | Recipe screen defaults. |
+| P-11 | Decide whether to enforce a minimum price per product where workers can edit prices | Under-charging control. |
 
 ==============================================================================
 ## 14. Glossary
@@ -336,13 +380,26 @@ The business must supply these. Until then the build uses clearly marked placeho
 
 | Term | Meaning |
 |---|---|
-| Packet | The sales unit: 12 half-cooked chapathis (editable per product). |
+| Chapathi | One half-cooked chapathi. Material usage is calculated per chapathi. |
+| Packet | The sales unit: a standard packet (12 chapathis) or a custom packet (1 to 200). |
+| Custom packet | A packet with a chosen number of chapathis, available for every customer type. |
 | Credit customer | A customer billed monthly who may carry a balance. |
-| Walk-in | An anonymous retail sale paid in full at once, with no ledger. |
+| Walk-in | An anonymous Retail sale paid in full at once, with no ledger. |
 | Override price | An Admin-set price for one customer and product, taking priority over the default. |
+| Worker can edit price | A per-customer-type switch that lets the worker change a line's price. |
 | Void | Admin cancellation of an invoice. The number stays and shows VOID. |
+| Reversing entry | A linked negative entry, with a reason, that corrects a purchase or expense without editing it. |
 | Credit (return) | A reduction of a customer's balance because of returned goods. |
 | Net sales | Invoiced total less return credits. |
-| Direct cost | Ingredients and packing for the packets sold. |
+| Direct expense | Cost of materials used plus packing for the month. |
 | Indirect expense | Electricity, water, machine, labour, maintenance, delivery, fuel and similar. |
 | Ledger | The chronological record of a customer's invoices, credits and payments. |
+
+==============================================================================
+## 15. Change Log
+==============================================================================
+
+| Version | Changes |
+|---|---|
+| 1.1 (3 Oct 2026) | Fourth customer type, Catering. Worker price editing by customer-type switch (amends A-2 and Doc 3 N4). Custom packets of 1 to 200 chapathis (the standard packet stays 12). Costing rebuilt on material purchases, calculated usage, wastage and weighted-average price (A-11 withdrawn). Net profit = gross profit - indirect expenses. Add-only entries with reversing entries. Production damage in chapathis; batches and finished stock dropped (A-8 withdrawn). Admin view in the Android app. Customers shared to workers at sync. |
+| 1.0 (1 Oct 2026) | First baseline. |
