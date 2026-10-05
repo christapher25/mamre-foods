@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +27,6 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.data.admin.DataSpan
-import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.CostingReport
 import com.mamre.billing.domain.admin.MAX_YIELD_PER_KG
 import com.mamre.billing.domain.admin.ProductCost
@@ -87,11 +87,9 @@ data class CostingUi(
 @HiltViewModel
 class CostingViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(CostingUi())
     val ui: StateFlow<CostingUi> = _ui.asStateFlow()
-    private val by get() = session.profile?.fullName ?: DEFAULT_ADMIN_NAME
 
     init {
         viewModelScope.launch {
@@ -111,13 +109,13 @@ class CostingViewModel @Inject constructor(
         viewModelScope.launch { load() }
     }
 
-    fun setRecipe(productId: String, materialId: String, qtyMb: Long) = attempt { api.setRecipeQuantity(productId, materialId, qtyMb, by) }
+    fun setRecipe(productId: String, materialId: String, qtyMb: Long) = attempt { api.setRecipeQuantity(productId, materialId, qtyMb) }
 
-    fun setWastage(basisPoints: Int) = attempt { api.setWastageBp(basisPoints, by) }
+    fun setWastage(basisPoints: Int) = attempt { api.setWastageBp(basisPoints) }
 
-    fun setPacketSize(productId: String, chapathis: Int) = attempt { api.setStandardPacketSize(productId, chapathis, by) }
+    fun setPacketSize(productId: String, chapathis: Int) = attempt { api.setStandardPacketSize(productId, chapathis) }
 
-    fun setYield(productId: String, chapathisPerKg: Int) = attempt { api.setYieldPerKg(productId, chapathisPerKg, by) }
+    fun setYield(productId: String, chapathisPerKg: Int) = attempt { api.setYieldPerKg(productId, chapathisPerKg) }
 
     /** Asks the server what a packet of N chapathis costs (per chapathi x N + packing). */
     fun calculate(productId: String?, text: String) {
@@ -176,7 +174,7 @@ fun CostingContent(
     var editNumber by remember { mutableStateOf<NumberEdit?>(null) }
     var editWastage by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Costing", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Costing", onBack = onBack, actions = { DataLabelChip() })
         val report = ui.report
         val span = ui.span
         val month = ui.month

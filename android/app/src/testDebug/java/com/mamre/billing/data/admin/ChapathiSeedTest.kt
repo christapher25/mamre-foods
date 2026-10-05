@@ -1,6 +1,6 @@
 package com.mamre.billing.data.admin
 
-import com.mamre.billing.data.demo.SharedPriceTable
+import com.mamre.billing.domain.books.BooksLogic
 import com.mamre.billing.domain.admin.Figure
 import com.mamre.billing.domain.admin.StockRow
 import com.mamre.billing.domain.worker.customPacketPriceCents
@@ -14,17 +14,17 @@ import org.junit.Test
 /** Change set C2 on the demo data: standard packets of 12, custom packets, chapathi based usage. */
 class ChapathiSeedTest {
     private val today = LocalDate.of(2026, 10, 2)
-    private val state = AdminSeed.build(today, SharedPriceTable.seeded(today, baseVersion = 10))
+    private val state = AdminSeed.build(today)
 
     @Test fun theStandardPacketIsTwelveChapathisAndTheYieldIs32() {
         assertTrue(state.products.all { it.unitsPerPacket == 12 && it.yieldPerKg == 32 })
     }
 
 
-    @Test fun theDefaultAndTheWorkersCatalogAlsoSayTwelve() {
+    @Test fun theDefaultAndTheFirstRunReferenceDataAlsoSayTwelve() {
         assertEquals(12, com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE)
-        assertEquals(12, SharedPriceTable.STANDARD_PACKET_SIZE)
-        assertTrue(SharedPriceTable.seeded(today, baseVersion = 10).products().all { it.standardPacketSize == 12 })
+        assertEquals(12, com.mamre.billing.data.local.ReferenceSeed.STANDARD_PACKET_SIZE)
+        assertTrue(com.mamre.billing.data.local.ReferenceSeed.products.all { it.standardPacketSize == 12 })
     }
     @Test fun everyInvoiceLineAddsUpAndHoldsOneToTwoHundredChapathis() {
         for (item in state.invoices.flatMap { it.items }) {
@@ -49,7 +49,7 @@ class ChapathiSeedTest {
 
     @Test fun theSeedBuysEnoughMaterialsSoWheatNeverRunsOutInAFullMonth() {
         for (m in listOf(YearMonth.of(2026, 5), YearMonth.of(2026, 7), YearMonth.of(2026, 9))) {
-            val wheat: StockRow = ServerLogic.stock(state, m).rows.first { it.material.id == SeedIds.WHEAT }
+            val wheat: StockRow = BooksLogic.stock(state, m).rows.first { it.material.id == SeedIds.WHEAT }
             val closing = wheat.closingQtyMb as Figure.Known
             assertFalse("closing wheat in $m", closing.value < 0)
             assertFalse(wheat.negativeStock)
@@ -62,7 +62,7 @@ class ChapathiSeedTest {
 
     @Test fun chapathisSoldIsPacketsTimesSizeOnTheDashboard() {
         val sep = YearMonth.of(2026, 9)
-        val d = ServerLogic.dashboard(state, sep, YearMonth.of(2026, 4))
+        val d = BooksLogic.dashboard(state, sep, YearMonth.of(2026, 4))
         val items = state.invoices.filter { !it.isVoid && YearMonth.from(it.issuedAt) == sep }.flatMap { it.items }
         assertEquals(items.sumOf { it.qtyPackets }, d.packetsSold)
         assertEquals(items.sumOf { it.qtyPackets.toLong() * it.chapathisPerPacket }, d.chapathisSold)

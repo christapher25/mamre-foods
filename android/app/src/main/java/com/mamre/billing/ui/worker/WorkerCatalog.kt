@@ -1,8 +1,13 @@
 package com.mamre.billing.ui.worker
 
-import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.data.repo.CustomerRepository
+import com.mamre.billing.data.repo.PriceRepository
+import com.mamre.billing.data.repo.toCustomer
+import com.mamre.billing.data.repo.toCustomerType
+import com.mamre.billing.data.repo.toProduct
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.CustomerType
+import com.mamre.billing.domain.model.inTypeOrder
 import com.mamre.billing.domain.model.Product
 import com.mamre.billing.domain.pricing.PriceBook
 import com.mamre.billing.domain.pricing.PriceResult
@@ -29,22 +34,22 @@ data class CatalogSnapshot(
 const val WALK_IN_TYPE_LABEL = "Retail"
 const val WALK_IN_NAME = "Walk-in"
 
-/** Reads the catalog the sync keeps in Room (Doc 2 s6.4): only active customers and products. */
-class WorkerCatalog @Inject constructor(private val catalog: CatalogRepository) {
+/** Reads customers, products and prices from the database (Doc 2 s4.2): only active customers and products. */
+class WorkerCatalog @Inject constructor(
+    private val customers: CustomerRepository,
+    private val prices: PriceRepository,
+) {
     suspend fun load(): CatalogSnapshot {
-        val book = catalog.priceBook()
+        val book = prices.priceBook()
         return CatalogSnapshot(
-            customers = catalog.activeCustomers(),
+            customers = customers.customers().filter { it.isActive }.map { it.toCustomer() },
             typeNames = book.customerTypes.associate { it.id to it.name },
-            products = catalog.activeProducts(),
+            products = prices.products().filter { it.isActive }.map { it.toProduct() },
             book = book,
-            types = orderedTypes(catalog.activeCustomerTypes()),
+            types = orderedTypes(customers.types().filter { it.isActive }.map { it.toCustomerType() }),
         )
     }
 }
 
-private val TILE_ORDER = listOf("Restaurant", "Shop", "Retail", "Catering")
-
 /** Restaurant, Shop, Retail, Catering first (change set C1), any other type after them by name. */
-fun orderedTypes(types: List<CustomerType>): List<CustomerType> =
-    types.sortedWith(compareBy({ TILE_ORDER.indexOf(it.name).let { i -> if (i < 0) TILE_ORDER.size else i } }, { it.name.lowercase() }))
+fun orderedTypes(types: List<CustomerType>): List<CustomerType> = types.inTypeOrder { it.name }

@@ -18,9 +18,14 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.data.demo.DemoStore
-import com.mamre.billing.data.demo.ReturnDraft
+import com.mamre.billing.data.local.SettingKeys
+import com.mamre.billing.data.repo.SalesRepository
+import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.domain.usecase.RecordReturn
+import com.mamre.billing.domain.usecase.ReturnDraft
+import com.mamre.billing.domain.usecase.RuleException
+import java.time.Clock
+import java.time.LocalDate
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.label
 import com.mamre.billing.domain.money.formatCents
@@ -92,23 +97,29 @@ private data class ReturnInput(
 @HiltViewModel
 class ReturnFlowViewModel @Inject constructor(
     private val catalog: WorkerCatalog,
-    private val store: DemoStore,
-    session: SessionManager,
+    sales: SalesRepository,
+    private val settings: SettingsRepository,
+    private val recordReturn: RecordReturn,
+    private val clock: Clock,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
-    private val deviceCode = session.profile?.deviceCode
+    private val deviceCode = MutableStateFlow<String?>(null)
     private val input = MutableStateFlow(ReturnInput())
     private val snapshot = MutableStateFlow<CatalogSnapshot?>(null)
+    private val _error = MutableStateFlow<String?>(null)
 
-    val ui: StateFlow<ReturnUi> = combine(input, snapshot, store.state) { inp, snap, demo ->
-        if (snap == null) return@combine ReturnUi(deviceCode = deviceCode)
-        val today = store.today()
+    /** What the last Record was refused for (the use case enforces the rules). */
+    val error: StateFlow<String?> = _error
+
+    val ui: StateFlow<ReturnUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, sold, device ->
+        if (snap == null) return@combine ReturnUi(deviceCode = device)
+        val today = LocalDate.now(clock)
         ReturnUi(
             loading = false,
-            deviceCode = deviceCode,
+            deviceCode = device,
             query = inp.query,
             customers = filterCustomers(snap.customers, inp.query)
-                .map { CustomerRow(it, snap.typeName(it), demo.balanceOf(it.id)) },
+                .map { CustomerRow(it, snap.typeName(it), sold.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
             customer = inp.customer,
             products = snap.products.map { ProductRow(it, snap.priceFor(inp.customer, it, today)) },
             productId = inp.productId,
@@ -117,10 +128,13 @@ class ReturnFlowViewModel @Inject constructor(
             resolution = inp.resolution,
             saved = inp.saved,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, ReturnUi(deviceCode = deviceCode))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, ReturnUi())
 
     init {
-        viewModelScope.launch { snapshot.value = catalog.load() }
+        viewModelScope.launch {
+            deviceCode.value = settings.get(SettingKeys.DEVICE_CODE)
+            snapshot.value = catalog.load()
+        }
     }
 
     fun onQuery(text: String) = input.update { it.copy(query = text) }
@@ -137,28 +151,26 @@ class ReturnFlowViewModel @Inject constructor(
 
     fun onResolution(resolution: ReturnResolution) = input.update { it.copy(resolution = resolution) }
 
-    fun record(): ReturnRecord? {
+    /** Saves the return through the RecordReturn use case and calls [onSaved]. */
+    fun record(onSaved: (ReturnRecord) -> Unit) {
         val u = ui.value
-        if (!u.canRecord) return null
-        val customer = u.customer ?: return null
-        val product = u.product ?: return null
-        val record = store.recordReturn(
-            ReturnDraft(
-                id = draftId,
-                customerId = customer.id,
-                customerName = customer.name,
-                customerLocation = customer.location,
-                productId = product.product.id,
-                productName = product.product.name,
-                qtyPackets = u.qty,
-                reason = u.reason ?: return null,
-                resolution = u.resolution ?: return null,
-                unitPriceCents = u.unitPriceCents ?: return null,
-                deviceCode = u.deviceCode ?: return null,
-            ),
-        )
-        input.update { it.copy(saved = record) }
-        return record
+        if (!u.canRecord) return
+        val customer = u.customer ?: return
+        val product = u.product ?: return
+        val reason = u.reason ?: return
+        val resolution = u.resolution ?: return
+        viewModelScope.launch {
+            try {
+                val record = recordReturn(
+                    ReturnDraft(draftId, customer.id, product.product.id, u.qty, product.standardSize, reason, resolution),
+                )
+                _error.value = null
+                input.update { it.copy(saved = record) }
+                onSaved(record)
+            } catch (e: RuleException) {
+                _error.value = e.message
+            }
+        }
     }
 }
 
@@ -228,6 +240,10 @@ fun ReturnFormScreen(vm: ReturnFlowViewModel, onBack: () -> Unit, onRecorded: ()
                     )
                 }
             }
+            val refused by vm.error.collectAsStateWithLifecycle()
+            refused?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
         }
         StickyBottomBar {
             PrimaryButton("Record return", onClick = { asking = true }, enabled = ui.canRecord)
@@ -240,7 +256,7 @@ fun ReturnFormScreen(vm: ReturnFlowViewModel, onBack: () -> Unit, onRecorded: ()
             confirmText = "Record",
             onConfirm = {
                 asking = false
-                if (vm.record() != null) onRecorded()
+                vm.record { onRecorded() }
             },
             onDismiss = { asking = false },
         )

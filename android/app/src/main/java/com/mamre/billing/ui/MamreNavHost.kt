@@ -12,66 +12,87 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.domain.auth.Role
-import com.mamre.billing.domain.auth.Routes
-import com.mamre.billing.domain.auth.routeAllowed
+import com.mamre.billing.domain.auth.Area
+import com.mamre.billing.data.startup.AppReadiness
+import com.mamre.billing.domain.auth.AreaState
+import com.mamre.billing.domain.auth.Features
+import com.mamre.billing.domain.auth.appStartDestination
 import com.mamre.billing.domain.auth.startDestinationFor
 import com.mamre.billing.ui.admin.AdminBottomBar
 import com.mamre.billing.ui.admin.AdminRoutes
 import com.mamre.billing.ui.admin.adminGraph
+import com.mamre.billing.ui.admin.adminTabs
 import com.mamre.billing.ui.admin.showsBottomBar
 import com.mamre.billing.ui.admin.tabOf
-import com.mamre.billing.ui.login.LoginScreen
 import com.mamre.billing.ui.worker.workerGraph
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.Optional
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @HiltViewModel
-class AppViewModel @Inject constructor(session: SessionManager) : ViewModel() {
-    val role = session.role
+class AppViewModel @Inject constructor(
+    private val areaState: AreaState,
+    gate: Optional<EntryGate>,
+    val features: Features,
+    readiness: AppReadiness,
+) : ViewModel() {
+    /** False until the database is open: the first screen is a short loading screen (Doc 2 s5.2). */
+    val ready: StateFlow<Boolean> = readiness.ready
+
+    val gate: EntryGate? = gate.orElse(null)
+    val area: StateFlow<Area> = areaState.area
+
+    /** True when there is no gate or the gate has let the Owner through. */
+    val gateOpen: StateFlow<Boolean> = this.gate?.open ?: MutableStateFlow(true)
+
+    fun openArea(area: Area) = areaState.open(area)
 }
 
 /**
- * Login when there is no session, otherwise the home of the stored role, so a restart lands on
- * the right experience (Doc 2 s10). The worker and the admin each have their own graph, and
- * the guard sends anyone who ends up on a route of the other graph (or on Login while signed
- * in) back to their own start. When the session ends (logout, or a refresh refused after a
- * 401) the whole back stack is cleared to Login. The admin also gets a bottom bar of five tabs.
+ * Version 1 starts at the Sales Home (Doc 2 s10). A build can put an entry gate in front (the debug login screen); the
+ * navigation then starts at the gate's screen and goes to the open area once the gate opens. The Sales area and the Admin
+ * area are separate graphs with a route guard on the OPEN area: the only way across is the explicit area switch, which
+ * restarts the navigation in the other area. The Admin area also gets a bottom bar.
  */
 @Composable
 fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
-    val role by appViewModel.role.collectAsStateWithLifecycle()
-    val navController = rememberNavController()
-    val start = remember {
-        when (appViewModel.role.value) {
-            Role.WORKER -> Routes.WORKER_GRAPH
-            Role.ADMIN -> Routes.ADMIN_GRAPH
-            null -> Routes.LOGIN
-        }
+    val ready by appViewModel.ready.collectAsStateWithLifecycle()
+    if (!ready) {
+        StartingScreen()
+        return
     }
+    val area by appViewModel.area.collectAsStateWithLifecycle()
+    val gateOpen by appViewModel.gateOpen.collectAsStateWithLifecycle()
+    val gate = appViewModel.gate
+    val features = appViewModel.features
+    val navController = rememberNavController()
+    val start = remember { appStartDestination(gate?.route) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val route = backStackEntry?.destination?.route
 
-    LaunchedEffect(role) {
+    // Switching area, opening the gate or closing it, and every move afterwards: the one policy (navTarget) decides.
+    val gateState = gate?.let { GateState(it.route, gateOpen) }
+    LaunchedEffect(area, gateOpen) {
+        navTarget(area, features, gateState, navController.currentDestination?.route ?: gate?.route)?.let { navController.goTo(it) }
         navController.currentBackStackEntryFlow.collect { entry ->
-            if (!routeAllowed(role, entry.destination.route)) navController.goToStart(role)
+            navTarget(area, features, gateState, entry.destination.route)?.let { navController.goTo(it) }
         }
     }
 
     Column(Modifier.fillMaxSize()) {
         NavHost(navController, startDestination = start, modifier = Modifier.weight(1f)) {
-            composable(Routes.LOGIN) { LoginScreen() }
-            workerGraph(navController)
-            adminGraph(navController)
+            gate?.register(this)
+            workerGraph(navController, onOpenAdmin = { appViewModel.openArea(Area.ADMIN) })
+            adminGraph(navController, features, onOpenSales = { appViewModel.openArea(Area.SALES) })
         }
-        if (role == Role.ADMIN && showsBottomBar(route)) {
-            AdminBottomBar(selected = tabOf(route), onSelect = { tab ->
+        if (area == Area.ADMIN && gateOpen && showsBottomBar(route)) {
+            AdminBottomBar(tabs = adminTabs(features), selected = tabOf(route), onSelect = { tab ->
                 navController.navigate(tab.route) {
-                    popUpTo(AdminRoutes.DASHBOARD) { saveState = true }
+                    popUpTo(startDestinationFor(Area.ADMIN, features)) { saveState = true }
                     launchSingleTop = true
                     restoreState = true
                 }
@@ -80,8 +101,8 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
     }
 }
 
-/** Clears the back stack and opens the start of this role, or Login when there is none. */
-private fun NavController.goToStart(role: Role?) {
-    val target = role?.let(::startDestinationFor) ?: Routes.LOGIN
+/** Clears the back stack and opens [target]. */
+private fun NavController.goTo(target: String) {
+    if (currentDestination?.route == target) return
     navigate(target) { popUpTo(0) { inclusive = true } }
 }

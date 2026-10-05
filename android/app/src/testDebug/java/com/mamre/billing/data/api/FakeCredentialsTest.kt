@@ -1,21 +1,20 @@
 package com.mamre.billing.data.api
 
-import com.mamre.billing.domain.auth.Role
+import com.mamre.billing.domain.auth.Area
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class FakeCredentialsTest {
-    @Test fun adminAccountIsAnAdmin() {
+    @Test fun adminAccountOpensTheAdminArea() {
         val a = FakeCredentials.find("admin", "admin5")!!
-        assertEquals(Role.ADMIN, a.role)
-        assertNull(a.deviceCode)
+        assertEquals(Area.ADMIN, a.area)
     }
 
-    @Test fun workerAccountIsAWorkerWithADevice() {
+    @Test fun userAccountOpensTheSalesArea() {
         val a = FakeCredentials.find("user1", "user1")!!
-        assertEquals(Role.WORKER, a.role)
-        assertEquals("W1", a.deviceCode)
+        assertEquals(Area.SALES, a.area)
+        assertEquals("Rajesh", a.fullName)
     }
 
     @Test fun exactlyTwoAccountsExistAndEverythingElseIsRejected() {

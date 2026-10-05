@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.theme.Spacing
@@ -53,7 +54,7 @@ private fun AdminTab.icon(): ImageVector = when (this) {
  * labels still fit a 360 dp screen at large system font sizes; the rest of the app scales fully.
  */
 @Composable
-fun AdminBottomBar(selected: AdminTab?, onSelect: (AdminTab) -> Unit) {
+fun AdminBottomBar(tabs: List<AdminTab>, selected: AdminTab?, onSelect: (AdminTab) -> Unit) {
     val density = LocalDensity.current
     CompositionLocalProvider(
         LocalDensity provides Density(density.density, fontScale = minOf(density.fontScale, BAR_MAX_FONT_SCALE)),
@@ -65,7 +66,7 @@ fun AdminBottomBar(selected: AdminTab?, onSelect: (AdminTab) -> Unit) {
                 tonalElevation = 0.dp,
                 windowInsets = WindowInsets(0, 0, 0, 0), // the activity already pads the system bars
             ) {
-                AdminTab.entries.forEach { tab ->
+                tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = tab == selected,
                         onClick = { onSelect(tab) },
@@ -95,18 +96,23 @@ fun AdminBottomBar(selected: AdminTab?, onSelect: (AdminTab) -> Unit) {
 
 /** More opens the five less frequent screens (owner brief). */
 @Composable
-fun MoreScreen(onOpen: (String) -> Unit) {
+fun MoreScreen(features: Features, onOpen: (String) -> Unit, onSalesArea: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "More")
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            MoreItem("Costing", "Cost per packet, recipes and wastage", AdminRoutes.COSTING, onOpen)
-            MoreItem("Expenses", "Material purchases and other expenses", AdminRoutes.EXPENSES, onOpen)
-            MoreItem("Returns and damage", "Customer returns and production damage", AdminRoutes.RETURNS, onOpen)
-            MoreItem("Balances", "Who owes what, with ageing", AdminRoutes.BALANCES, onOpen)
-            MoreItem("Settings", "Business details, salesmen, log out", AdminRoutes.SETTINGS, onOpen)
+            for (route in moreRoutes(features)) {
+                when (route) {
+                    AdminRoutes.COSTING -> MoreItem("Costing", "Cost per packet, recipes and wastage", route, onOpen)
+                    AdminRoutes.EXPENSES -> MoreItem("Expenses", "Material purchases and other expenses", route, onOpen)
+                    AdminRoutes.RETURNS -> MoreItem("Returns and damage", "Customer returns and production damage", route, onOpen)
+                    AdminRoutes.BALANCES -> MoreItem("Balances", "Who owes what, with ageing", route, onOpen)
+                    AdminRoutes.SETTINGS -> MoreItem("Settings", "Business details and wastage", route, onOpen)
+                }
+            }
+            MoreItem("Sales area", "Switch to bills, payments and returns", "", { onSalesArea() })
         }
     }
 }

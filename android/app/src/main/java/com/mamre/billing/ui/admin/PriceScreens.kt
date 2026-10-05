@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +29,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
-import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.PriceCheck
 import com.mamre.billing.domain.admin.PriceMatrix
 import com.mamre.billing.domain.admin.PriceProblem
@@ -56,9 +56,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 // B4 Prices (Doc 1 s4.3; Doc 2 s9). A price is added with a later effective-from date and never rewritten.
-// The shared price table (DECISIONS 2026-10-03) carries the change to the worker's next sync.
 
-const val SALESMEN_SYNC_NOTE = "Salesmen receive this at their next sync."
+const val SALESMEN_SYNC_NOTE = "It applies to new bills at once."
 
 data class PricesUi(
     val loading: Boolean = true,
@@ -70,7 +69,6 @@ data class PricesUi(
 @HiltViewModel
 class PricesViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(PricesUi())
     val ui: StateFlow<PricesUi> = _ui.asStateFlow()
@@ -85,7 +83,7 @@ class PricesViewModel @Inject constructor(
     fun setWorkerCanEdit(typeId: String, allowed: Boolean) {
         viewModelScope.launch {
             try {
-                api.setWorkerCanEditPrice(typeId, allowed, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.setWorkerCanEditPrice(typeId, allowed)
                 _ui.update { it.copy(error = null) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -105,7 +103,7 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCa
     val matrix = ui.matrix
     val today = ui.today
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Prices", actions = { DemoChip() })
+        AppTopBar(title = "Prices", actions = { DataLabelChip() })
         if (matrix == null || today == null) return@Column
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
@@ -207,7 +205,6 @@ data class PriceSetUi(
 @HiltViewModel
 class PriceSetViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val productId: String = checkNotNull(savedState[AdminRoutes.ARG_PRODUCT])
@@ -232,7 +229,7 @@ class PriceSetViewModel @Inject constructor(
     fun save(priceCents: Long, from: LocalDate) {
         viewModelScope.launch {
             try {
-                api.setDefaultPrice(productId, typeId, priceCents, from, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.setDefaultPrice(productId, typeId, priceCents, from)
                 _ui.update { it.copy(error = null, saved = true) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -260,7 +257,7 @@ fun PriceSetContent(ui: PriceSetUi, onBack: () -> Unit, onSave: (Long, LocalDate
         if (tried) problems.filter { it in of }.joinToString { priceProblemMessage(it, latest) }.ifEmpty { null } else null
 
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Set new price", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Set new price", onBack = onBack, actions = { DataLabelChip() })
         if (ui.loading) return@Column
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),

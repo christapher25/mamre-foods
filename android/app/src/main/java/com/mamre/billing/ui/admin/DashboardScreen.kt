@@ -21,8 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.DataSpan
-import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.data.demo.DEMO_DATA_LABEL
+import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.domain.admin.DashboardReport
 import com.mamre.billing.domain.admin.Figure
 import com.mamre.billing.domain.admin.monthShort
@@ -58,9 +57,7 @@ data class DashboardUi(
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     private val api: AdminApi,
-    session: SessionManager,
 ) : ViewModel() {
-    val adminName: String? = session.profile?.fullName
     private val _ui = MutableStateFlow(DashboardUi())
     val ui: StateFlow<DashboardUi> = _ui.asStateFlow()
 
@@ -89,17 +86,17 @@ class DashboardViewModel @Inject constructor(
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    DashboardContent(ui, viewModel.adminName, viewModel::selectMonth)
+    DashboardContent(ui, viewModel::selectMonth)
 }
 
 @Composable
-fun DashboardContent(ui: DashboardUi, adminName: String?, onMonth: (YearMonth) -> Unit) {
+fun DashboardContent(ui: DashboardUi, onMonth: (YearMonth) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
             title = "Dashboard",
             showLogo = true,
-            subtitle = adminName?.let { "Admin - $it" } ?: "Admin",
-            actions = { StatusChip(DEMO_DATA_LABEL, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm)) },
+            subtitle = "Admin",
+            actions = { DataLabelChip() },
         )
         val report = ui.report
         val span = ui.span

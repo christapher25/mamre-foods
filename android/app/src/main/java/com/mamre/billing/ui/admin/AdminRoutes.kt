@@ -1,12 +1,13 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.Routes
 
 /** Destinations of the admin graph. Every one lives under "admin/" so the route guard can see it. */
 object AdminRoutes {
     const val DASHBOARD = Routes.ADMIN_HOME
 
-    const val SALES = "admin/sales"
+    const val SALES = Routes.ADMIN_SALES
     const val SALES_DETAIL = "admin/sales/{id}"
 
     const val CUSTOMERS = "admin/customers"
@@ -19,7 +20,7 @@ object AdminRoutes {
     const val PRICE_SET = "admin/prices/set/{productId}/{typeId}"
 
     const val MORE = "admin/more"
-    const val COSTING = "admin/more/costing"
+    const val COSTING = Routes.ADMIN_COSTING
     const val EXPENSES = "admin/more/expenses"
     const val EXPENSE_ADD = "admin/more/expenses/add"
     const val PURCHASE_ADD = "admin/more/expenses/purchase"
@@ -43,6 +44,16 @@ object AdminRoutes {
         PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, SETTINGS,
     )
 }
+
+/** The tabs of this build: without analytics there is no Dashboard tab. */
+fun adminTabs(features: Features): List<AdminTab> =
+    AdminTab.entries.filter { it != AdminTab.DASHBOARD || features.showAnalytics }
+
+/** The More list of this build, in order: Costing only with analytics. */
+fun moreRoutes(features: Features): List<String> = listOfNotNull(
+    AdminRoutes.COSTING.takeIf { features.showAnalytics },
+    AdminRoutes.EXPENSES, AdminRoutes.RETURNS, AdminRoutes.BALANCES, AdminRoutes.SETTINGS,
+)
 
 /** The five bottom tabs; More opens Costing, Expenses, Returns and damage, Balances and Settings. */
 enum class AdminTab(val label: String, val route: String) {

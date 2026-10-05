@@ -12,12 +12,22 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.CompositionLocalProvider
+import com.mamre.billing.ui.DataLabel
+import com.mamre.billing.domain.auth.Features
+import com.mamre.billing.ui.LocalDataLabel
+import com.mamre.billing.ui.LocalFeatures
 import com.mamre.billing.ui.MamreNavHost
 import com.mamre.billing.ui.theme.MamreBillingTheme
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.Optional
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var dataLabel: Optional<DataLabel>
+    @Inject lateinit var features: Features
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Light theme only: dark icons on the light bars, even when the phone is in dark mode.
@@ -31,7 +41,9 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    Box(Modifier.safeDrawingPadding()) { MamreNavHost() }
+                    CompositionLocalProvider(LocalDataLabel provides dataLabel.orElse(null), LocalFeatures provides features) {
+                        Box(Modifier.safeDrawingPadding()) { MamreNavHost() }
+                    }
                 }
             }
         }

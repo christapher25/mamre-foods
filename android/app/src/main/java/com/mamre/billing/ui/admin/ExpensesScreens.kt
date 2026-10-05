@@ -1,5 +1,7 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
+import com.mamre.billing.ui.LocalFeatures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +30,6 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.data.admin.DataSpan
-import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.CategoryTotal
 import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseCategory
@@ -93,11 +94,9 @@ data class ExpensesUi(
 @HiltViewModel
 class ExpensesViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(ExpensesUi())
     val ui: StateFlow<ExpensesUi> = _ui.asStateFlow()
-    private val by get() = session.profile?.fullName ?: DEFAULT_ADMIN_NAME
 
     init {
         viewModelScope.launch {
@@ -119,9 +118,9 @@ class ExpensesViewModel @Inject constructor(
 
     fun selectTab(tab: Int) = _ui.update { it.copy(tab = tab, error = null) }
 
-    fun reversePurchase(id: String, reason: String) = attempt { api.reversePurchase(id, reason, by) }
+    fun reversePurchase(id: String, reason: String) = attempt { api.reversePurchase(id, reason) }
 
-    fun reverseExpense(id: String, reason: String) = attempt { api.reverseExpense(id, reason, by) }
+    fun reverseExpense(id: String, reason: String) = attempt { api.reverseExpense(id, reason) }
 
     private fun attempt(block: suspend () -> Unit) {
         viewModelScope.launch {
@@ -161,7 +160,7 @@ fun ExpensesContent(
     onReverseExpense: (String, String) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Expenses", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Expenses", onBack = onBack, actions = { DataLabelChip() })
         TabRow(selectedTabIndex = ui.tab, containerColor = MaterialTheme.colorScheme.surface) {
             Tab(selected = ui.tab == 0, onClick = { onTab(0) }, text = { Text("MATERIALS", style = MaterialTheme.typography.labelMedium) })
             Tab(selected = ui.tab == 1, onClick = { onTab(1) }, text = { Text("OTHER EXPENSES", style = MaterialTheme.typography.labelMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) })
@@ -197,7 +196,8 @@ private fun MaterialsTab(
     var reason by remember { mutableStateOf("") }
     PrimaryButton("Add purchase", onClick = onAdd)
 
-    AppCard {
+    val showCosts = LocalFeatures.current.showCosts
+    if (showCosts) AppCard {
         Text("Direct expense this month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FigureLine(report.costConsumedTotal, style = MaterialTheme.typography.headlineSmall) { formatCents(it) }
         Text(
@@ -208,13 +208,13 @@ private fun MaterialsTab(
     }
 
     SectionHeader("Materials this month")
-    report.rows.forEach { MaterialCard(it) }
+    report.rows.forEach { MaterialCard(it, showCosts) }
     AppCard {
         Text("Totals", style = MaterialTheme.typography.titleSmall)
-        LabelValueRow("Opening value") { FigureLine(report.openingValueTotal) { formatCents(it) } }
+        if (showCosts) LabelValueRow("Opening value") { FigureLine(report.openingValueTotal) { formatCents(it) } }
         LabelValueRow("Bought") { Text(formatCents(report.boughtTotalCents)) }
-        LabelValueRow("Cost consumed") { FigureLine(report.costConsumedTotal) { formatCents(it) } }
-        LabelValueRow("Closing value") { FigureLine(report.closingValueTotal) { formatCents(it) } }
+        if (showCosts) LabelValueRow("Cost consumed") { FigureLine(report.costConsumedTotal) { formatCents(it) } }
+        if (showCosts) LabelValueRow("Closing value") { FigureLine(report.closingValueTotal) { formatCents(it) } }
     }
 
     SectionHeader("Purchases this month")
@@ -263,7 +263,7 @@ private fun MaterialsTab(
 }
 
 @Composable
-private fun MaterialCard(row: StockRow) {
+private fun MaterialCard(row: StockRow, showCosts: Boolean) {
     val m = row.material
     val incomplete = listOf(
         row.openingQtyMb, row.usedMb, row.closingQtyMb, row.avgPriceTt, row.costConsumedCents,
@@ -281,10 +281,10 @@ private fun MaterialCard(row: StockRow) {
             LabelValueRow("Bought") { Text(formatQuantity(row.boughtQtyMb, m) + " - " + formatCents(row.boughtCents)) }
             LabelValueRow("Used") { FigureLine(row.usedMb) { formatQuantity(it, m) } }
             LabelValueRow("Closing stock") { FigureLine(row.closingQtyMb) { formatQuantity(it, m) } }
-            LabelValueRow("Average price") { FigureLine(row.avgPriceTt) { formatTenThousandths(it) + " / " + m.purchaseUnit } }
-            LabelValueRow("Cost consumed") { FigureLine(row.costConsumedCents) { formatCents(it) } }
+            if (showCosts) LabelValueRow("Average price") { FigureLine(row.avgPriceTt) { formatTenThousandths(it) + " / " + m.purchaseUnit } }
+            if (showCosts) LabelValueRow("Cost consumed") { FigureLine(row.costConsumedCents) { formatCents(it) } }
         }
-        val missing = listOf(row.openingQtyMb, row.usedMb, row.avgPriceTt, row.costConsumedCents)
+        val missing = (if (showCosts) listOf(row.openingQtyMb, row.usedMb, row.avgPriceTt, row.costConsumedCents) else listOf(row.openingQtyMb, row.usedMb))
             .filterIsInstance<Figure.Incomplete>().flatMap { it.missing }.distinct()
         missing.forEach {
             Text("Missing: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.xs))
@@ -318,7 +318,7 @@ private fun OtherExpensesTab(report: ExpensesReport, onAdd: () -> Unit, onRevers
     AppCard {
         Text("Indirect expenses this month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(formatCents(report.indirectTotalCents), style = MaterialTheme.typography.headlineSmall)
-        Text(
+        if (LocalFeatures.current.showCosts) Text(
             "Direct expense (materials consumed, calculated): " + when (val d = report.directExpense) {
                 is Figure.Known -> formatCents(d.value)
                 is Figure.Incomplete -> INCOMPLETE
@@ -383,7 +383,6 @@ data class AddPurchaseUi(
 @HiltViewModel
 class AddPurchaseViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(AddPurchaseUi())
     val ui: StateFlow<AddPurchaseUi> = _ui.asStateFlow()
@@ -395,7 +394,7 @@ class AddPurchaseViewModel @Inject constructor(
     fun save(materialId: String, date: LocalDate, qtyMb: Long, totalCents: Long, note: String) {
         viewModelScope.launch {
             try {
-                api.addPurchase(materialId, date, qtyMb, totalCents, note, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.addPurchase(materialId, date, qtyMb, totalCents, note)
                 _ui.update { it.copy(error = null, saved = true) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -430,7 +429,7 @@ fun AddPurchaseContent(ui: AddPurchaseUi, onBack: () -> Unit, onSave: (String, L
         if (tried) problems.filter { it in of }.joinToString { purchaseProblemMessage(it) }.ifEmpty { null } else null
 
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Add purchase", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Add purchase", onBack = onBack, actions = { DataLabelChip() })
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -490,7 +489,6 @@ data class AddExpenseUi(
 @HiltViewModel
 class AddExpenseViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(AddExpenseUi())
     val ui: StateFlow<AddExpenseUi> = _ui.asStateFlow()
@@ -502,7 +500,7 @@ class AddExpenseViewModel @Inject constructor(
     fun save(categoryId: String, date: LocalDate, amountCents: Long, description: String) {
         viewModelScope.launch {
             try {
-                api.addExpense(categoryId, date, amountCents, description, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.addExpense(categoryId, date, amountCents, description)
                 _ui.update { it.copy(error = null, saved = true) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -529,7 +527,7 @@ fun AddExpenseContent(ui: AddExpenseUi, onBack: () -> Unit, onSave: (String, Loc
     val check = validateExpense(categoryId, date, amount)
     val problems = (check as? ExpenseCheck.Invalid)?.problems.orEmpty()
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Add expense", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Add expense", onBack = onBack, actions = { DataLabelChip() })
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,9 +21,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.data.demo.DemoStore
-import com.mamre.billing.data.demo.PaymentDraft
+import com.mamre.billing.data.local.SettingKeys
+import com.mamre.billing.data.repo.SalesRepository
+import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.domain.usecase.PaymentDraft
+import com.mamre.billing.domain.usecase.RecordPayment
+import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.label
 import com.mamre.billing.domain.money.formatCents
@@ -90,24 +94,30 @@ private data class PaymentInput(
 @HiltViewModel
 class PaymentFlowViewModel @Inject constructor(
     private val catalog: WorkerCatalog,
-    private val store: DemoStore,
-    private val session: SessionManager,
+    sales: SalesRepository,
+    private val settings: SettingsRepository,
+    private val recordPayment: RecordPayment,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
-    private val deviceCode = session.profile?.deviceCode
+    private val deviceCode = MutableStateFlow<String?>(null)
     private val input = MutableStateFlow(PaymentInput())
     private val snapshot = MutableStateFlow<CatalogSnapshot?>(null)
+    private val _error = MutableStateFlow<String?>(null)
 
-    val ui: StateFlow<PaymentUi> = combine(input, snapshot, store.state) { inp, snap, demo ->
-        if (snap == null) return@combine PaymentUi(deviceCode = deviceCode)
-        val balance = inp.customer?.let { demo.balanceOf(it.id) } ?: 0L
+    /** What the last Record was refused for (the use case enforces the rules). */
+    val error: StateFlow<String?> = _error
+
+    val ui: StateFlow<PaymentUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, sold, device ->
+        if (snap == null) return@combine PaymentUi(deviceCode = device)
+        // A corporate account's balance is never carried into the Sales area (Doc 1 s4.1, Doc 2 I-16).
+        val balance = inp.customer?.let { sold.balanceShownInSales(it.id, it.isCorporate) } ?: 0L
         PaymentUi(
             loading = false,
-            deviceCode = deviceCode,
+            deviceCode = device,
             query = inp.query,
             // Saved customers only: a walk-in has no ledger to take a payment against (Doc 1 s4.1).
             customers = filterCustomers(snap.customers, inp.query)
-                .map { CustomerRow(it, snap.typeName(it), demo.balanceOf(it.id)) },
+                .map { CustomerRow(it, snap.typeName(it), sold.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
             customer = inp.customer,
             balanceCents = balance,
             amountText = inp.amountText,
@@ -115,10 +125,13 @@ class PaymentFlowViewModel @Inject constructor(
             note = inp.note,
             check = checkStandalonePayment(balance, inp.amountText),
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, PaymentUi(deviceCode = deviceCode))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, PaymentUi())
 
     init {
-        viewModelScope.launch { snapshot.value = catalog.load() }
+        viewModelScope.launch {
+            deviceCode.value = settings.get(SettingKeys.DEVICE_CODE)
+            snapshot.value = catalog.load()
+        }
     }
 
     fun onQuery(text: String) = input.update { it.copy(query = text) }
@@ -133,16 +146,21 @@ class PaymentFlowViewModel @Inject constructor(
 
     fun onNote(text: String) = input.update { it.copy(note = text) }
 
-    fun record(): PaymentRecord? {
+    /** Saves the payment through the RecordPayment use case and calls [onSaved] with it. */
+    fun record(onSaved: (PaymentRecord) -> Unit) {
         val u = ui.value
-        val ok = u.check as? PaymentCheck.Ok ?: return null
-        val customer = u.customer ?: return null
-        val device = u.deviceCode ?: return null
-        val salesman = session.profile?.fullName ?: return null
-        if (!u.canRecord) return null
-        return store.recordPayment(
-            PaymentDraft(draftId, customer.id, customer.name, device, ok.amountCents, u.method, u.note, salesman, customer.location, customer.isCorporate),
-        )
+        val ok = u.check as? PaymentCheck.Ok ?: return
+        val customer = u.customer ?: return
+        if (!u.canRecord) return
+        viewModelScope.launch {
+            try {
+                val record = recordPayment(PaymentDraft(draftId, customer.id, ok.amountCents, u.method, u.note))
+                _error.value = null
+                onSaved(record)
+            } catch (e: RuleException) {
+                _error.value = e.message
+            }
+        }
     }
 }
 
@@ -211,6 +229,10 @@ fun PaymentFormScreen(vm: PaymentFlowViewModel, onBack: () -> Unit, onRecorded: 
                     }
                 }
             }
+            val refused by vm.error.collectAsStateWithLifecycle()
+            refused?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
         }
         StickyBottomBar {
             PrimaryButton("Record payment", onClick = { asking = true }, enabled = ui.canRecord)
@@ -223,7 +245,7 @@ fun PaymentFormScreen(vm: PaymentFlowViewModel, onBack: () -> Unit, onRecorded: 
             confirmText = "Record",
             onConfirm = {
                 asking = false
-                vm.record()?.let { onRecorded(it.id) }
+                vm.record { onRecorded(it.id) }
             },
             onDismiss = { asking = false },
         )

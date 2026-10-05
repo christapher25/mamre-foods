@@ -7,7 +7,7 @@ import org.junit.Test
 /**
  * No real-looking street address or phone number is written anywhere in the sources (main, debug, test, testDebug,
  * androidTest and the golden files), so none can reach a release APK, a fixture or a screenshot. The owner never
- * gave an address: the real one comes from Admin Settings through the catalog sync, and every demo value is
+ * gave an address: the real one comes from Admin Settings, and every demo value is
  * obviously fake ("123 Example Street", "Anytown, TX 00000", "+1 (000) 000-0000").
  *
  * The banned strings are written in pieces so this file does not contain them itself.
@@ -51,7 +51,7 @@ class NoHardCodedAddressTest {
     }
 
     @Test fun theDemoValuesAreObviouslyFakeAndLiveOnlyInTheDebugSeed() {
-        val seed = files(sourceRoots().first { it.name == "debug" }).first { it.name == "SharedPriceTable.kt" }.readText()
+        val seed = files(sourceRoots().first { it.name == "debug" }).first { it.name == "DemoCatalog.kt" }.readText()
         assertTrue(seed.contains("123 Example Street") && seed.contains("Anytown, TX 00000") && seed.contains("+1 (000) 000-0000"))
     }
 }

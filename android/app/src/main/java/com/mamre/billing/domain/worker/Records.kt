@@ -61,8 +61,11 @@ data class InvoiceRecord(
     val totalCents: Long,
     val paidNowCents: Long,
     val method: PaymentMethod?,
-    /** The customer's balance after this invoice and the payment made with it (0 for walk-in). */
-    val balanceAfterCents: Long,
+    /**
+     * The customer's balance after this invoice and the payment made with it (0 for a walk-in). NULL for a corporate account:
+     * its balance is never put into Sales-area data at all (Doc 1 s4.1, Doc 2 I-16); the Admin data path has it.
+     */
+    val balanceAfterCents: Long?,
     val status: InvoiceStatus = InvoiceStatus.ACTIVE,
     val voidReason: String? = null,
     /** The salesman's name when the bill was made; the receipt prints it, never the device code (change set D1). */

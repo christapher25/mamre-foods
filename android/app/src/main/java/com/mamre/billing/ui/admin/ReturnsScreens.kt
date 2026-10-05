@@ -1,5 +1,7 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
+import com.mamre.billing.ui.LocalFeatures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +27,6 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.data.admin.DataSpan
-import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.AdminProduct
 import com.mamre.billing.domain.admin.DamageCheck
 import com.mamre.billing.domain.admin.DamageProblem
@@ -101,7 +102,7 @@ fun ReturnsScreen(onBack: () -> Unit, onAddDamage: () -> Unit, viewModel: Return
 @Composable
 fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Unit, onAddDamage: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Returns and damage", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Returns and damage", onBack = onBack, actions = { DataLabelChip() })
         val report = ui.report
         val span = ui.span
         val month = ui.month
@@ -143,7 +144,7 @@ fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Un
                     }
                     if (r.resolution == ReturnResolution.CREDIT) {
                         LabelValueRow("Credit", Modifier.padding(top = Spacing.xs)) { Text("-" + formatCents(r.creditCents)) }
-                    } else {
+                    } else if (LocalFeatures.current.showCosts) {
                         LabelValueRow(REPLACEMENT_COST_LABEL, Modifier.padding(top = Spacing.xs)) {
                             when (val c = r.replacementCost) {
                                 is Figure.Known -> Text(formatCents(c.value))
@@ -190,7 +191,6 @@ data class AddDamageUi(
 @HiltViewModel
 class AddDamageViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(AddDamageUi())
     val ui: StateFlow<AddDamageUi> = _ui.asStateFlow()
@@ -202,7 +202,7 @@ class AddDamageViewModel @Inject constructor(
     fun save(productId: String, date: LocalDate, chapathis: Int, note: String) {
         viewModelScope.launch {
             try {
-                api.addProductionDamage(productId, date, chapathis, note, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.addProductionDamage(productId, date, chapathis, note)
                 _ui.update { it.copy(error = null, saved = true) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -231,7 +231,7 @@ fun AddDamageContent(ui: AddDamageUi, onBack: () -> Unit, onSave: (String, Local
     fun msg(vararg of: DamageProblem) =
         if (tried) problems.filter { it in of }.joinToString { damageProblemMessage(it) }.ifEmpty { null } else null
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Add production damage", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Add production damage", onBack = onBack, actions = { DataLabelChip() })
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),

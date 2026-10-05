@@ -2,9 +2,12 @@ package com.mamre.billing.ui.worker
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.data.demo.DemoStore
-import com.mamre.billing.data.demo.InvoiceDraft
+import com.mamre.billing.data.local.SettingKeys
+import com.mamre.billing.data.repo.SalesRepository
+import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.domain.usecase.BillDraft
+import com.mamre.billing.domain.usecase.MakeBill
+import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.CustomerType
@@ -33,6 +36,8 @@ import com.mamre.billing.domain.worker.filterCustomers
 import com.mamre.billing.domain.worker.invoiceTotal
 import com.mamre.billing.domain.worker.payerKind
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
+import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -124,17 +129,23 @@ private data class Input(
 @HiltViewModel
 class InvoiceFlowViewModel @Inject constructor(
     private val catalog: WorkerCatalog,
-    private val store: DemoStore,
-    private val session: SessionManager,
+    sales: SalesRepository,
+    private val settings: SettingsRepository,
+    private val makeBill: MakeBill,
+    private val clock: Clock,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
-    private val deviceCode = session.profile?.deviceCode
+    private val deviceCode = MutableStateFlow<String?>(null)
     private val input = MutableStateFlow(Input())
     private val snapshot = MutableStateFlow<CatalogSnapshot?>(null)
+    private val _error = MutableStateFlow<String?>(null)
 
-    val ui: StateFlow<InvoiceUi> = combine(input, snapshot, store.state) { inp, snap, demo ->
-        if (snap == null) return@combine InvoiceUi(loading = true, deviceCode = deviceCode)
-        val today = store.today()
+    /** What the last Confirm was refused for: the use case enforces every rule, so this is the rule's own message. */
+    val error: StateFlow<String?> = _error
+
+    val ui: StateFlow<InvoiceUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, sold, device ->
+        if (snap == null) return@combine InvoiceUi(loading = true, deviceCode = device)
+        val today = LocalDate.now(clock)
         val customer = inp.customer
         val editAllowed = typeAllowsPriceEdit(snap.book.customerTypes, customer?.typeId, walkIn = customer == null)
         val rows = snap.products.map { p ->
@@ -154,13 +165,14 @@ class InvoiceFlowViewModel @Inject constructor(
         val lines = buildPacketLines(priced, inp.packets.map { (k, q) -> PacketEntry(k, q, inp.priceEdits[k]) }, editAllowed)
         val total = invoiceTotal(lines)
         val kind = payerKind(customer)
-        val previous = customer?.let { demo.balanceOf(it.id) } ?: 0L
+        // A corporate account's balance is never carried into the Sales area (Doc 1 s4.1, Doc 2 I-16).
+        val previous = customer?.let { sold.balanceShownInSales(it.id, it.isCorporate) } ?: 0L
         InvoiceUi(
             loading = false,
-            deviceCode = deviceCode,
+            deviceCode = device,
             query = inp.query,
             customers = filterCustomers(snap.customers, inp.query)
-                .map { CustomerRow(it, snap.typeName(it), demo.balanceOf(it.id)) },
+                .map { CustomerRow(it, snap.typeName(it), sold.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
             types = snap.types,
             customerChosen = inp.chosen,
             customer = customer,
@@ -178,10 +190,13 @@ class InvoiceFlowViewModel @Inject constructor(
             method = inp.method,
             check = checkInvoicePayment(kind, total, previous, inp.amountText),
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, InvoiceUi(deviceCode = deviceCode))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, InvoiceUi())
 
     init {
-        viewModelScope.launch { snapshot.value = catalog.load() }
+        viewModelScope.launch {
+            deviceCode.value = settings.get(SettingKeys.DEVICE_CODE)
+            snapshot.value = catalog.load()
+        }
     }
 
     fun onQuery(text: String) = input.update { it.copy(query = text) }
@@ -251,28 +266,30 @@ class InvoiceFlowViewModel @Inject constructor(
 
     fun onMethod(method: PaymentMethod) = input.update { it.copy(method = method) }
 
-    /** Saves the invoice (number MAM-<device>-<seq>, immutable from now on) and returns it. */
-    fun confirm(): InvoiceRecord? {
+    /**
+     * Saves the invoice through the MakeBill use case (number MAM-<device>-<seq>, immutable from now on) and calls
+     * [onSaved] with it. The use case checks every rule again; a refusal is shown through [error] and nothing is saved.
+     */
+    fun confirm(onSaved: (InvoiceRecord) -> Unit) {
         val u = ui.value
-        val ok = u.check as? PaymentCheck.Ok ?: return null
-        val device = u.deviceCode ?: return null
-        val salesman = session.profile?.fullName ?: return null
-        if (u.lines.isEmpty()) return null
-        return store.confirmInvoice(
-            InvoiceDraft(
-                id = draftId,
-                customerId = u.customer?.id,
-                customerName = u.customerName,
-                customerLocation = u.customerLocation,
-                isCorporate = u.isCorporate,
-                customerTypeName = u.typeName,
-                deviceCode = device,
-                lines = u.lines,
-                paidNowCents = ok.amountCents,
-                method = if (ok.amountCents > 0) u.method else null,
-                priceEditAllowed = u.priceEditAllowed,
-                salesmanName = salesman,
-            ),
-        )
+        val ok = u.check as? PaymentCheck.Ok ?: return
+        if (u.lines.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val record = makeBill(
+                    BillDraft(
+                        id = draftId,
+                        customerId = u.customer?.id,
+                        lines = u.lines,
+                        paidNowCents = ok.amountCents,
+                        method = if (ok.amountCents > 0) u.method else null,
+                    ),
+                )
+                _error.value = null
+                onSaved(record)
+            } catch (e: RuleException) {
+                _error.value = e.message
+            }
+        }
     }
 }

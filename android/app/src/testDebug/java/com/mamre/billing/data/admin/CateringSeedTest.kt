@@ -1,74 +1,91 @@
 package com.mamre.billing.data.admin
 
-import com.mamre.billing.data.demo.DemoIds
-import com.mamre.billing.data.demo.SharedPriceTable
-import java.time.LocalDate
+import android.database.sqlite.SQLiteConstraintException
+import com.mamre.billing.data.demo.DemoWorld
+import com.mamre.billing.data.local.ReferenceIds
+import com.mamre.billing.data.local.World
+import com.mamre.billing.domain.admin.CustomerForm
+import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.usecase.RuleException
 import java.time.YearMonth
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
-/** Change set C1: four customer types, Catering seeded, flags defaults, one id per customer. */
+/** Change set C1 on the real database: four customer types, Catering seeded, flag defaults, one id per customer. */
+@RunWith(RobolectricTestRunner::class)
 class CateringSeedTest {
-    private val today = LocalDate.of(2026, 10, 2)
+    private lateinit var w: World
+    private val api get() = w.admin
+    private val today get() = w.today
 
-    @Test fun thereAreFourTypesWithCateringAndRetailEditableByDefault() {
-        val table = SharedPriceTable.seeded(today)
-        assertEquals(listOf("Restaurant", "Shop", "Retail", "Catering"), table.types().map { it.name })
+    @Before fun open() {
+        w = runBlocking { DemoWorld.open() }
+    }
+
+    @After fun close() {
+        w.db.close()
+    }
+
+    @Test fun thereAreFourTypesWithCateringAndRetailEditableByDefault() = runBlocking {
+        assertEquals(listOf("Catering", "Restaurant", "Retail", "Shop").sorted(), api.customerTypes().map { it.name }.sorted())
         assertEquals(
             mapOf("Restaurant" to false, "Shop" to false, "Retail" to true, "Catering" to true),
-            table.types().associate { it.name to it.workerCanEditPrice },
+            api.customerTypes().associate { it.name to it.workerCanEditPrice },
         )
     }
 
-    @Test fun cateringHasACustomerWithInvoicesAndPricesForEveryProduct() = runTest {
-        val api = FakeAdminApi(prices = SharedPriceTable.seeded(today), clock = java.time.Clock.fixed(
-            today.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant(), java.time.ZoneId.systemDefault(),
-        ))
+    @Test fun cateringHasACustomerWithInvoicesAndPricesForEveryProduct() = runBlocking {
         val royal = api.customers().single { it.id == SeedIds.ROYAL_BANQUETS }
         assertEquals("Catering", royal.typeName)
         assertTrue(api.invoices().any { it.customerId == royal.id && it.typeName == "Catering" })
         val matrix = api.priceMatrix()
-        for (p in listOf(DemoIds.FRESH, DemoIds.CHAPATHI)) {
-            assertTrue(matrix.current(p, DemoIds.CATERING_TYPE, today) != null)
+        for (p in listOf(ReferenceIds.PRODUCT_FRESH, ReferenceIds.PRODUCT_CHAPATHI)) {
+            assertTrue(matrix.current(p, ReferenceIds.TYPE_CATERING, today) != null)
         }
         val d = api.dashboard(YearMonth.of(2026, 9))
         assertTrue(d.salesByCustomerType.any { it.label == "Catering" && it.cents > 0 })
     }
 
-    @Test fun aWalkInFollowsTheRetailTypeInTheSeed() = runTest {
-        val api = FakeAdminApi(prices = SharedPriceTable.seeded(today), clock = java.time.Clock.fixed(
-            today.atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant(), java.time.ZoneId.systemDefault(),
-        ))
+    @Test fun aWalkInFollowsTheRetailTypeInTheSeed() = runBlocking {
         val walkIns = api.invoices().filter { it.customerId == null }
         assertTrue(walkIns.isNotEmpty() && walkIns.all { it.typeName == "Retail" })
     }
 
-    @Test fun theWorkerEditFlagBumpsTheVersionOnlyWhenItChanges() {
-        val table = SharedPriceTable.seeded(today, baseVersion = 10)
-        table.setWorkerCanEditPrice(DemoIds.RETAIL_TYPE, true) // already on
-        assertEquals(10L, table.version)
-        table.setWorkerCanEditPrice(DemoIds.RETAIL_TYPE, false)
-        assertEquals(11L, table.version)
-        assertFalse(table.types().first { it.id == DemoIds.RETAIL_TYPE }.workerCanEditPrice)
-        assertEquals(listOf(DemoIds.RETAIL_TYPE), table.typesAfter(10).map { it.id })
+    /** Replaces "the worker edit flag bumps the version only when it changes": there is no sync version now, the use case refuses a no-op. */
+    @Test fun theWorkerEditFlagIsRefusedWhenItDoesNotChangeAndLoggedWhenItDoes() = runBlocking {
+        try {
+            api.setWorkerCanEditPrice(ReferenceIds.TYPE_RETAIL, true) // already on
+            fail("a no-op was accepted")
+        } catch (_: RuleException) {
+        }
+        assertTrue(w.newLog().isEmpty())
+        api.setWorkerCanEditPrice(ReferenceIds.TYPE_RETAIL, false)
+        assertEquals(false, api.customerTypes().first { it.id == ReferenceIds.TYPE_RETAIL }.workerCanEditPrice)
+        assertEquals(1, w.newLog().size)
     }
 
-    @Test fun aNewCustomerNeedsAKnownTypeAndAUniqueId() {
-        val table = SharedPriceTable.seeded(today, baseVersion = 10)
-        val row = table.customers().first()
+    @Test fun aNewCustomerNeedsAKnownTypeAndAUniqueId() = runBlocking {
+        val before = api.customers().size
+        val first = api.customers().first()
+        val form = CustomerForm("Brand New", ReferenceIds.TYPE_SHOP, "", "", PaymentMode.CASH, "", true, location = "Plano")
         try {
-            table.addCustomer(row)
-            org.junit.Assert.fail("duplicate id accepted")
-        } catch (_: IllegalArgumentException) {
+            w.addCustomer(form, first.id) // an id that exists
+            fail("duplicate id accepted")
+        } catch (_: SQLiteConstraintException) {
         }
         try {
-            table.addCustomer(row.copy(id = "x", typeId = "nope"))
-            org.junit.Assert.fail("unknown type accepted")
-        } catch (_: IllegalArgumentException) {
+            w.addCustomer(form.copy(typeId = "nope"))
+            fail("unknown type accepted")
+        } catch (_: RuleException) {
         }
-        assertEquals(10L, table.version)
+        assertEquals(before, api.customers().size)
+        assertTrue(w.newLog().isEmpty())
     }
 }

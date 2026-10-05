@@ -511,12 +511,9 @@ fun ConfirmScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onConfirmed: (St
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (ui.deviceCode == null) {
-                Text(
-                    "This device has no device code. Sign in again while online.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
+            val refused by vm.error.collectAsStateWithLifecycle()
+            refused?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
         }
         StickyBottomBar {
@@ -530,7 +527,7 @@ fun ConfirmScreen(vm: InvoiceFlowViewModel, onBack: () -> Unit, onConfirmed: (St
             confirmText = "Confirm",
             onConfirm = {
                 asking = false
-                vm.confirm()?.let { onConfirmed(it.id) }
+                vm.confirm { onConfirmed(it.id) }
             },
             onDismiss = { asking = false },
         )

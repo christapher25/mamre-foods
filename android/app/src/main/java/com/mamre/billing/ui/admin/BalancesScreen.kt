@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -58,7 +59,7 @@ fun BalancesScreen(onBack: () -> Unit, onOpenCustomer: (String) -> Unit, viewMod
 @Composable
 fun BalancesContent(ui: BalancesUi, onBack: () -> Unit, onOpenCustomer: (String) -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Balances", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Balances", onBack = onBack, actions = { DataLabelChip() })
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(Spacing.lg),

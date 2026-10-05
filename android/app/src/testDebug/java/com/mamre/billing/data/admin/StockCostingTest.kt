@@ -1,6 +1,10 @@
 package com.mamre.billing.data.admin
 
-import com.mamre.billing.data.demo.SharedPriceTable
+import com.mamre.billing.domain.books.BooksLogic
+import com.mamre.billing.domain.books.BooksSnapshot
+import com.mamre.billing.domain.books.ReturnRow
+import com.mamre.billing.domain.books.DamageRow
+import com.mamre.billing.domain.books.OpeningStock
 import com.mamre.billing.domain.admin.AdminInvoice
 import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseKind
@@ -30,7 +34,7 @@ class StockCostingTest {
     private val today = LocalDate.of(2026, 10, 2)
     private val september = YearMonth.of(2026, 9)
     private val october = YearMonth.of(2026, 10)
-    private val base = AdminSeed.build(today, SharedPriceTable.seeded(today, baseVersion = 10))
+    private val base = AdminSeed.build(today)
 
     /** An invoice of [packets] packets of [size] chapathis each (a standard packet holds 12), at 100 cents a packet. */
     private fun invoice(packets: Int, product: String = SeedIds.FRESH, day: LocalDate = LocalDate.of(2026, 9, 15), n: Int = 1, size: Int = 12) =
@@ -42,7 +46,7 @@ class StockCostingTest {
         )
 
     private fun purchase(material: String, qtyMb: Long, cents: Long, day: LocalDate = LocalDate.of(2026, 9, 2), n: Int = 1) =
-        Purchase("t-pu-$material-$n", day, material, material, qtyMb, cents, "", "Test Admin")
+        Purchase("t-pu-$material-$n", day, material, material, qtyMb, cents, "", "Owner")
 
     /** One invoice, one purchase of wheat, nothing else: the owner's golden case. */
     private fun golden() = base.copy(
@@ -69,7 +73,7 @@ class StockCostingTest {
     // --- the owner's golden case ---
 
     @Test fun goldenCaseTwelveThousandChapathisWheatTwoPercentWastage() {
-        val wheat = row(ServerLogic.stock(golden(), september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(golden(), september), SeedIds.WHEAT)
         // 1,000 packets of 12 = 12,000 chapathis x 1 kg per 32 chapathis = 375 kg; x (1 + 2%) = 382.5 kg used.
         assertEquals(Figure.Known(382_500_000L), wheat.usedMb)
         // Bought 400 kg for 44000 cents: $1.10 per kg.
@@ -85,10 +89,10 @@ class StockCostingTest {
 
     @Test fun usageUsesGrossInvoicedPacketsNotNetOfCredits() {
         val withCredit = golden().copy(returns = listOf(returnOf(ReturnResolution.CREDIT, 100)))
-        val wheat = row(ServerLogic.stock(withCredit, september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(withCredit, september), SeedIds.WHEAT)
         assertEquals(Figure.Known(382_500_000L), wheat.usedMb) // unchanged: the credited packets were still made
         // The credit does lower net sales, which is a different figure.
-        assertEquals(1_000 * 100L - 100 * 100L, ServerLogic.netSalesCents(withCredit, september))
+        assertEquals(1_000 * 100L - 100 * 100L, BooksLogic.netSalesCents(withCredit, september))
     }
 
     @Test fun usageAlsoCountsReplacementPacketsAndProductionDamage() {
@@ -96,7 +100,7 @@ class StockCostingTest {
             returns = listOf(returnOf(ReturnResolution.REPLACEMENT, 10)),
             damage = listOf(DamageRow("d1", LocalDate.of(2026, 9, 20), SeedIds.FRESH, 120, "Burnt", "Test Admin")),
         )
-        val wheat = row(ServerLogic.stock(s, september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(s, september), SeedIds.WHEAT)
         // 12,000 invoiced + 10 replacement packets x 12 = 120 + 120 damaged chapathis = 12,240 chapathis;
         // 12,240 / 32 = 382.5 kg; x 1.02 = 390.15 kg, damage counted in chapathis.
         assertEquals(Figure.Known(390_150_000L), wheat.usedMb)
@@ -107,7 +111,7 @@ class StockCostingTest {
             returns = listOf(returnOf(ReturnResolution.REPLACEMENT, 10)),
             damage = listOf(DamageRow("d1", LocalDate.of(2026, 9, 20), SeedIds.FRESH, 120, "Burnt", "Test Admin")),
         )
-        val report = ServerLogic.stock(s, september)
+        val report = BooksLogic.stock(s, september)
         // Damaged chapathis are spoiled before packing: materials yes, packing no.
         assertEquals(Figure.Known(1_010_000L), row(report, SeedIds.PACKING).usedMb) // 1,000 invoiced + 10 replacement packets, one piece each
         assertEquals(Figure.Known(390_150_000L), row(report, SeedIds.WHEAT).usedMb) // the damaged chapathis still used wheat
@@ -115,13 +119,13 @@ class StockCostingTest {
 
     @Test fun aVoidInvoiceUsesNothing() {
         val s = golden().copy(invoices = listOf(invoice(1_000).copy(status = InvoiceStatus.VOID, voidReason = "x")))
-        assertEquals(Figure.Known(0L), row(ServerLogic.stock(s, september), SeedIds.WHEAT).usedMb)
+        assertEquals(Figure.Known(0L), row(BooksLogic.stock(s, september), SeedIds.WHEAT).usedMb)
     }
 
     @Test fun wastageScalesUsageFromZeroToFivePercent() {
-        assertEquals(Figure.Known(375_000_000L), row(ServerLogic.stock(golden().copy(wastageBp = 0), september), SeedIds.WHEAT).usedMb)
-        assertEquals(Figure.Known(393_750_000L), row(ServerLogic.stock(golden().copy(wastageBp = 500), september), SeedIds.WHEAT).usedMb)
-        assertEquals(Figure.Known(384_375_000L), row(ServerLogic.stock(golden().copy(wastageBp = 250), september), SeedIds.WHEAT).usedMb)
+        assertEquals(Figure.Known(375_000_000L), row(BooksLogic.stock(golden().copy(wastageBp = 0), september), SeedIds.WHEAT).usedMb)
+        assertEquals(Figure.Known(393_750_000L), row(BooksLogic.stock(golden().copy(wastageBp = 500), september), SeedIds.WHEAT).usedMb)
+        assertEquals(Figure.Known(384_375_000L), row(BooksLogic.stock(golden().copy(wastageBp = 250), september), SeedIds.WHEAT).usedMb)
     }
 
     // --- price: weighted average of opening stock and purchases ---
@@ -131,7 +135,7 @@ class StockCostingTest {
             openingStock = mapOf(SeedIds.WHEAT to OpeningStock(100_000_000, 10_000)), // 100 kg at $1.00
             purchases = listOf(purchase(SeedIds.WHEAT, 100_000_000, 12_000)), // 100 kg at $1.20
         )
-        val wheat = row(ServerLogic.stock(s, september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(s, september), SeedIds.WHEAT)
         assertEquals(Figure.Known(11_000L), wheat.avgPriceTt) // (100 + 120) / 200 kg = $1.10
         assertEquals(Figure.Known(100_000_000L), wheat.openingQtyMb)
         assertEquals(Figure.Known(10_000L), wheat.openingValueCents)
@@ -144,7 +148,7 @@ class StockCostingTest {
                 purchase(SeedIds.WHEAT, 200_000_000, 24_000, LocalDate.of(2026, 9, 20), n = 2), // 200 kg at $1.20
             ),
         )
-        assertEquals(Figure.Known(11_000L), row(ServerLogic.stock(s, september), SeedIds.WHEAT).avgPriceTt)
+        assertEquals(Figure.Known(11_000L), row(BooksLogic.stock(s, september), SeedIds.WHEAT).avgPriceTt)
     }
 
     @Test fun closingStockBecomesNextMonthsOpeningStockAtItsValue() {
@@ -154,7 +158,7 @@ class StockCostingTest {
                 purchase(SeedIds.WHEAT, 100_000_000, 15_000, LocalDate.of(2026, 10, 1), n = 2), // 100 kg at $1.50
             ),
         )
-        val oct = row(ServerLogic.stock(s, october), SeedIds.WHEAT)
+        val oct = row(BooksLogic.stock(s, october), SeedIds.WHEAT)
         assertEquals(Figure.Known(17_500_000L), oct.openingQtyMb)
         assertEquals(Figure.Known(1_925L), oct.openingValueCents)
         // (1925 + 15000) cents over 117.5 kg
@@ -165,36 +169,36 @@ class StockCostingTest {
 
     @Test fun usingMoreThanWasHeldGivesNegativeClosingStockAndAWarning() {
         val s = golden().copy(purchases = listOf(purchase(SeedIds.WHEAT, 100_000_000, 11_000)))
-        val wheat = row(ServerLogic.stock(s, september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(s, september), SeedIds.WHEAT)
         assertEquals(Figure.Known(-282_500_000L), wheat.closingQtyMb) // 100 kg held, 382.5 kg used
         assertTrue(wheat.negativeStock)
         // The shortage is carried into the next month as negative opening stock.
-        assertEquals(Figure.Known(-282_500_000L), row(ServerLogic.stock(s, october), SeedIds.WHEAT).openingQtyMb)
+        assertEquals(Figure.Known(-282_500_000L), row(BooksLogic.stock(s, october), SeedIds.WHEAT).openingQtyMb)
     }
 
     @Test fun aMaterialWithNoPriceIsIncompleteNeverZero() {
         val s = golden()
-        val oil = row(ServerLogic.stock(s, september), SeedIds.OIL)
+        val oil = row(BooksLogic.stock(s, september), SeedIds.OIL)
         assertEquals(Figure.Known(30_600_000L), oil.usedMb) // 12,000 chapathis x 80 ml per 32 x 1.02 = 30.6 L is still known
         assertEquals(Figure.Incomplete(listOf("Oil price")), oil.costConsumedCents)
         assertEquals(Figure.Incomplete(listOf("Oil price")), oil.avgPriceTt)
-        val total = ServerLogic.stock(s, september).costConsumedTotal
+        val total = BooksLogic.stock(s, september).costConsumedTotal
         assertTrue(total is Figure.Incomplete)
         assertTrue((total as Figure.Incomplete).missing.contains("Oil price"))
-        assertEquals(Figure.Known(42_075L), row(ServerLogic.stock(s, september), SeedIds.WHEAT).costConsumedCents)
+        assertEquals(Figure.Known(42_075L), row(BooksLogic.stock(s, september), SeedIds.WHEAT).costConsumedCents)
         // Nothing used means nothing to price: a material that was not used is not incomplete.
-        assertEquals(Figure.Known(0L), row(ServerLogic.stock(s, september), SeedIds.SORBATE).costConsumedCents)
+        assertEquals(Figure.Known(0L), row(BooksLogic.stock(s, september), SeedIds.SORBATE).costConsumedCents)
     }
 
     @Test fun anUnsetRecipeQuantityMakesUsageIncompleteOnlyWhenThatProductWasMade() {
         val withChapathi = golden().copy(invoices = listOf(invoice(1_000), invoice(25, SeedIds.CHAPATHI, n = 2)))
-        val sorbate = row(ServerLogic.stock(withChapathi, september), SeedIds.SORBATE)
+        val sorbate = row(BooksLogic.stock(withChapathi, september), SeedIds.SORBATE)
         val missing = listOf("Potassium sorbate quantity per kg of wheat for Mamre Chapathi (Doc 1 P-2)")
         assertEquals(Figure.Incomplete(missing), sorbate.usedMb)
         assertEquals(Figure.Incomplete(missing), sorbate.costConsumedCents)
         assertEquals(Figure.Incomplete(missing), sorbate.closingQtyMb)
         // Fresh only: the Chapathi quantity does not matter.
-        assertEquals(Figure.Known(0L), row(ServerLogic.stock(golden(), september), SeedIds.SORBATE).usedMb)
+        assertEquals(Figure.Known(0L), row(BooksLogic.stock(golden(), september), SeedIds.SORBATE).usedMb)
     }
 
     @Test fun onceTheQuantityIsSetThePriceIsWhatIsStillMissing() {
@@ -203,7 +207,7 @@ class StockCostingTest {
             if (product == SeedIds.CHAPATHI) lines.map { if (it.materialId == SeedIds.SORBATE) it.copy(qtyMb = 500) else it } else lines
         }
         val s = chapathi.copy(recipes = recipes)
-        val sorbate = row(ServerLogic.stock(s, september), SeedIds.SORBATE)
+        val sorbate = row(BooksLogic.stock(s, september), SeedIds.SORBATE)
         // 25 packets of 12 = 300 chapathis x 0.5 g per 32 = 4.6875 g; x 1.02 = 4.78125 g -> 4,781 thousandths, rounded once.
         assertEquals(Figure.Known(4_781L), sorbate.usedMb)
         assertEquals(Figure.Incomplete(listOf("Potassium sorbate price")), sorbate.costConsumedCents)
@@ -223,11 +227,11 @@ class StockCostingTest {
     )
 
     @Test fun monthDirectExpenseIsTheSumOfCostConsumedAcrossAllMaterialsIncludingPacking() {
-        val report = ServerLogic.stock(fullyPriced(), september)
+        val report = BooksLogic.stock(fullyPriced(), september)
         val sum = report.rows.sumOf { it.costConsumedCents.valueOrNull!! }
         assertEquals(Figure.Known(sum), report.costConsumedTotal)
         assertTrue(row(report, SeedIds.PACKING).costConsumedCents.valueOrNull!! > 0) // packing is part of it
-        assertEquals(report.costConsumedTotal, ServerLogic.directExpense(fullyPriced(), september))
+        assertEquals(report.costConsumedTotal, BooksLogic.directExpense(fullyPriced(), september))
         // Packing has no wastage: one piece per packet, 1,000 pieces for 1,000 packets, at 15 cents.
         assertEquals(Figure.Known(1_000_000L), row(report, SeedIds.PACKING).usedMb)
         assertEquals(Figure.Known(15_000L), row(report, SeedIds.PACKING).costConsumedCents)
@@ -242,7 +246,7 @@ class StockCostingTest {
             ),
             returns = listOf(returnOf(ReturnResolution.REPLACEMENT, 10)), // a replacement no longer has its own deduction
         )
-        val d = ServerLogic.dashboard(s, september, september)
+        val d = BooksLogic.dashboard(s, september, september)
         val direct = d.directCost.valueOrNull!!
         assertEquals(d.netSalesCents - direct, d.grossProfit.valueOrNull)
         assertEquals(d.grossProfit.valueOrNull!! - 30_000, d.netProfit.valueOrNull)
@@ -250,7 +254,7 @@ class StockCostingTest {
     }
 
     @Test fun anIncompleteDirectExpenseMakesGrossAndNetProfitIncompleteToo() {
-        val d = ServerLogic.dashboard(golden(), september, september)
+        val d = BooksLogic.dashboard(golden(), september, september)
         assertTrue(d.directCost is Figure.Incomplete && d.grossProfit is Figure.Incomplete && d.netProfit is Figure.Incomplete)
         assertTrue(d.missingInputs.contains("Oil price"))
         assertTrue(d.netSalesCents > 0)
@@ -258,8 +262,8 @@ class StockCostingTest {
 
     // --- costing breakdown (owner change 4) ---
 
-    private fun costedAt(s: ServerState, product: String, chapathis: Int): ProductCost.Complete =
-        ServerLogic.packetCost(s, september, product, chapathis) as ProductCost.Complete
+    private fun costedAt(s: BooksSnapshot, product: String, chapathis: Int): ProductCost.Complete =
+        BooksLogic.packetCost(s, september, product, chapathis) as ProductCost.Complete
 
     @Test fun costPerStandardPacketOfTwelveGivesTheDoc1Vectors() {
         // No wastage and $150 of labour over 12,000 net chapathis: $0.0125 each, so a packet of 12 carries $0.15.
@@ -267,7 +271,7 @@ class StockCostingTest {
             wastageBp = 0,
             expenses = listOf(Expense("e1", SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT, LocalDate.of(2026, 9, 28), 15_000, "", "x")),
         )
-        val fresh = ServerLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        val fresh = BooksLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
         assertEquals(12, fresh.chapathis) // the standard packet
         assertEquals(listOf(4_125L, 1_200L, 75L, 45L, 30L), fresh.lines.map { it.tt })
         assertEquals(listOf("Whole wheat flour", "Oil", "Sugar", "Salt", "Baking powder"), fresh.lines.map { it.materialName })
@@ -280,7 +284,7 @@ class StockCostingTest {
     }
 
     @Test fun theStandardPacketAddsTwoPercentWastageOnTheIngredientsOnly() {
-        val fresh = ServerLogic.costing(fullyPriced(), september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        val fresh = BooksLogic.costing(fullyPriced(), september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
         assertEquals(5_475L, fresh.ingredientsTt)
         assertEquals(1_500L, fresh.packingTt)
         assertEquals(110L, fresh.wastageTt) // 5,475 x 2% = 109.5, a half rounds up
@@ -321,26 +325,26 @@ class StockCostingTest {
     }
 
     @Test fun costPerChapathiIncludesWastage() {
-        val one = ServerLogic.costing(fullyPriced(), september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        val one = BooksLogic.costing(fullyPriced(), september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
         assertEquals(456L + 9L, one.perChapathiTt) // 456 + 2% of 456 = 9.12 -> 9
     }
 
     @Test fun costingNamesWhatIsMissing() {
-        val chapathi = ServerLogic.costing(golden(), september).products.first { it.productId == SeedIds.CHAPATHI } as ProductCost.Incomplete
+        val chapathi = BooksLogic.costing(golden(), september).products.first { it.productId == SeedIds.CHAPATHI } as ProductCost.Incomplete
         assertTrue(chapathi.missing.contains("Potassium sorbate quantity per kg of wheat (Doc 1 P-2)"))
         assertTrue(chapathi.missing.contains("Oil price"))
         assertTrue(chapathi.missing.contains("Potassium sorbate price"))
     }
 
     @Test fun theWastageShownInCostingIsTheSettingAndNothingElse() {
-        assertEquals(200, ServerLogic.costing(golden(), september).wastageBp)
-        assertEquals(350, ServerLogic.costing(golden().copy(wastageBp = 350), september).wastageBp)
+        assertEquals(200, BooksLogic.costing(golden(), september).wastageBp)
+        assertEquals(350, BooksLogic.costing(golden().copy(wastageBp = 350), september).wastageBp)
     }
 
     @Test fun packingHasNoWastageEvenAtFivePercent() {
         val s = fullyPriced().copy(wastageBp = 500)
-        assertEquals(Figure.Known(1_000_000L), row(ServerLogic.stock(s, september), SeedIds.PACKING).usedMb)
-        val fresh = ServerLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
+        assertEquals(Figure.Known(1_000_000L), row(BooksLogic.stock(s, september), SeedIds.PACKING).usedMb)
+        val fresh = BooksLogic.costing(s, september).products.first { it.productId == SeedIds.FRESH } as ProductCost.Complete
         assertEquals(1_500L, fresh.packingTt)
         assertEquals(274L, fresh.wastageTt) // 5,475 x 5% = 273.75
     }
@@ -350,15 +354,15 @@ class StockCostingTest {
     @Test fun mixedPacketSizesAreCountedInChapathis() {
         // 10 packets of 12 and 5 packets of 10 = 170 chapathis.
         val s = golden().copy(invoices = listOf(invoice(10, n = 1), invoice(5, n = 2, size = 10)))
-        val wheat = row(ServerLogic.stock(s, september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(s, september), SeedIds.WHEAT)
         assertEquals(Figure.Known(170L * 1_000_000 * 102 / 100 / 32), wheat.usedMb) // 5.41875 kg, rounded once
         // Packing is one piece per PACKET: 15 packets, whatever their size.
-        assertEquals(Figure.Known(15_000L), row(ServerLogic.stock(s, september), SeedIds.PACKING).usedMb)
+        assertEquals(Figure.Known(15_000L), row(BooksLogic.stock(s, september), SeedIds.PACKING).usedMb)
     }
 
     @Test fun theYieldPerKgChangesTheUsage() {
         val products = golden().products.map { if (it.id == SeedIds.FRESH) it.copy(yieldPerKg = 40) else it }
-        val wheat = row(ServerLogic.stock(golden().copy(products = products), september), SeedIds.WHEAT)
+        val wheat = row(BooksLogic.stock(golden().copy(products = products), september), SeedIds.WHEAT)
         assertEquals(Figure.Known(306_000_000L), wheat.usedMb) // 12,000 / 40 = 300 kg x 1.02
     }
 
@@ -369,7 +373,7 @@ class StockCostingTest {
             products = products,
             invoices = listOf(invoice(5, SeedIds.FRESH, n = 1, size = 100), invoice(5, SeedIds.CHAPATHI, n = 2, size = 100)),
         )
-        assertEquals(Figure.Known(28_687_500L), row(ServerLogic.stock(s, september), SeedIds.WHEAT).usedMb)
+        assertEquals(Figure.Known(28_687_500L), row(BooksLogic.stock(s, september), SeedIds.WHEAT).usedMb)
     }
 
     @Test fun theIndirectShareIsSpreadOverNetChapathisSoPacketsOfAnySizeCarryTheirShare() {
@@ -377,13 +381,13 @@ class StockCostingTest {
             expenses = listOf(Expense("e1", SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT, LocalDate.of(2026, 9, 28), 12_000, "", "x")),
             returns = listOf(returnOf(ReturnResolution.CREDIT, 100)), // 1,200 chapathis credited: net 10,800
         )
-        val report = ServerLogic.costing(s, september)
+        val report = BooksLogic.costing(s, september)
         assertEquals(10_800L, report.netChapathis)
         val six = costedAt(s, SeedIds.FRESH, 6)
         val twelve = costedAt(s, SeedIds.FRESH, 12)
-        assertEquals(ServerLogic.divHalfUp(12_000L * 100 * 6, 10_800), six.indirectTt)
-        assertEquals(ServerLogic.divHalfUp(12_000L * 100 * 12, 10_800), twelve.indirectTt)
+        assertEquals(BooksLogic.divHalfUp(12_000L * 100 * 6, 10_800), six.indirectTt)
+        assertEquals(BooksLogic.divHalfUp(12_000L * 100 * 12, 10_800), twelve.indirectTt)
     }
 
-    private fun divHalfUp(a: Long, b: Long) = ServerLogic.divHalfUp(a, b)
+    private fun divHalfUp(a: Long, b: Long) = BooksLogic.divHalfUp(a, b)
 }

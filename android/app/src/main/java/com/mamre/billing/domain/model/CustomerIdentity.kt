@@ -11,7 +11,8 @@ private val SPACES = Regex("\\s+")
 /** Trimmed, with every run of spaces made one. */
 fun normalizeSpaces(raw: String): String = raw.trim().replace(SPACES, " ")
 
-private fun key(raw: String) = normalizeSpaces(raw).lowercase()
+/** THE key a name or a location is compared by: trimmed, inner spaces collapsed, case-folded (Doc 1 s4.1). The database columns name_key and location_key hold it. */
+fun identityKey(raw: String): String = normalizeSpaces(raw).lowercase()
 
 /** What the salesman and the Admin read: "Name - Location", or just the name when there is no location. */
 fun customerLabel(name: String, location: String): String {
@@ -37,10 +38,10 @@ fun checkCustomerIdentity(
     typeName: String,
     others: List<CustomerIdentity>,
 ): IdentityProblem? {
-    val n = key(name)
-    val l = key(location)
+    val n = identityKey(name)
+    val l = identityKey(location)
     if (n.isEmpty()) return IdentityProblem.NAME_REQUIRED
-    val nameExists = others.any { key(it.name) == n }
+    val nameExists = others.any { identityKey(it.name) == n }
     if (l.isEmpty()) {
         return when {
             nameExists -> IdentityProblem.LOCATION_REQUIRED_NAME_EXISTS
@@ -48,7 +49,7 @@ fun checkCustomerIdentity(
             else -> null
         }
     }
-    return if (others.any { key(it.name) == n && key(it.location) == l }) IdentityProblem.DUPLICATE else null
+    return if (others.any { identityKey(it.name) == n && identityKey(it.location) == l }) IdentityProblem.DUPLICATE else null
 }
 
 fun identityProblemMessage(problem: IdentityProblem): String = when (problem) {
@@ -61,9 +62,9 @@ fun identityProblemMessage(problem: IdentityProblem): String = when (problem) {
 
 /** Search: every word typed must appear in the name or the location, ignoring case. An empty search matches all. */
 fun customerMatches(name: String, location: String, query: String): Boolean {
-    val words = key(query).split(" ").filter { it.isNotEmpty() }
+    val words = identityKey(query).split(" ").filter { it.isNotEmpty() }
     if (words.isEmpty()) return true
-    val label = key(customerLabel(name, location))
+    val label = identityKey(customerLabel(name, location))
     return words.all { label.contains(it) }
 }
 

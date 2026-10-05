@@ -9,9 +9,9 @@ import androidx.navigation.navArgument
 import com.mamre.billing.domain.auth.Routes
 import com.mamre.billing.ui.graphViewModel
 
-/** The worker experience (Doc 2 s10): Home and the screens W2 to W10. */
-fun NavGraphBuilder.workerGraph(navController: NavController) {
-    navigation(route = Routes.WORKER_GRAPH, startDestination = WorkerRoutes.HOME) {
+/** The Sales area (Doc 2 s10): Home, a bill, a payment, a return, today's bills and the receipt. */
+fun NavGraphBuilder.workerGraph(navController: NavController, onOpenAdmin: () -> Unit) {
+    navigation(route = Routes.SALES_GRAPH, startDestination = WorkerRoutes.HOME) {
         composable(WorkerRoutes.HOME) {
             HomeScreen(onTile = { tile ->
                 navController.navigate(
@@ -20,12 +20,10 @@ fun NavGraphBuilder.workerGraph(navController: NavController) {
                         HomeTile.RECORD_PAYMENT -> WorkerRoutes.PAYMENT_GRAPH
                         HomeTile.RETURN -> WorkerRoutes.RETURN_GRAPH
                         HomeTile.TODAYS_INVOICES -> WorkerRoutes.TODAY
-                        HomeTile.SYNC_STATUS -> WorkerRoutes.SYNC
                     },
                 )
-            })
+            }, onAdminArea = onOpenAdmin)
         }
-        composable(WorkerRoutes.SYNC) { SyncScreen(onBack = { navController.popBackStack() }) }
         composable(WorkerRoutes.TODAY) {
             TodayScreen(
                 onBack = { navController.popBackStack() },

@@ -74,4 +74,10 @@ class CustomerIdentityTest {
         assertTrue(customerMatches("FreshMart", "Downtown", "  "))
         assertTrue(!customerMatches("FreshMart", "Downtown", "westside"))
     }
+
+    @Test fun theOneKeyIsTrimmedCollapsedAndCaseFoldedAndTheDatabaseColumnsUseIt() {
+        assertEquals("spice garden", identityKey("  Spice   GARDEN "))
+        assertEquals("", identityKey("   "))
+        assertEquals(identityKey("FreshMart"), identityKey(" freshmart "))
+    }
 }

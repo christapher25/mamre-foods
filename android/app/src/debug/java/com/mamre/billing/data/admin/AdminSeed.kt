@@ -1,5 +1,11 @@
 package com.mamre.billing.data.admin
 
+import com.mamre.billing.domain.books.BooksSnapshot
+import com.mamre.billing.domain.books.ReturnRow
+import com.mamre.billing.domain.books.DamageRow
+import com.mamre.billing.domain.books.RecipeEntry
+import com.mamre.billing.domain.books.OpeningStock
+import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminCustomerType
 import com.mamre.billing.domain.admin.AdminInvoice
@@ -15,12 +21,11 @@ import com.mamre.billing.domain.admin.MaterialUnit
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceEntry
 import com.mamre.billing.domain.admin.Purchase
-import com.mamre.billing.data.demo.DemoIds
-import com.mamre.billing.data.demo.SharedPriceTable
-import com.mamre.billing.domain.admin.WorkerAccount
+import com.mamre.billing.data.demo.DemoCatalog
+import com.mamre.billing.data.demo.DemoCustomerIds
+import com.mamre.billing.data.local.ReferenceSeed
 import com.mamre.billing.domain.admin.DEFAULT_WASTAGE_BP
 import com.mamre.billing.domain.model.PaymentMode
-import com.mamre.billing.domain.model.SettingKeys
 import com.mamre.billing.domain.model.customerLabel
 import com.mamre.billing.domain.worker.InvoiceStatus
 import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
@@ -35,33 +40,32 @@ import java.time.YearMonth
 /** Ids the tests and screens refer to. DEMO DATA. */
 object SeedIds {
     // Products and customer types use the worker's ids because the price table is shared (DECISIONS 2026-10-03).
-    const val FRESH = DemoIds.FRESH
-    const val CHAPATHI = DemoIds.CHAPATHI
-    const val RESTAURANT = DemoIds.RESTAURANT_TYPE
-    const val SHOP = DemoIds.SHOP_TYPE
-    const val RETAIL = DemoIds.RETAIL_TYPE
-    const val WHEAT = "i-wheat"
-    const val OIL = "i-oil"
-    const val SUGAR = "i-sugar"
-    const val SALT = "i-salt"
-    const val BAKING_POWDER = "i-baking-powder"
-    const val SORBATE = "i-sorbate"
-    const val PACKING = "i-packing"
-    const val CATERING = DemoIds.CATERING_TYPE
+    const val FRESH = ReferenceIds.PRODUCT_FRESH
+    const val CHAPATHI = ReferenceIds.PRODUCT_CHAPATHI
+    const val RESTAURANT = ReferenceIds.TYPE_RESTAURANT
+    const val SHOP = ReferenceIds.TYPE_SHOP
+    const val RETAIL = ReferenceIds.TYPE_RETAIL
+    const val WHEAT = ReferenceIds.MATERIAL_WHEAT
+    const val OIL = ReferenceIds.MATERIAL_OIL
+    const val SUGAR = ReferenceIds.MATERIAL_SUGAR
+    const val SALT = ReferenceIds.MATERIAL_SALT
+    const val BAKING_POWDER = ReferenceIds.MATERIAL_BAKING_POWDER
+    const val SORBATE = ReferenceIds.MATERIAL_SORBATE
+    const val PACKING = ReferenceIds.MATERIAL_PACKING
+    const val CATERING = ReferenceIds.TYPE_CATERING
     // Customers use the worker's ids where both sides had one, so each customer exists once (change set C1).
-    const val SPICE_GARDEN = DemoIds.RESTAURANT
-    const val PATEL_MART = DemoIds.SHOP
-    const val RAO_FAMILY = DemoIds.RETAIL_CUSTOMER
-    const val ROYAL_BANQUETS = DemoIds.CATERING
-    const val FRESHMART_DOWNTOWN = DemoIds.FRESHMART_DOWNTOWN
-    const val FRESHMART_WESTSIDE = DemoIds.FRESHMART_WESTSIDE
-    const val CORNER_SHOP = "c-corner-shop"
-    const val CAT_ELECTRICITY = "x-electricity"
-    const val CAT_MACHINE = "x-machine"
-    const val CAT_LABOUR = "x-labour"
+    const val SPICE_GARDEN = DemoCustomerIds.SPICE_GARDEN
+    const val PATEL_MART = DemoCustomerIds.PATEL_MART
+    const val RAO_FAMILY = DemoCustomerIds.RAO_FAMILY
+    const val ROYAL_BANQUETS = DemoCustomerIds.ROYAL_BANQUETS
+    const val FRESHMART_DOWNTOWN = DemoCustomerIds.FRESHMART_DOWNTOWN
+    const val FRESHMART_WESTSIDE = DemoCustomerIds.FRESHMART_WESTSIDE
+    const val CORNER_SHOP = DemoCustomerIds.CORNER_SHOP
+    const val CAT_ELECTRICITY = ReferenceIds.CATEGORY_ELECTRICITY
+    const val CAT_MACHINE = ReferenceIds.CATEGORY_MACHINE
+    const val CAT_LABOUR = ReferenceIds.CATEGORY_LABOUR
 }
 
-private const val PACKING_CENTS = 15L
 private const val LAUNCH_AFTER_MONTHS = 2L // Mamre Chapathi is sold from the third month of the demo data
 
 /** How a customer behaves in the demo history. Name, type and payment mode come from the shared catalog. */
@@ -104,33 +108,33 @@ private data class CustomerSeed(
 object AdminSeed {
     private val behaviours = listOf(
         Behaviour(SeedIds.SPICE_GARDEN, 80, 3, 0),
-        Behaviour("c-curry-house", 64, 3, 1, opening = 15_000, payPercent = 70),
-        Behaviour("c-taj-kitchen", 72, 4, 2, stoppedPayingDaysAgo = 45),
-        Behaviour("c-masala-bistro", 48, 4, 3),
+        Behaviour(DemoCustomerIds.CURRY_HOUSE, 64, 3, 1, opening = 15_000, payPercent = 70),
+        Behaviour(DemoCustomerIds.TAJ_KITCHEN, 72, 4, 2, stoppedPayingDaysAgo = 45),
+        Behaviour(DemoCustomerIds.MASALA_BISTRO, 48, 4, 3),
         Behaviour(SeedIds.PATEL_MART, 48, 5, 0, payPercent = 80),
         Behaviour(SeedIds.CORNER_SHOP, 36, 5, 2, stoppedPayingDaysAgo = 120),
-        Behaviour("c-desi-grocers", 40, 6, 1),
+        Behaviour(DemoCustomerIds.DESI_GROCERS, 40, 6, 1),
         Behaviour(SeedIds.RAO_FAMILY, 12, 9, 4),
-        Behaviour("c-sharma-family", 16, 10, 5, payPercent = 40),
+        Behaviour(DemoCustomerIds.SHARMA_FAMILY, 16, 10, 5, payPercent = 40),
         Behaviour(SeedIds.ROYAL_BANQUETS, 96, 6, 3, payPercent = 60),
         Behaviour(SeedIds.FRESHMART_DOWNTOWN, 70, 3, 1, payPercent = 70),
         Behaviour(SeedIds.FRESHMART_WESTSIDE, 56, 4, 0, payPercent = 50),
     )
 
-    fun build(today: LocalDate, prices: SharedPriceTable = SharedPriceTable.seeded(today)): ServerState {
-        val sharedCustomers = prices.customers().associateBy { it.id }
+    fun build(today: LocalDate): BooksSnapshot {
+        val sharedCustomers = DemoCatalog.customers.associateBy { it.id }
         val customerSeeds = behaviours.map { b ->
             val row = sharedCustomers.getValue(b.id)
-            CustomerSeed(b.id, row.name, row.location, row.isCorporate, row.typeId, row.paymentMode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
+            CustomerSeed(b.id, row.name, row.location, row.corporate, row.typeId, row.mode, b.baseQty, b.everyDays, b.offset, b.opening, b.payPercent, b.stoppedPayingDaysAgo)
         }
         val last = YearMonth.from(today)
         val first = last.minusMonths(6)
         val start = first.atDay(1)
         val launch = first.plusMonths(LAUNCH_AFTER_MONTHS).atDay(1)
 
-        val types = prices.types().map { AdminCustomerType(it.id, it.name, it.workerCanEditPrice) }
+        val types = ReferenceSeed.customerTypes.map { AdminCustomerType(it.id, it.name, it.salesmanCanEditPrice) }
         val typeName = types.associate { it.id to it.name }
-        val products = prices.products().map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, PACKING_CENTS) }
+        val products = ReferenceSeed.products.map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, it.yieldPerKg) }
         val productName = products.associate { it.id to it.name }
         val customers = customerSeeds.map {
             AdminCustomer(
@@ -140,9 +144,9 @@ object AdminSeed {
             )
         }
 
-        val priceEntries = prices.all().map { PriceEntry(it.id, it.productId, it.customerTypeId, it.unitPriceCents, it.effectiveFrom) }
-        val overrideNotes = mapOf("po-1" to "Volume customer", "po-2" to "Agreed at signup")
-        val overrides = prices.overrides().map { OverridePrice(it.id, it.customerId, it.productId, it.unitPriceCents, it.effectiveFrom, it.isActive, overrideNotes[it.id].orEmpty()) }
+        val priceEntries = DemoCatalog.prices(today).mapIndexed { i, p -> PriceEntry("price-$i", p.productId, p.typeId, p.cents, p.from) }
+        val overrides = DemoCatalog.overrides(today).mapIndexed { i, o -> OverridePrice("po-$i", o.customerId, o.productId, o.cents, o.from, true, o.note) }
+        val overrideNotes = overrides.associate { it.id to it.note }
 
         fun unitPrice(c: CustomerSeed?, productId: String, typeId: String, date: LocalDate): Long? {
             val o = overrides.filter {
@@ -256,7 +260,7 @@ object AdminSeed {
             invoices[voidAt] = v.copy(
                 status = InvoiceStatus.VOID,
                 voidReason = "Entered for the wrong customer",
-                voidedBy = "Test Admin",
+                voidedBy = "Owner",
                 voidedAt = v.issuedAt.plusDays(1),
             )
         }
@@ -298,7 +302,7 @@ object AdminSeed {
                     .sumOf { inv -> inv.items.filter { it.productId == p.id }.sumOf { it.chapathis } }
                 if (sold == 0) continue
                 val date = minOf(month.atDay(10), today)
-                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(DEFAULT_PACKET_SIZE, sold * 15 / 1000), "Burnt in the oven", "Test Admin")
+                damage += DamageRow("dm-%03d".format(damage.size + 1), date, p.id, maxOf(DEFAULT_PACKET_SIZE, sold * 15 / 1000), "Burnt in the oven", "Owner")
             }
             month = month.plusMonths(1)
         }
@@ -352,7 +356,7 @@ object AdminSeed {
                 val date = minOf(month.atDay(2), today)
                 purchases += Purchase(
                     "pu-%03d".format(purchases.size + 1), date, materialId, m.name, bagCount * bag.sizeMb,
-                    bagCount * bag.centsAt(month), "Monthly purchase", "Test Admin",
+                    bagCount * bag.centsAt(month), "Monthly purchase", "Owner",
                 )
             }
             month = month.plusMonths(1)
@@ -361,37 +365,37 @@ object AdminSeed {
         // --- expenses ---
         val categories = listOf(
             ExpenseCategory(SeedIds.CAT_ELECTRICITY, "Electricity", ExpenseKind.INDIRECT),
-            ExpenseCategory("x-water", "Water", ExpenseKind.INDIRECT),
+            ExpenseCategory(ReferenceIds.CATEGORY_WATER, "Water", ExpenseKind.INDIRECT),
             ExpenseCategory(SeedIds.CAT_MACHINE, "Machine", ExpenseKind.INDIRECT),
             ExpenseCategory(SeedIds.CAT_LABOUR, "Labour", ExpenseKind.INDIRECT),
-            ExpenseCategory("x-maintenance", "Maintenance", ExpenseKind.INDIRECT),
-            ExpenseCategory("x-delivery", "Delivery charge", ExpenseKind.INDIRECT),
-            ExpenseCategory("x-fuel", "Fuel", ExpenseKind.INDIRECT),
-            ExpenseCategory("x-other", "Other", ExpenseKind.INDIRECT),
+            ExpenseCategory(ReferenceIds.CATEGORY_MAINTENANCE, "Maintenance", ExpenseKind.INDIRECT),
+            ExpenseCategory(ReferenceIds.CATEGORY_DELIVERY, "Delivery charge", ExpenseKind.INDIRECT),
+            ExpenseCategory(ReferenceIds.CATEGORY_FUEL, "Fuel", ExpenseKind.INDIRECT),
+            ExpenseCategory(ReferenceIds.CATEGORY_OTHER, "Other", ExpenseKind.INDIRECT),
         )
         val catName = categories.associate { it.id to it.name }
         val expenses = mutableListOf<Expense>()
         fun expense(cat: String, date: LocalDate, cents: Long, text: String) {
             if (date.isAfter(today)) return
-            expenses += Expense("ex-%03d".format(expenses.size + 1), cat, catName.getValue(cat), ExpenseKind.INDIRECT, date, cents, text, "Test Admin")
+            expenses += Expense("ex-%03d".format(expenses.size + 1), cat, catName.getValue(cat), ExpenseKind.INDIRECT, date, cents, text, "Owner")
         }
         month = first
         while (!month.isAfter(last)) {
             val m = month.monthValue
             expense(SeedIds.CAT_MACHINE, month.atDay(1), 25_000, "Machine lease")
             expense(SeedIds.CAT_ELECTRICITY, month.atDay(5), 15_000 + m * 300L, "Electricity bill")
-            expense("x-water", month.atDay(6), 4_000 + m * 100L, "Water bill")
+            expense(ReferenceIds.CATEGORY_WATER, month.atDay(6), 4_000 + m * 100L, "Water bill")
             expense(SeedIds.CAT_LABOUR, month.atDay(28), 40_000, "Helper wages")
-            if (m % 2 == 0) expense("x-maintenance", month.atDay(12), 4_000, "Oven service")
+            if (m % 2 == 0) expense(ReferenceIds.CATEGORY_MAINTENANCE, month.atDay(12), 4_000, "Oven service")
             for (w in 0 until 4) {
-                expense("x-delivery", month.atDay(2 + w * 7), 2_000, "Delivery charge")
-                expense("x-fuel", month.atDay(4 + w * 7), 2_500 + (w % 2) * 300L, "Fuel")
+                expense(ReferenceIds.CATEGORY_DELIVERY, month.atDay(2 + w * 7), 2_000, "Delivery charge")
+                expense(ReferenceIds.CATEGORY_FUEL, month.atDay(4 + w * 7), 2_500 + (w % 2) * 300L, "Fuel")
             }
-            expense("x-other", month.atDay(20), 2_500, "Packaging tape and labels")
+            expense(ReferenceIds.CATEGORY_OTHER, month.atDay(20), 2_500, "Packaging tape and labels")
             month = month.plusMonths(1)
         }
 
-        return ServerState(
+        return BooksSnapshot(
             types = types,
             products = products,
             customers = customers,
@@ -407,17 +411,8 @@ object AdminSeed {
             damage = damage.toList(),
             openingStock = openingStock,
             wastageBp = DEFAULT_WASTAGE_BP,
-            settings = prices.settings().let {
-                BusinessSettings(
-                    it[SettingKeys.BUSINESS_NAME].orEmpty(), it[SettingKeys.ADDRESS].orEmpty(),
-                    it[SettingKeys.PHONE].orEmpty(), it[SettingKeys.FOOTER].orEmpty(),
-                )
-            },
+            settings = DemoCatalog.settings,
             overrideNotes = overrideNotes,
-            workers = listOf(
-                WorkerAccount("w-1", "Rajesh", "user1", "W1", true),
-                WorkerAccount("w-2", "Second Salesman", "user2", "W2", false),
-            ),
             today = today,
         )
     }

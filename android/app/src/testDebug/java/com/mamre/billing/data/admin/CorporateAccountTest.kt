@@ -1,25 +1,14 @@
 package com.mamre.billing.data.admin
 
-import com.mamre.billing.data.FakeCustomerDao
-import com.mamre.billing.data.FakeCustomerTypeDao
-import com.mamre.billing.data.FakePriceDefaultDao
-import com.mamre.billing.data.FakePriceOverrideDao
-import com.mamre.billing.data.FakeProductDao
-import com.mamre.billing.data.FakeSettingDao
-import com.mamre.billing.data.FakeSyncStateDao
-import com.mamre.billing.data.FakeTransactionRunner
-import com.mamre.billing.data.api.FakeApi
-import com.mamre.billing.data.demo.DemoIds
-import com.mamre.billing.data.demo.DemoSeed
-import com.mamre.billing.data.demo.DemoStore
-import com.mamre.billing.data.demo.InvoiceDraft
-import com.mamre.billing.data.demo.PaymentDraft
-import com.mamre.billing.data.demo.SharedPriceTable
-import com.mamre.billing.data.repository.CatalogRemote
-import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.data.demo.DemoCustomerIds
+import com.mamre.billing.data.demo.DemoWorld
+import com.mamre.billing.data.local.ReferenceIds
+import com.mamre.billing.data.local.World
+import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.CustomerForm
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.PaymentMode
+import com.mamre.billing.domain.usecase.BillDraft
 import com.mamre.billing.domain.worker.InvoiceLine
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.print.invoiceReceiptOf
@@ -28,162 +17,168 @@ import com.mamre.billing.print.layoutPaymentReceipt
 import com.mamre.billing.print.paymentReceiptOf
 import com.mamre.billing.ui.worker.CustomerRow
 import com.mamre.billing.ui.worker.PaymentUi
-import java.time.Clock
-import java.time.LocalDate
-import java.time.ZoneId
-import kotlinx.coroutines.test.runTest
+import com.mamre.billing.ui.worker.WorkerCatalog
+import java.time.YearMonth
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
-/** Change set D4: the per-customer "Corporate account" flag. Hidden from the salesman side and from bills, still tracked. */
+/**
+ * Change set D4 on the real database: the per-customer "Corporate account" flag. Hidden from the Sales area and from bills,
+ * still tracked in the Admin area (Doc 1 s4.1, Doc 2 I-16, AT-22).
+ */
+@RunWith(RobolectricTestRunner::class)
 class CorporateAccountTest {
-    private val today = LocalDate.of(2026, 10, 3)
-    private val zone = ZoneId.systemDefault()
-    private val clock = Clock.fixed(today.atTime(12, 0).atZone(zone).toInstant(), zone)
-    private val table = SharedPriceTable.seeded(today)
-    private val admin = FakeAdminApi(clock, table)
-    private val api = FakeApi(table)
-    private val repo = CatalogRepository(
-        FakeProductDao(), FakeCustomerTypeDao(), FakeCustomerDao(), FakePriceDefaultDao(), FakePriceOverrideDao(),
-        FakeSyncStateDao(), FakeSettingDao(), FakeTransactionRunner(),
-        CatalogRemote { cursor -> api.catalog(api.login("user1", "user1").access, cursor) },
-    )
-    private val store = DemoStore(clock, DemoSeed.state())
+    private lateinit var w: World
+    private val admin get() = w.admin
     private val banned = listOf("Balance", "TOTAL DUE", "THIS MONTH", "Brought forward")
 
-    private fun form(c: com.mamre.billing.domain.admin.AdminCustomer, corporate: Boolean) = CustomerForm(
+    @Before fun open() {
+        w = runBlocking { DemoWorld.open() }
+    }
+
+    @After fun close() {
+        w.db.close()
+    }
+
+    private fun form(c: AdminCustomer, corporate: Boolean) = CustomerForm(
         c.name, c.typeId, c.phone, c.address, c.paymentMode, c.notes, c.isActive, location = c.location, isCorporate = corporate,
     )
 
-    private fun customer(id: String, corporate: Boolean) = Customer(
-        id, "Name", "t", "", "", PaymentMode.CREDIT, true, "Loc", corporate,
-    )
+    private fun customer(id: String, corporate: Boolean) = Customer(id, "Name", "t", "", "", PaymentMode.CREDIT, true, "Loc", corporate)
+
+    private suspend fun salesCatalog() = WorkerCatalog(w.customers, w.prices).load()
 
     // ------------------------------------------------------------------ the seed and the Admin form
 
-    @Test fun bothFreshMartStoresAreCorporateAndOnCreditAndNobodyElseIs() = runTest {
-        val rows = table.customers()
+    @Test fun bothFreshMartStoresAreCorporateAndOnCreditAndNobodyElseIs() = runBlocking {
+        val rows = admin.customers()
         for (r in rows) assertEquals(r.name, r.name == "FreshMart", r.isCorporate)
         assertTrue(rows.filter { it.isCorporate }.all { it.paymentMode == PaymentMode.CREDIT })
         assertEquals(2, rows.count { it.isCorporate })
-        assertEquals(rows.filter { it.isCorporate }.map { it.id }.toSet(), admin.customers().filter { it.isCorporate }.map { it.id }.toSet())
     }
 
-    @Test fun theFlagIsOffByDefaultOnANewCustomer() = runTest {
-        val c = admin.addCustomer(CustomerForm("Green Leaf", DemoIds.SHOP_TYPE, "", "", PaymentMode.CREDIT, "", true, location = "Plano"), "Test Admin")
+    @Test fun theFlagIsOffByDefaultOnANewCustomer() = runBlocking {
+        val c = admin.addCustomer(CustomerForm("Green Leaf", ReferenceIds.TYPE_SHOP, "", "", PaymentMode.CREDIT, "", true, location = "Plano"))
         assertFalse(c.isCorporate)
-        assertFalse(table.customers().first { it.id == c.id }.isCorporate)
+        assertFalse(w.customers.customer(c.id)!!.isCorporate)
     }
 
-    @Test fun theAdminSwitchesTheFlagAndTheChangeIsLogged() = runTest {
+    @Test fun theAdminSwitchesTheFlagAndTheChangeIsLogged() = runBlocking {
         val spice = admin.customer(SeedIds.SPICE_GARDEN)!!
-        val on = admin.updateCustomer(spice.id, form(spice, corporate = true), "Test Admin")
+        val on = admin.updateCustomer(spice.id, form(spice, corporate = true))
         assertTrue(on.isCorporate)
-        val log = admin.changeLog.value.single()
+        val log = w.newLog().single()
         assertTrue(log.before.contains("not corporate") && log.after.contains("corporate account"))
-        assertFalse(admin.updateCustomer(spice.id, form(on, corporate = false), "Test Admin").isCorporate)
+        assertFalse(admin.updateCustomer(spice.id, form(on, corporate = false)).isCorporate)
     }
 
-    // ------------------------------------------------------------------ the catalog and Sync now
+    // ------------------------------------------------------------------ the Sales area sees the flag at once (there is no sync now)
 
-    @Test fun theFlagReachesTheSalesmanOnlyAfterSyncNow() = runTest {
-        repo.refresh()
+    @Test fun theFlagIsSeenByTheSalesAreaAtOnceAndBackOffAgain() = runBlocking {
         val spice = admin.customer(SeedIds.SPICE_GARDEN)!!
-        assertFalse(repo.customer(spice.id)!!.isCorporate)
-        admin.updateCustomer(spice.id, form(spice, corporate = true), "Test Admin")
-        assertFalse(repo.customer(spice.id)!!.isCorporate) // not before the sync
-        repo.refresh()
-        assertTrue(repo.customer(spice.id)!!.isCorporate)
-        // And back off, again only at the next sync.
-        admin.updateCustomer(spice.id, form(admin.customer(spice.id)!!, corporate = false), "Test Admin")
-        assertTrue(repo.customer(spice.id)!!.isCorporate)
-        repo.refresh()
-        assertFalse(repo.customer(spice.id)!!.isCorporate)
+        assertFalse(salesCatalog().customers.first { it.id == spice.id }.isCorporate)
+        admin.updateCustomer(spice.id, form(spice, corporate = true))
+        assertTrue(salesCatalog().customers.first { it.id == spice.id }.isCorporate)
+        admin.updateCustomer(spice.id, form(admin.customer(spice.id)!!, corporate = false))
+        assertFalse(salesCatalog().customers.first { it.id == spice.id }.isCorporate)
     }
 
-    @Test fun theSeededCorporateFlagsAreInTheSalesmansCatalogAfterTheFirstSync() = runTest {
-        repo.refresh()
-        val flagged = repo.activeCustomers().filter { it.isCorporate }
+    @Test fun theSeededCorporateFlagsAreInTheSalesAreasCatalog() = runBlocking {
+        val flagged = salesCatalog().customers.filter { it.isCorporate }
         assertEquals(setOf("FreshMart - Downtown", "FreshMart - Westside"), flagged.map { "${it.name} - ${it.location}" }.toSet())
     }
 
     // ------------------------------------------------------------------ the Admin side still tracks the balance
 
-    @Test fun theAdminLedgerBalanceOfACorporateCustomerIsNotChangedByTheFlag() = runTest {
-        val id = DemoIds.FRESHMART_DOWNTOWN
-        val before = Triple(admin.customerBalance(id), admin.balances().first { it.customerId == id }, admin.customerSummary(id, java.time.YearMonth.of(2026, 9)))
+    @Test fun theAdminLedgerBalanceOfACorporateCustomerIsNotChangedByTheFlag() = runBlocking {
+        val id = DemoCustomerIds.FRESHMART_DOWNTOWN
+        val before = Triple(admin.customerBalance(id), admin.balances().first { it.customerId == id }, admin.customerSummary(id, YearMonth.of(2026, 9)))
         assertTrue("FreshMart must owe something for this test to mean anything", before.first > 0)
         val c = admin.customer(id)!!
-        admin.updateCustomer(id, form(c, corporate = false), "Test Admin")
-        admin.updateCustomer(id, form(admin.customer(id)!!, corporate = true), "Test Admin")
+        admin.updateCustomer(id, form(c, corporate = false))
+        admin.updateCustomer(id, form(admin.customer(id)!!, corporate = true))
         assertEquals(before.first, admin.customerBalance(id))
         assertEquals(before.second, admin.balances().first { it.customerId == id })
-        assertEquals(before.third, admin.customerSummary(id, java.time.YearMonth.of(2026, 9)))
+        assertEquals(before.third, admin.customerSummary(id, YearMonth.of(2026, 9)))
         // The Admin report still counts them: the balances list holds both stores.
         assertTrue(admin.balances().count { it.customerName.startsWith("FreshMart") } == 2)
     }
 
-    @Test fun aNormalCustomersAdminBalanceIsAlsoUnchangedByTurningTheFlagOn() = runTest {
+    @Test fun aNormalCustomersAdminBalanceIsAlsoUnchangedByTurningTheFlagOn() = runBlocking {
         val id = SeedIds.SPICE_GARDEN
         val before = admin.customerBalance(id)
-        admin.updateCustomer(id, form(admin.customer(id)!!, corporate = true), "Test Admin")
+        admin.updateCustomer(id, form(admin.customer(id)!!, corporate = true))
         assertEquals(before, admin.customerBalance(id))
+    }
+
+    @Test fun theSalesAreasBalanceIsNeverOfferedForACorporateAccountButTheAdminDataHoldsIt() = runBlocking {
+        val state = w.sales.state()
+        val id = DemoCustomerIds.FRESHMART_DOWNTOWN
+        assertEquals(null, state.balanceShownInSales(id, isCorporate = true))
+        assertTrue(admin.customerBalance(id) > 0)
+        assertEquals(admin.customerBalance(id), state.balanceOf(id)) // the same ledger, shown only in the Admin area
     }
 
     // ------------------------------------------------------------------ the bill and the receipt
 
-    private fun corporateDraft(paid: Long = 0, method: PaymentMethod? = null) = InvoiceDraft(
-        "d-corp", DemoIds.FRESHMART_DOWNTOWN, "FreshMart", "Shop", "W1",
-        listOf(InvoiceLine(DemoIds.CHAPATHI, "Mamre Chapathi", 70, 250)), paid, method,
-        salesmanName = "Rajesh", customerLocation = "Downtown", isCorporate = true,
+    private suspend fun corporateBill(paid: Long = 0, method: PaymentMethod? = null) = w.makeBill(
+        BillDraft("d-corp", DemoCustomerIds.FRESHMART_DOWNTOWN, listOf(InvoiceLine(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", 70, 270)), paid, method),
     )
 
-    @Test fun aCorporateBillContainsNoBalanceTotalDueMonthSummaryOrBroughtForward() {
-        val invoice = store.confirmInvoice(corporateDraft())
+    @Test fun aCorporateBillContainsNoBalanceTotalDueMonthSummaryOrBroughtForward() = runBlocking {
+        val invoice = corporateBill()
         assertTrue(invoice.isCorporate) // the flag is a snapshot on the invoice
-        val ledger = store.state.value.ledgerOf(DemoIds.FRESHMART_DOWNTOWN)
+        val ledger = w.sales.state().ledgerOf(DemoCustomerIds.FRESHMART_DOWNTOWN)
         // Even when the caller asks for the month summary of a credit customer:
-        val text = layoutInvoiceReceipt(invoiceReceiptOf(invoice, ledger, showMonthSummary = true)).joinToString("\n")
+        val text = layoutInvoiceReceipt(invoiceReceiptOf(invoice, ledger, showMonthSummary = true, header = com.mamre.billing.domain.model.BusinessHeader())).joinToString("\n")
         for (word in banned) assertFalse("$word was printed on a corporate bill", text.contains(word, ignoreCase = true))
         assertTrue(text.contains("CREDIT") && text.contains("Received by:") && text.contains("Sign and stamp"))
     }
 
-    @Test fun aReprintOfACorporateBillStillHasNoBalanceEvenIfTheFlagIsLaterSwitchedOff() = runTest {
-        val invoice = store.confirmInvoice(corporateDraft())
-        repo.refresh()
-        val c = admin.customer(DemoIds.FRESHMART_DOWNTOWN)!!
-        admin.updateCustomer(c.id, form(c, corporate = false), "Test Admin")
-        repo.refresh()
-        assertFalse(repo.customer(c.id)!!.isCorporate) // the catalog now says normal...
-        val reprint = layoutInvoiceReceipt(invoiceReceiptOf(invoice, store.state.value.ledgerOf(c.id), true, duplicate = true))
-        assertTrue(reprint.none { it.contains("Balance") || it.contains("THIS MONTH") }) // ...the bill as it was does not change
+    @Test fun aReprintOfACorporateBillStillHasNoBalanceEvenIfTheFlagIsLaterSwitchedOff() = runBlocking {
+        val invoice = corporateBill()
+        val c = admin.customer(DemoCustomerIds.FRESHMART_DOWNTOWN)!!
+        admin.updateCustomer(c.id, form(c, corporate = false))
+        assertFalse(salesCatalog().customers.first { it.id == c.id }.isCorporate) // the catalog now says normal...
+        val saved = w.sales.state().invoices.first { it.id == invoice.id }
+        assertTrue(saved.isCorporate) // ...the bill as it was does not change
+        val reprint = layoutInvoiceReceipt(invoiceReceiptOf(saved, w.sales.state().ledgerOf(c.id), true, com.mamre.billing.domain.model.BusinessHeader(), duplicate = true))
+        assertTrue(reprint.none { it.contains("Balance") || it.contains("THIS MONTH") })
     }
 
-    @Test fun aNormalCreditCustomerIsUnaffected() {
-        val invoice = store.confirmInvoice(
-            InvoiceDraft("d-normal", DemoIds.RESTAURANT, "Spice Garden", "Restaurant", "W1",
-                listOf(InvoiceLine(DemoIds.CHAPATHI, "Mamre Chapathi", 10, 250)), 1000, PaymentMethod.CASH,
-                salesmanName = "Rajesh", customerLocation = "Irving"),
+    @Test fun aNormalCreditCustomerIsUnaffected() = runBlocking {
+        val invoice = w.makeBill(
+            BillDraft("d-normal", DemoCustomerIds.SPICE_GARDEN, listOf(InvoiceLine(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", 10, 240)), 1000, PaymentMethod.CASH),
         )
         assertFalse(invoice.isCorporate)
-        val text = layoutInvoiceReceipt(invoiceReceiptOf(invoice, store.state.value.ledgerOf(DemoIds.RESTAURANT), true)).joinToString("\n")
+        val state = w.sales.state()
+        val text = layoutInvoiceReceipt(
+            invoiceReceiptOf(invoice, state.ledgerOf(DemoCustomerIds.SPICE_GARDEN), true, com.mamre.billing.domain.model.BusinessHeader(), openingBalanceCents = state.openingOf(DemoCustomerIds.SPICE_GARDEN)),
+        ).joinToString("\n")
         for (word in listOf("Balance after", "THIS MONTH", "Brought forward", "TOTAL DUE")) assertTrue("$word is missing", text.contains(word))
         assertFalse(text.contains("Received by:"))
     }
 
-    @Test fun aCorporatePaymentReceiptHasNoBalance() {
-        val payment = store.recordPayment(
-            PaymentDraft("p-corp", DemoIds.FRESHMART_DOWNTOWN, "FreshMart", "W1", 5000, PaymentMethod.CHECK, "", "Rajesh", "Downtown", isCorporate = true),
-        )
-        val lines = layoutPaymentReceipt(paymentReceiptOf(payment, store.state.value.balanceOf(DemoIds.FRESHMART_DOWNTOWN)))
+    @Test fun aCorporatePaymentReceiptHasNoBalance() = runBlocking {
+        val id = DemoCustomerIds.FRESHMART_DOWNTOWN
+        val before = w.sales.state().balanceOf(id)
+        val payment = w.recordPayment(w.payment(id, 5000, PaymentMethod.CHECK))
+        assertTrue(payment.isCorporate)
+        val state = w.sales.state()
+        val lines = layoutPaymentReceipt(paymentReceiptOf(payment, state.balanceOf(id), com.mamre.billing.domain.model.BusinessHeader()))
         assertTrue(lines.none { it.contains("Balance") })
-        // The salesman side still tracks it: the worker ledger holds the balance even though nothing shows it.
-        assertEquals(-5000L, store.state.value.balanceOf(DemoIds.FRESHMART_DOWNTOWN))
+        // The ledger still tracks it even though nothing in the Sales area shows it.
+        assertEquals(before - 5000L, state.balanceOf(id))
     }
 
-    // ------------------------------------------------------------------ what the salesman's screens decide to show
+    // ------------------------------------------------------------------ what the Sales screens decide to show
 
     @Test fun theCustomerCardShowsABalanceOnlyForANormalCreditCustomer() {
         fun row(c: Customer) = CustomerRow(c, "Shop", 12_000)

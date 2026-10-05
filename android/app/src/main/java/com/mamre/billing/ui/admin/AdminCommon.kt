@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.mamre.billing.data.demo.DEMO_DATA_LABEL
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.dateToPickerMillis
 import com.mamre.billing.domain.admin.pickerMillisToDate
@@ -46,15 +46,6 @@ import java.util.Locale
 private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
 
 fun formatDate(date: LocalDate): String = date.format(DATE_FORMAT)
-
-/** Who made an Admin edit, for the change log, when the session has no name. */
-const val DEFAULT_ADMIN_NAME = "Admin"
-
-/** The "Demo data" chip every admin screen carries in its top bar (owner rule). */
-@Composable
-fun RowScope.DemoChip() {
-    StatusChip(DEMO_DATA_LABEL, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm))
-}
 
 /** A date input that opens the Material 3 date picker. [errorText] shows under the field. */
 @OptIn(ExperimentalMaterial3Api::class)
