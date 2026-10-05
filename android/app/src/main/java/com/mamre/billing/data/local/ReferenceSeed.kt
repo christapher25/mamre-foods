@@ -1,5 +1,10 @@
 package com.mamre.billing.data.local
 
+import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+
 /**
  * First run (Doc 2 s5.2): REFERENCE DATA ONLY. The four customer types with their price-edit switches (Retail and
  * Catering on), the two products (standard packet 12, yield 32), the materials list, the recipe per 1 kg of wheat
@@ -12,6 +17,10 @@ class ReferenceSeed(
     private val db: MamreDatabase,
     private val unitOfWork: UnitOfWork,
 ) {
+    /**
+     * An idempotent top-up through the DAOs: a database made by the production builder already has its reference data (the
+     * [ReferenceSeedCallback] wrote it in the creation transaction), so this finds it and returns.
+     */
     suspend fun run() {
         if (db.customerTypeDao().count() > 0 && db.settingDao().get(SettingKeys.DEVICE_CODE) != null) return
         unitOfWork.run {
@@ -25,6 +34,37 @@ class ReferenceSeed(
     }
 
     companion object {
+        /**
+         * Writes the reference rows through the raw database handed to RoomDatabase.Callback.onCreate, i.e. INSIDE the transaction
+         * that is creating the schema (Doc 2 s5.2): schema and reference data are one atomic step. Foreign keys first.
+         */
+        fun insertInto(db: SupportSQLiteDatabase) {
+            fun put(table: String, vararg values: Pair<String, Any?>) {
+                val cv = ContentValues()
+                for ((k, v) in values) when (v) {
+                    null -> cv.putNull(k)
+                    is Boolean -> cv.put(k, if (v) 1 else 0)
+                    is Int -> cv.put(k, v)
+                    is Long -> cv.put(k, v)
+                    is String -> cv.put(k, v)
+                    else -> error("unsupported value for $table.$k")
+                }
+                db.insert(table, SQLiteDatabase.CONFLICT_IGNORE, cv)
+            }
+            customerTypes.forEach { put("customer_types", "id" to it.id, "name" to it.name, "salesman_can_edit_price" to it.salesmanCanEditPrice, "is_active" to it.isActive) }
+            products.forEach {
+                put("products", "id" to it.id, "code" to it.code, "name" to it.name, "standard_packet_size" to it.standardPacketSize, "yield_per_kg" to it.yieldPerKg, "is_active" to it.isActive)
+            }
+            materials.forEach {
+                put("materials", "id" to it.id, "name" to it.name, "base_unit" to it.baseUnit, "purchase_unit" to it.purchaseUnit, "base_per_purchase_unit" to it.basePerPurchaseUnit, "is_packing" to it.isPacking)
+            }
+            recipe.forEach {
+                put("recipe_items", "id" to it.id, "product_id" to it.productId, "material_id" to it.materialId, "qty_milli_per_kg_wheat" to it.qtyMilliPerKgWheat)
+            }
+            expenseCategories.forEach { put("expense_categories", "id" to it.id, "name" to it.name, "kind" to it.kind) }
+            settings.forEach { put("settings", "key" to it.key, "value" to it.value) }
+        }
+
         const val DEFAULT_DEVICE_CODE = "W1"
         const val DEFAULT_BUSINESS_NAME = "Mamre Foods"
         const val DEFAULT_WASTAGE_BP = 200
@@ -98,5 +138,17 @@ class ReferenceSeed(
             SettingEntity(SettingKeys.NEXT_BILL_SEQ, "1"),
             SettingEntity(SettingKeys.NEXT_RECEIPT_SEQ, "1"),
         )
+    }
+}
+
+/**
+ * Writes the reference data in the same transaction as the schema (Room runs onCreate inside it): if anything here, or the
+ * optional [extra] step, throws, the whole creation rolls back and the next start begins again from nothing. [extra] exists so
+ * a test can make the creation fail after the reference rows are written.
+ */
+class ReferenceSeedCallback(private val extra: ((SupportSQLiteDatabase) -> Unit)? = null) : RoomDatabase.Callback() {
+    override fun onCreate(db: SupportSQLiteDatabase) {
+        ReferenceSeed.insertInto(db)
+        extra?.invoke(db)
     }
 }

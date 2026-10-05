@@ -1,12 +1,10 @@
 package com.mamre.billing.data.di
 
 import android.content.Context
-import androidx.room.Room
 import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.LocalAdminApi
 import com.mamre.billing.data.local.MamreDatabase
-import com.mamre.billing.data.local.ReferenceSeed
 import com.mamre.billing.data.local.RoomUnitOfWork
 import com.mamre.billing.data.local.UnitOfWork
 import com.mamre.billing.data.repo.BooksRepository
@@ -47,15 +45,10 @@ object AppModule {
 
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): MamreDatabase =
-        Room.databaseBuilder(context, MamreDatabase::class.java, MamreDatabase.FILE_NAME)
-            .addMigrations(*MamreDatabase.MIGRATIONS)
-            .build()
+        MamreDatabase.builder(context).build()
 
     @Provides @Singleton
     fun unitOfWork(db: MamreDatabase): UnitOfWork = RoomUnitOfWork(db)
-
-    @Provides @Singleton
-    fun referenceSeed(db: MamreDatabase, unitOfWork: UnitOfWork) = ReferenceSeed(db, unitOfWork)
 
     // ------------------------------------------------------------------ repositories
 

@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mamre.billing.domain.auth.Area
+import com.mamre.billing.data.startup.AppReadiness
 import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.appStartDestination
@@ -37,7 +38,11 @@ class AppViewModel @Inject constructor(
     private val areaState: AreaState,
     gate: Optional<EntryGate>,
     val features: Features,
+    readiness: AppReadiness,
 ) : ViewModel() {
+    /** False until the database is open: the first screen is a short loading screen (Doc 2 s5.2). */
+    val ready: StateFlow<Boolean> = readiness.ready
+
     val gate: EntryGate? = gate.orElse(null)
     val area: StateFlow<Area> = areaState.area
 
@@ -55,6 +60,11 @@ class AppViewModel @Inject constructor(
  */
 @Composable
 fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
+    val ready by appViewModel.ready.collectAsStateWithLifecycle()
+    if (!ready) {
+        StartingScreen()
+        return
+    }
     val area by appViewModel.area.collectAsStateWithLifecycle()
     val gateOpen by appViewModel.gateOpen.collectAsStateWithLifecycle()
     val gate = appViewModel.gate

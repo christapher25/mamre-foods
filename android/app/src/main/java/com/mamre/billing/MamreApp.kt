@@ -7,20 +7,18 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.runBlocking
 
 @HiltAndroidApp
 class MamreApp : Application() {
     @Inject lateinit var startup: AppStartup
 
-    /** Lives as long as the process: the background start-up work of a build (the debug sample data). */
+    /** Lives as long as the process: the start-up work of a build runs here, never on the main thread. */
     private val startupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
         super.onCreate()
-        // The reference data must exist before the first screen reads it (Doc 2 s5.2); later starts only check. Nothing else
-        // may block here: Android kills an app whose Application.onCreate takes too long.
-        runBlocking { startup.runReference() }
-        startup.startExtras(startupScope)
+        // Nothing may block here (Android kills an app whose Application.onCreate takes too long): the database is opened, and
+        // created with its reference data on first run, in the background; the first screen waits for it (AppReadiness).
+        startup.start(startupScope)
     }
 }

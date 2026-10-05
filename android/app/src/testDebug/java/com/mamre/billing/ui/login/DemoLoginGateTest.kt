@@ -1,8 +1,6 @@
 package com.mamre.billing.ui.login
 
 import com.mamre.billing.data.local.MamreDatabase
-import com.mamre.billing.data.local.ReferenceSeed
-import com.mamre.billing.data.local.RoomUnitOfWork
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.startup.AppStartup
 import com.mamre.billing.data.startup.StartupTask
@@ -42,14 +40,14 @@ class DemoLoginGateTest {
     }
 
     private fun gate(task: StartupTask? = null): Pair<DemoLoginGate, AppStartup> {
-        val startup = AppStartup(ReferenceSeed(db, RoomUnitOfWork(db)), setOfNotNull(task))
+        val startup = AppStartup(db, setOfNotNull(task))
         return DemoLoginGate(area, startup) to startup
     }
 
     @Test fun whileTheSampleDataIsBeingPreparedEvenTheRightAccountIsRefused() = runBlocking {
         val release = CompletableDeferred<Unit>()
         val (gate, startup) = gate(StartupTask { release.await() })
-        startup.runReference()
+        startup.openDatabase()
         startup.startExtras(scope)
         assertFalse(gate.ready.value)
         assertFalse(gate.signIn("user1", "user1"))
@@ -65,7 +63,7 @@ class DemoLoginGateTest {
 
     @Test fun onceReadyTheTwoDemoAccountsOpenTheirAreasAndNothingElseDoes() = runBlocking {
         val (gate, startup) = gate()
-        startup.runReference()
+        startup.openDatabase()
         assertTrue(gate.ready.value)
         assertFalse(gate.signIn("user1", "wrong"))
         assertFalse(gate.signIn("USER1", "user1"))

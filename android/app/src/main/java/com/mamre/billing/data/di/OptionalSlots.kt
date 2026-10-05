@@ -1,8 +1,11 @@
 package com.mamre.billing.data.di
 
+import com.mamre.billing.data.startup.AppReadiness
+import com.mamre.billing.data.startup.AppStartup
 import com.mamre.billing.data.startup.StartupTask
 import com.mamre.billing.ui.DataLabel
 import com.mamre.billing.ui.EntryGate
+import dagger.Binds
 import dagger.BindsOptionalOf
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -21,4 +24,6 @@ abstract class OptionalSlots {
     @BindsOptionalOf abstract fun entryGate(): EntryGate
 
     @BindsOptionalOf abstract fun dataLabel(): DataLabel
+
+    @Binds abstract fun readiness(startup: AppStartup): AppReadiness
 }

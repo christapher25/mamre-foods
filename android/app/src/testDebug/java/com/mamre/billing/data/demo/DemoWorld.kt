@@ -1,7 +1,6 @@
 package com.mamre.billing.data.demo
 
 import android.content.Context
-import androidx.room.Room
 import com.mamre.billing.data.local.MamreDatabase
 import com.mamre.billing.data.local.MutableClock
 import com.mamre.billing.data.local.ReferenceSeed
@@ -32,8 +31,7 @@ object DemoWorld {
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
     private fun open(name: String): MamreDatabase =
-        Room.databaseBuilder(context, MamreDatabase::class.java, name).allowMainThreadQueries()
-            .addMigrations(*MamreDatabase.MIGRATIONS).build()
+        MamreDatabase.builder(context, name).allowMainThreadQueries().build()
 
     /** Builds the history once (seconds) and keeps the file in the JVM's temp folder. */
     private suspend fun buildTemplate(): File {

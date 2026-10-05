@@ -63,6 +63,20 @@ abstract class MamreDatabase : RoomDatabase() {
     companion object {
         const val FILE_NAME = "mamre.db"
 
+        /**
+         * THE way to make the database: the written migrations, the first-run reference data inside the creation transaction
+         * ([ReferenceSeedCallback]) and no destructive fallback. A null [name] is an in-memory database for tests.
+         */
+        fun builder(
+            context: android.content.Context,
+            name: String? = FILE_NAME,
+            extraOnCreate: ((androidx.sqlite.db.SupportSQLiteDatabase) -> Unit)? = null,
+        ): androidx.room.RoomDatabase.Builder<MamreDatabase> =
+            (if (name == null) androidx.room.Room.inMemoryDatabaseBuilder(context, MamreDatabase::class.java)
+            else androidx.room.Room.databaseBuilder(context, MamreDatabase::class.java, name))
+                .addMigrations(*MIGRATIONS)
+                .addCallback(ReferenceSeedCallback(extraOnCreate))
+
         /** Every written migration, oldest first. Empty while version 1 is the only schema. */
         val MIGRATIONS: Array<Migration> = emptyArray()
     }
