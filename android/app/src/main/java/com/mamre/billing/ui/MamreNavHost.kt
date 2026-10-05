@@ -18,7 +18,6 @@ import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.appStartDestination
-import com.mamre.billing.domain.auth.routeAllowed
 import com.mamre.billing.domain.auth.startDestinationFor
 import com.mamre.billing.ui.admin.AdminBottomBar
 import com.mamre.billing.ui.admin.AdminRoutes
@@ -65,20 +64,12 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val route = backStackEntry?.destination?.route
 
-    // Switching area, opening the gate or closing it restarts the navigation on the right screen.
+    // Switching area, opening the gate or closing it, and every move afterwards: the one policy (navTarget) decides.
+    val gateState = gate?.let { GateState(it.route, gateOpen) }
     LaunchedEffect(area, gateOpen) {
-        val target = if (gate != null && !gateOpen) gate.route else startDestinationFor(area, features)
-        if (navController.currentDestination?.route != null || gate != null) navController.goTo(target)
-    }
-    LaunchedEffect(area, gateOpen) {
+        navTarget(area, features, gateState, navController.currentDestination?.route ?: gate?.route)?.let { navController.goTo(it) }
         navController.currentBackStackEntryFlow.collect { entry ->
-            val current = entry.destination.route
-            val atGate = gate != null && current == gate.route
-            when {
-                gate != null && !gateOpen -> if (!atGate) navController.goTo(gate.route)
-                atGate -> navController.goTo(startDestinationFor(area, features))
-                !routeAllowed(area, current, features) -> navController.goTo(startDestinationFor(area, features))
-            }
+            navTarget(area, features, gateState, entry.destination.route)?.let { navController.goTo(it) }
         }
     }
 
