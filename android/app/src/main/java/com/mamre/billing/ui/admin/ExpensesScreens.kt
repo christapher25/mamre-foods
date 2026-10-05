@@ -1,6 +1,7 @@
 package com.mamre.billing.ui.admin
 
 import com.mamre.billing.ui.DataLabelChip
+import com.mamre.billing.ui.LocalFeatures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -195,7 +196,8 @@ private fun MaterialsTab(
     var reason by remember { mutableStateOf("") }
     PrimaryButton("Add purchase", onClick = onAdd)
 
-    AppCard {
+    val showCosts = LocalFeatures.current.showCosts
+    if (showCosts) AppCard {
         Text("Direct expense this month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FigureLine(report.costConsumedTotal, style = MaterialTheme.typography.headlineSmall) { formatCents(it) }
         Text(
@@ -206,13 +208,13 @@ private fun MaterialsTab(
     }
 
     SectionHeader("Materials this month")
-    report.rows.forEach { MaterialCard(it) }
+    report.rows.forEach { MaterialCard(it, showCosts) }
     AppCard {
         Text("Totals", style = MaterialTheme.typography.titleSmall)
-        LabelValueRow("Opening value") { FigureLine(report.openingValueTotal) { formatCents(it) } }
+        if (showCosts) LabelValueRow("Opening value") { FigureLine(report.openingValueTotal) { formatCents(it) } }
         LabelValueRow("Bought") { Text(formatCents(report.boughtTotalCents)) }
-        LabelValueRow("Cost consumed") { FigureLine(report.costConsumedTotal) { formatCents(it) } }
-        LabelValueRow("Closing value") { FigureLine(report.closingValueTotal) { formatCents(it) } }
+        if (showCosts) LabelValueRow("Cost consumed") { FigureLine(report.costConsumedTotal) { formatCents(it) } }
+        if (showCosts) LabelValueRow("Closing value") { FigureLine(report.closingValueTotal) { formatCents(it) } }
     }
 
     SectionHeader("Purchases this month")
@@ -261,7 +263,7 @@ private fun MaterialsTab(
 }
 
 @Composable
-private fun MaterialCard(row: StockRow) {
+private fun MaterialCard(row: StockRow, showCosts: Boolean) {
     val m = row.material
     val incomplete = listOf(
         row.openingQtyMb, row.usedMb, row.closingQtyMb, row.avgPriceTt, row.costConsumedCents,
@@ -279,10 +281,10 @@ private fun MaterialCard(row: StockRow) {
             LabelValueRow("Bought") { Text(formatQuantity(row.boughtQtyMb, m) + " - " + formatCents(row.boughtCents)) }
             LabelValueRow("Used") { FigureLine(row.usedMb) { formatQuantity(it, m) } }
             LabelValueRow("Closing stock") { FigureLine(row.closingQtyMb) { formatQuantity(it, m) } }
-            LabelValueRow("Average price") { FigureLine(row.avgPriceTt) { formatTenThousandths(it) + " / " + m.purchaseUnit } }
-            LabelValueRow("Cost consumed") { FigureLine(row.costConsumedCents) { formatCents(it) } }
+            if (showCosts) LabelValueRow("Average price") { FigureLine(row.avgPriceTt) { formatTenThousandths(it) + " / " + m.purchaseUnit } }
+            if (showCosts) LabelValueRow("Cost consumed") { FigureLine(row.costConsumedCents) { formatCents(it) } }
         }
-        val missing = listOf(row.openingQtyMb, row.usedMb, row.avgPriceTt, row.costConsumedCents)
+        val missing = (if (showCosts) listOf(row.openingQtyMb, row.usedMb, row.avgPriceTt, row.costConsumedCents) else listOf(row.openingQtyMb, row.usedMb))
             .filterIsInstance<Figure.Incomplete>().flatMap { it.missing }.distinct()
         missing.forEach {
             Text("Missing: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = Spacing.xs))
@@ -316,7 +318,7 @@ private fun OtherExpensesTab(report: ExpensesReport, onAdd: () -> Unit, onRevers
     AppCard {
         Text("Indirect expenses this month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(formatCents(report.indirectTotalCents), style = MaterialTheme.typography.headlineSmall)
-        Text(
+        if (LocalFeatures.current.showCosts) Text(
             "Direct expense (materials consumed, calculated): " + when (val d = report.directExpense) {
                 is Figure.Known -> formatCents(d.value)
                 is Figure.Incomplete -> INCOMPLETE

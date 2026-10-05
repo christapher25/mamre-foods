@@ -2,6 +2,7 @@ package com.mamre.billing.data.di
 
 import android.content.Context
 import androidx.room.Room
+import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.LocalAdminApi
 import com.mamre.billing.data.local.MamreDatabase
@@ -16,6 +17,7 @@ import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.StockRepository
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.usecase.MakeBill
 import com.mamre.billing.domain.usecase.RecordPayment
 import com.mamre.billing.domain.usecase.RecordReturn
@@ -38,6 +40,10 @@ import javax.inject.Singleton
 object AppModule {
     @Provides @Singleton
     fun clock(): Clock = Clock.systemDefaultZone()
+
+    /** What this build shows: SHOW_ANALYTICS is false in release (Doc 2 s9, A-28). */
+    @Provides @Singleton
+    fun features(): Features = Features(showAnalytics = BuildConfig.SHOW_ANALYTICS)
 
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): MamreDatabase =

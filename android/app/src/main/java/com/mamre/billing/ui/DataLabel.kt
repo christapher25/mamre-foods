@@ -25,3 +25,6 @@ fun RowScope.DataLabelChip() {
     val label = LocalDataLabel.current ?: return
     StatusChip(label.text, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm))
 }
+
+/** What this build shows; the safe default is "no analytics" (cost and profit hidden). Provided by MainActivity. */
+val LocalFeatures = compositionLocalOf { com.mamre.billing.domain.auth.Features(showAnalytics = false) }

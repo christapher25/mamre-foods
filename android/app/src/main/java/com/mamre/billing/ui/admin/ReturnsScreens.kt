@@ -1,6 +1,7 @@
 package com.mamre.billing.ui.admin
 
 import com.mamre.billing.ui.DataLabelChip
+import com.mamre.billing.ui.LocalFeatures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -143,7 +144,7 @@ fun ReturnsContent(ui: ReturnsUi, onBack: () -> Unit, onMonth: (YearMonth) -> Un
                     }
                     if (r.resolution == ReturnResolution.CREDIT) {
                         LabelValueRow("Credit", Modifier.padding(top = Spacing.xs)) { Text("-" + formatCents(r.creditCents)) }
-                    } else {
+                    } else if (LocalFeatures.current.showCosts) {
                         LabelValueRow(REPLACEMENT_COST_LABEL, Modifier.padding(top = Spacing.xs)) {
                             when (val c = r.replacementCost) {
                                 is Figure.Known -> Text(formatCents(c.value))

@@ -16,12 +16,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.domain.auth.AreaState
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.appStartDestination
 import com.mamre.billing.domain.auth.routeAllowed
 import com.mamre.billing.domain.auth.startDestinationFor
 import com.mamre.billing.ui.admin.AdminBottomBar
 import com.mamre.billing.ui.admin.AdminRoutes
 import com.mamre.billing.ui.admin.adminGraph
+import com.mamre.billing.ui.admin.adminTabs
 import com.mamre.billing.ui.admin.showsBottomBar
 import com.mamre.billing.ui.admin.tabOf
 import com.mamre.billing.ui.worker.workerGraph
@@ -32,7 +34,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 @HiltViewModel
-class AppViewModel @Inject constructor(private val areaState: AreaState, gate: Optional<EntryGate>) : ViewModel() {
+class AppViewModel @Inject constructor(
+    private val areaState: AreaState,
+    gate: Optional<EntryGate>,
+    val features: Features,
+) : ViewModel() {
     val gate: EntryGate? = gate.orElse(null)
     val area: StateFlow<Area> = areaState.area
 
@@ -53,6 +59,7 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
     val area by appViewModel.area.collectAsStateWithLifecycle()
     val gateOpen by appViewModel.gateOpen.collectAsStateWithLifecycle()
     val gate = appViewModel.gate
+    val features = appViewModel.features
     val navController = rememberNavController()
     val start = remember { appStartDestination(gate?.route) }
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -60,7 +67,7 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
 
     // Switching area, opening the gate or closing it restarts the navigation on the right screen.
     LaunchedEffect(area, gateOpen) {
-        val target = if (gate != null && !gateOpen) gate.route else startDestinationFor(area)
+        val target = if (gate != null && !gateOpen) gate.route else startDestinationFor(area, features)
         if (navController.currentDestination?.route != null || gate != null) navController.goTo(target)
     }
     LaunchedEffect(area, gateOpen) {
@@ -69,8 +76,8 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
             val atGate = gate != null && current == gate.route
             when {
                 gate != null && !gateOpen -> if (!atGate) navController.goTo(gate.route)
-                atGate -> navController.goTo(startDestinationFor(area))
-                !routeAllowed(area, current) -> navController.goTo(startDestinationFor(area))
+                atGate -> navController.goTo(startDestinationFor(area, features))
+                !routeAllowed(area, current, features) -> navController.goTo(startDestinationFor(area, features))
             }
         }
     }
@@ -79,12 +86,12 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
         NavHost(navController, startDestination = start, modifier = Modifier.weight(1f)) {
             gate?.register(this)
             workerGraph(navController, onOpenAdmin = { appViewModel.openArea(Area.ADMIN) })
-            adminGraph(navController, onOpenSales = { appViewModel.openArea(Area.SALES) })
+            adminGraph(navController, features, onOpenSales = { appViewModel.openArea(Area.SALES) })
         }
         if (area == Area.ADMIN && gateOpen && showsBottomBar(route)) {
-            AdminBottomBar(selected = tabOf(route), onSelect = { tab ->
+            AdminBottomBar(tabs = adminTabs(features), selected = tabOf(route), onSelect = { tab ->
                 navController.navigate(tab.route) {
-                    popUpTo(AdminRoutes.DASHBOARD) { saveState = true }
+                    popUpTo(startDestinationFor(Area.ADMIN, features)) { saveState = true }
                     launchSingleTop = true
                     restoreState = true
                 }

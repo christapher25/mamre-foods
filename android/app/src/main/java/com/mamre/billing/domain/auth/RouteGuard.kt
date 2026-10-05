@@ -12,13 +12,30 @@ object Routes {
     const val SALES_GRAPH = "sales"
     const val ADMIN_GRAPH = "admin"
     const val SALES_HOME = "sales/home"
+
+    /** The Dashboard: the first screen of the Admin area while analytics are shown (version 2). */
     const val ADMIN_HOME = "admin/home"
+    const val ADMIN_SALES = "admin/sales"
+    const val ADMIN_COSTING = "admin/more/costing"
 }
 
+/**
+ * What this build shows. Version 1 hides the Dashboard, the Costing screen and every cost or profit figure (Doc 1 A-28,
+ * Doc 2 s9, s11): [showAnalytics] is the build flag SHOW_ANALYTICS, true in the debug build and false in release. The code
+ * of those screens stays for version 2.
+ */
+data class Features(val showAnalytics: Boolean) {
+    /** Cost, profit and expense-derived figures (Doc 2 I-8: none in version 1). */
+    val showCosts: Boolean get() = showAnalytics
+}
+
+/** The routes only an analytics build may open. */
+private val ANALYTICS_ROUTES = setOf(Routes.ADMIN_HOME, Routes.ADMIN_COSTING)
+
 /** Where an area opens. */
-fun startDestinationFor(area: Area): String = when (area) {
+fun startDestinationFor(area: Area, features: Features): String = when (area) {
     Area.SALES -> Routes.SALES_HOME
-    Area.ADMIN -> Routes.ADMIN_HOME
+    Area.ADMIN -> if (features.showAnalytics) Routes.ADMIN_HOME else Routes.ADMIN_SALES
 }
 
 /**
@@ -26,8 +43,10 @@ fun startDestinationFor(area: Area): String = when (area) {
  * routes. The only way across is the explicit area switch (AreaState.open), which restarts the navigation in the other
  * area. Doc 2 s6: the areas are separate navigation graphs with a route guard.
  */
-fun routeAllowed(area: Area, route: String?): Boolean {
+fun routeAllowed(area: Area, route: String?, features: Features): Boolean {
     if (route == null) return false
+    // With analytics off the Dashboard and Costing do not exist for the guard, whatever area is open.
+    if (!features.showAnalytics && route in ANALYTICS_ROUTES) return false
     return when (area) {
         Area.SALES -> inGraph(route, Routes.SALES_GRAPH)
         Area.ADMIN -> inGraph(route, Routes.ADMIN_GRAPH)

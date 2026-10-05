@@ -2,6 +2,7 @@ package com.mamre.billing.ui.admin
 
 import com.mamre.billing.domain.admin.sharePercent
 import com.mamre.billing.domain.auth.Area
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.routeAllowed
 import com.mamre.billing.domain.auth.startDestinationFor
 import org.junit.Assert.assertEquals
@@ -14,13 +15,13 @@ class AdminNavigationTest {
     @Test fun everyAdminRouteBelongsToTheAdminAreaAndNoSalesRouteCanReachOne() {
         assertTrue(AdminRoutes.all.size >= 15)
         for (r in AdminRoutes.all) {
-            assertTrue(r, routeAllowed(Area.ADMIN, r))
-            assertFalse(r, routeAllowed(Area.SALES, r))
+            assertTrue(r, routeAllowed(Area.ADMIN, r, Features(true)))
+            assertFalse(r, routeAllowed(Area.SALES, r, Features(true)))
         }
     }
 
     @Test fun theAdminStartsOnTheDashboard() {
-        assertEquals(AdminRoutes.DASHBOARD, startDestinationFor(Area.ADMIN))
+        assertEquals(AdminRoutes.DASHBOARD, startDestinationFor(Area.ADMIN, Features(true)))
     }
 
     @Test fun routesAreUniqueSoNoScreenShadowsAnother() {

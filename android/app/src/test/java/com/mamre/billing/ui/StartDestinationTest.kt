@@ -3,6 +3,7 @@ package com.mamre.billing.ui
 import androidx.navigation.NavGraphBuilder
 import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.domain.auth.AreaState
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.Routes
 import com.mamre.billing.domain.auth.appStartDestination
 import java.util.Optional
@@ -36,7 +37,7 @@ class StartDestinationTest {
     }
 
     @Test fun withoutAGateTheAppStartsAtTheSalesHomeAndIsOpen() {
-        val vm = AppViewModel(AreaState(), Optional.empty())
+        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false))
         assertNull(vm.gate)
         assertTrue(vm.gateOpen.value)
         assertEquals(Routes.SALES_GRAPH, appStartDestination(vm.gate?.route))
@@ -45,7 +46,7 @@ class StartDestinationTest {
 
     @Test fun withAGateTheAppStartsAtTheGateAndStaysClosedUntilItOpens() {
         val gate = FakeGate()
-        val vm = AppViewModel(AreaState(), Optional.of(gate))
+        val vm = AppViewModel(AreaState(), Optional.of(gate), Features(showAnalytics = false))
         assertEquals("gate-screen", appStartDestination(vm.gate?.route))
         assertFalse(vm.gateOpen.value)
         gate.let()
@@ -57,7 +58,7 @@ class StartDestinationTest {
 
     @Test fun theGateNeverChangesWhichAreaOpensByItself() {
         val areas = AreaState()
-        val vm = AppViewModel(areas, Optional.of(FakeGate()))
+        val vm = AppViewModel(areas, Optional.of(FakeGate()), Features(showAnalytics = false))
         assertEquals(Area.SALES, vm.area.value)
         vm.openArea(Area.ADMIN)
         assertEquals(Area.ADMIN, vm.area.value)

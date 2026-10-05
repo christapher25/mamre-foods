@@ -19,10 +19,15 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Version 1 hides the Dashboard, the Costing screen and every cost or profit figure (Doc 1 A-28, Doc 2 s9): true in the
+        // debug build, false in release (below). The code of those screens stays for version 2.
+        buildConfigField("boolean", "SHOW_ANALYTICS", "true")
     }
 
     buildTypes {
         release {
+            buildConfigField("boolean", "SHOW_ANALYTICS", "false")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -96,7 +101,18 @@ val verifyReleaseManifest = tasks.register("verifyReleaseManifest") {
     }
 }
 
+// Version 1 hides the Dashboard, Costing and every cost figure: the release build must say SHOW_ANALYTICS = false.
+val verifyReleaseFlags = tasks.register("verifyReleaseFlags") {
+    val config = layout.buildDirectory.file("generated/source/buildConfig/release/com/mamre/billing/BuildConfig.java")
+    inputs.file(config)
+    doLast {
+        val text = config.get().asFile.readText()
+        check(Regex("""SHOW_ANALYTICS\s*=\s*false""").containsMatchIn(text)) { "the release build must have SHOW_ANALYTICS = false" }
+    }
+}
+
 afterEvaluate {
     verifyReleaseManifest.configure { dependsOn("processReleaseMainManifest") }
-    tasks.named("assembleRelease") { dependsOn(verifyReleaseManifest) }
+    verifyReleaseFlags.configure { dependsOn("generateReleaseBuildConfig") }
+    tasks.named("assembleRelease") { dependsOn(verifyReleaseManifest, verifyReleaseFlags) }
 }

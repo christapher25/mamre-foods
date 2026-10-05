@@ -7,12 +7,16 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.compose.navigation
+import com.mamre.billing.domain.auth.Area
+import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.Routes
+import com.mamre.billing.domain.auth.startDestinationFor
 
 /** The admin experience: Dashboard, Sales, Customers, Prices and More (owner brief, Stage B). */
-fun NavGraphBuilder.adminGraph(navController: NavController, onOpenSales: () -> Unit) {
-    navigation(route = Routes.ADMIN_GRAPH, startDestination = AdminRoutes.DASHBOARD) {
-        composable(AdminRoutes.DASHBOARD) { DashboardScreen() }
+fun NavGraphBuilder.adminGraph(navController: NavController, features: Features, onOpenSales: () -> Unit) {
+    navigation(route = Routes.ADMIN_GRAPH, startDestination = startDestinationFor(Area.ADMIN, features)) {
+        // The Dashboard and Costing are only registered in an analytics build (Doc 2 s9, A-28): in version 1 they do not exist.
+        if (features.showAnalytics) composable(AdminRoutes.DASHBOARD) { DashboardScreen() }
         composable(AdminRoutes.SALES) { SalesListScreen(onOpen = { navController.navigate(AdminRoutes.salesDetail(it)) }) }
         composable(AdminRoutes.SALES_DETAIL, arguments = idArgs()) { SalesDetailScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.CUSTOMERS) {
@@ -41,8 +45,8 @@ fun NavGraphBuilder.adminGraph(navController: NavController, onOpenSales: () -> 
         composable(AdminRoutes.PRICE_SET, arguments = idArgs(AdminRoutes.ARG_PRODUCT, AdminRoutes.ARG_TYPE)) {
             PriceSetScreen(onBack = { navController.popBackStack() })
         }
-        composable(AdminRoutes.MORE) { MoreScreen(onOpen = { navController.navigate(it) }, onSalesArea = onOpenSales) }
-        composable(AdminRoutes.COSTING) { CostingScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.MORE) { MoreScreen(features, onOpen = { navController.navigate(it) }, onSalesArea = onOpenSales) }
+        if (features.showAnalytics) composable(AdminRoutes.COSTING) { CostingScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.EXPENSES) {
             ExpensesScreen(
                 onAddPurchase = { navController.navigate(AdminRoutes.PURCHASE_ADD) },
