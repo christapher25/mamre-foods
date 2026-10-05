@@ -14,11 +14,11 @@ class DaoScanTest {
     /** The DAOs of the protected tables. Every DAO in the package must be listed in one of the two sets. */
     private val protectedDaos = setOf(
         "InvoiceDao", "InvoiceItemDao", "PaymentDao", "ReturnDao",
-        "MaterialPurchaseDao", "ProductionDamageDao", "ExpenseDao", "ChangeLogDao",
+        "MaterialPurchaseDao", "ProductionDamageDao", "ExpenseDao", "ChangeLogDao", "OpeningStockDao",
     )
     private val otherDaos = setOf(
         "CustomerTypeDao", "ProductDao", "CustomerDao", "PriceDefaultDao", "PriceOverrideDao", "SettingDao",
-        "MaterialDao", "OpeningStockDao", "RecipeDao", "ExpenseCategoryDao",
+        "MaterialDao", "RecipeDao", "ExpenseCategoryDao",
     )
     private val allowedMethods = setOf("InvoiceDao.markVoid")
 
@@ -44,6 +44,14 @@ class DaoScanTest {
             "UPDATE invoices SET status = 'void', void_reason = :reason, voided_at = :at WHERE id = :id AND status = 'active'",
             sql,
         )
+    }
+
+    @Test fun openingStockIsProtectedItIsSetOnceAndNeverEditedOrDeleted() {
+        assertTrue("opening_stock" in ProtectedTables.names)
+        val bad = "@Dao interface OpeningStockDao { @Update suspend fun edit(row: OpeningStockEntity): Int }"
+        assertTrue(violations(bad).isNotEmpty())
+        val badQuery = "@Dao interface OpeningStockDao { @Query(\"DELETE FROM opening_stock\") suspend fun wipe() }"
+        assertTrue(violations(badQuery).isNotEmpty())
     }
 
     @Test fun theProtectedTableListMatchesTheEntities() {

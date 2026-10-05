@@ -88,6 +88,6 @@ class RoomUnitOfWork(private val db: MamreDatabase) : UnitOfWork {
 object ProtectedTables {
     val names: List<String> = listOf(
         "invoices", "invoice_items", "payments", "return_records",
-        "material_purchases", "expenses", "production_damage", "change_log",
+        "material_purchases", "expenses", "production_damage", "change_log", "opening_stock",
     )
 }
