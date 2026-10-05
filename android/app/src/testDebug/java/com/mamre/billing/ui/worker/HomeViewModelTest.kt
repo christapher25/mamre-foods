@@ -12,7 +12,10 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import com.mamre.billing.testing.Repeat
+import com.mamre.billing.testing.RepeatRule
 import org.junit.After
+import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -27,6 +30,8 @@ import org.robolectric.RobolectricTestRunner
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class HomeViewModelTest {
+    @get:Rule val repeat = RepeatRule()
+
     private lateinit var w: World
 
     @Before fun setUp() {
@@ -48,6 +53,7 @@ class HomeViewModelTest {
         assertEquals("W1", state.deviceCode)
     }
 
+    @Repeat(20)
     @Test fun theCountOfTodaysBillsGoesUpWhenABillIsMade() = runBlocking {
         val vm = home()
         val before = withTimeout(10_000) { vm.state.first { it.deviceCode.isNotEmpty() } }.invoicesToday

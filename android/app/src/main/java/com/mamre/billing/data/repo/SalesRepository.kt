@@ -1,5 +1,6 @@
 package com.mamre.billing.data.repo
 
+import androidx.room.withTransaction
 import com.mamre.billing.data.local.CustomerEntity
 import com.mamre.billing.data.local.CustomerTypeEntity
 import com.mamre.billing.data.local.InvoiceEntity
@@ -23,7 +24,8 @@ import com.mamre.billing.domain.worker.ReturnResolution
 import com.mamre.billing.domain.worker.SalesState
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.map
 
 /** The raw rows of the sales tables, as the database holds them. */
 class SalesRows(
@@ -97,16 +99,18 @@ class SalesRepository(private val db: MamreDatabase, private val zone: () -> Zon
         return SalesRows(invoices, db.invoiceItemDao().forInvoices(invoices.map { it.id }), payments, returns)
     }
 
-    /** Emits a new state whenever a customer or any sales row changes. */
-    fun observeState(): Flow<SalesState> = combine(
-        db.invoiceDao().observeAll(),
-        db.invoiceItemDao().observeAll(),
-        db.paymentDao().observeAll(),
-        db.returnDao().observeAll(),
-        db.customerDao().observeAll(),
-    ) { invoices, items, payments, returns, customers ->
-        build(SalesRows(invoices, items, payments, returns), customers)
-    }
+    /**
+     * Emits a new state whenever a customer or any sales row changes. ONE watcher covers every table the state reads, and
+     * each emission is built from ONE read transaction: a bill and its lines are written in one transaction, so a state
+     * never shows the bill without them. (It used to combine five separately watched tables; the bill row could arrive
+     * before its lines, InvoiceRecord refused the total (Doc 2 I-2) and the exception ended the flow for good.)
+     * Changes that arrive while a state is being built are merged into the next one (conflate).
+     */
+    fun observeState(): Flow<SalesState> =
+        db.invalidationTracker
+            .createFlow("invoices", "invoice_items", "payments", "return_records", "customers", "customer_types", "products", "settings")
+            .map { db.withTransaction { build(rows(), db.customerDao().getAll()) } }
+            .conflate()
 
     private suspend fun rows() = SalesRows(
         db.invoiceDao().getAll(), db.invoiceItemDao().getAll(), db.paymentDao().getAll(), db.returnDao().getAll(),
