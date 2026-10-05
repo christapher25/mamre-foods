@@ -49,7 +49,7 @@ class AppViewModel @Inject constructor(
 }
 
 /**
- * Version 1 starts at the Sales Home (Doc 2 s10). A build can put an entry gate in front (the debug demo login); the
+ * Version 1 starts at the Sales Home (Doc 2 s10). A build can put an entry gate in front (the debug login screen); the
  * navigation then starts at the gate's screen and goes to the open area once the gate opens. The Sales area and the Admin
  * area are separate graphs with a route guard on the OPEN area: the only way across is the explicit area switch, which
  * restarts the navigation in the other area. The Admin area also gets a bottom bar.

@@ -143,7 +143,7 @@ class InvoiceFlowViewModel @Inject constructor(
     /** What the last Confirm was refused for: the use case enforces every rule, so this is the rule's own message. */
     val error: StateFlow<String?> = _error
 
-    val ui: StateFlow<InvoiceUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, demo, device ->
+    val ui: StateFlow<InvoiceUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, sold, device ->
         if (snap == null) return@combine InvoiceUi(loading = true, deviceCode = device)
         val today = LocalDate.now(clock)
         val customer = inp.customer
@@ -166,13 +166,13 @@ class InvoiceFlowViewModel @Inject constructor(
         val total = invoiceTotal(lines)
         val kind = payerKind(customer)
         // A corporate account's balance is never carried into the Sales area (Doc 1 s4.1, Doc 2 I-16).
-        val previous = customer?.let { demo.balanceShownInSales(it.id, it.isCorporate) } ?: 0L
+        val previous = customer?.let { sold.balanceShownInSales(it.id, it.isCorporate) } ?: 0L
         InvoiceUi(
             loading = false,
             deviceCode = device,
             query = inp.query,
             customers = filterCustomers(snap.customers, inp.query)
-                .map { CustomerRow(it, snap.typeName(it), demo.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
+                .map { CustomerRow(it, snap.typeName(it), sold.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
             types = snap.types,
             customerChosen = inp.chosen,
             customer = customer,

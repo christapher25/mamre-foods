@@ -19,7 +19,6 @@ import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.PriceDefault
 import com.mamre.billing.domain.model.PriceOverride
 import com.mamre.billing.domain.model.Product
-import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnResolution
@@ -29,9 +28,6 @@ import java.time.ZoneId
 
 // Entities to the domain models (Doc 2 s4.2). Times are UTC epoch milliseconds in the database and local date-times in
 // the models, in the phone's time zone (Doc 2 s4.1).
-
-/** The key a name or a location is compared by: trimmed, inner spaces collapsed, case-folded (Doc 1 s4.1). */
-fun identityKey(raw: String): String = normalizeSpaces(raw).lowercase()
 
 fun Long.toLocalDateTime(zone: ZoneId): LocalDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(this), zone)
 

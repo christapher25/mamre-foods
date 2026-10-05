@@ -5,7 +5,7 @@ package com.mamre.billing.data.local
  * Catering on), the two products (standard packet 12, yield 32), the materials list, the recipe per 1 kg of wheat
  * (wheat 1 kg, oil 80 ml, sugar 20 g, salt 15 g, baking powder 2 g, packing one piece per packet; potassium sorbate
  * unset for Mamre Chapathi, Doc 1 P-2), the expense categories (Doc 1 s10.2) and the default settings. No customers,
- * prices, bills or demo data (AT-21). Written in one transaction; every insert ignores a row that exists, so running it
+ * prices, bills or sample data (AT-21). Written in one transaction; every insert ignores a row that exists, so running it
  * again changes nothing and never overwrites what the Owner edited.
  */
 class ReferenceSeed(

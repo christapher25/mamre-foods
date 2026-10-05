@@ -22,6 +22,7 @@ import com.mamre.billing.domain.worker.PaymentRecord
 import com.mamre.billing.domain.worker.ReturnRecord
 import com.mamre.billing.domain.worker.ReturnResolution
 import com.mamre.billing.domain.worker.SalesState
+import com.mamre.billing.domain.worker.ledgerBalance
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
@@ -164,16 +165,19 @@ fun buildSalesState(
     val paymentsOf = rows.payments.filter { it.customerId != null }.groupBy { it.customerId!! }
     val creditsOf = rows.returns.filter { it.resolution == ReturnResolution.CREDIT.stored() }.groupBy { it.customerId }
 
-    /** The balance as of this bill (Doc 1 s6.3): the records of the customer made up to this bill's time. */
+    /** The balance as of this bill (Doc 1 s6.3): the customer's records made up to this bill's time, through the ONE balance function. */
     fun balanceAfter(inv: InvoiceEntity): Long {
         val id = inv.customerId ?: return 0L
-        var total = opening[id] ?: 0L
-        invoicesOf[id].orEmpty()
-            .filter { it.status != Stored.VOID && (it.issuedAt < inv.issuedAt || (it.issuedAt == inv.issuedAt && it.number <= inv.number)) }
-            .forEach { total += it.totalCents }
-        paymentsOf[id].orEmpty().filter { it.paidAt <= inv.issuedAt }.forEach { total -= it.amountCents }
-        creditsOf[id].orEmpty().filter { it.occurredAt <= inv.issuedAt }.forEach { total -= it.creditCents }
-        return total
+        val entries = buildList<LedgerEntry> {
+            invoicesOf[id].orEmpty()
+                .filter { it.issuedAt < inv.issuedAt || (it.issuedAt == inv.issuedAt && it.number <= inv.number) }
+                .forEach { add(InvoiceEntry(it.issuedAt.toLocalDateTime(zone).toLocalDate(), it.totalCents, it.status == Stored.VOID)) }
+            paymentsOf[id].orEmpty().filter { it.paidAt <= inv.issuedAt }
+                .forEach { add(PaymentEntry(it.paidAt.toLocalDateTime(zone).toLocalDate(), it.amountCents, paymentMethodOf(it.method))) }
+            creditsOf[id].orEmpty().filter { it.occurredAt <= inv.issuedAt }
+                .forEach { add(CreditEntry(it.occurredAt.toLocalDateTime(zone).toLocalDate(), it.creditCents)) }
+        }
+        return ledgerBalance(opening[id] ?: 0L, entries)
     }
 
     val invoices = rows.invoices.map { inv ->

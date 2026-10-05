@@ -75,7 +75,7 @@ class LocalDateConverters {
     @TypeConverter fun toLocalDate(value: String?): LocalDate? = value?.let(LocalDate::parse)
 }
 
-/** Runs several DAO calls as one unit: one use case, one transaction (Doc 2 s5.1). Fakes just run the block. */
+/** Runs several DAO calls as one unit: one use case, one transaction (Doc 2 s5.1). A test double just runs the block. */
 interface UnitOfWork {
     suspend fun <T> run(block: suspend () -> T): T
 }

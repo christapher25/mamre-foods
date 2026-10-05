@@ -57,7 +57,7 @@ private fun inGraph(route: String, graph: String) = route == graph || route.star
 
 /**
  * Where the app starts. Version 1 starts at the Sales Home with no screen in front of it (the PIN lock comes in the next
- * step). A build may install an entry gate that puts one screen in front (the debug build's demo login): then the app
+ * step). A build may install an entry gate that puts one screen in front (the debug build's login screen): then the app
  * starts at the gate's route, and the gate decides when the Sales Home is reached.
  */
 fun appStartDestination(gateRoute: String?): String = gateRoute ?: Routes.SALES_GRAPH

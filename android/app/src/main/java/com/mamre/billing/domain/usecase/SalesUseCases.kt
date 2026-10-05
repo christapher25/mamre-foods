@@ -48,7 +48,7 @@ import java.util.UUID
 
 // The write side of the Sales area and the Admin's void (Doc 1 s5, s6, s7; Doc 2 s5.1, s10). Every use case runs in ONE
 // transaction ([UnitOfWork]) and enforces its rules itself, not only the screen: a rule broken here writes nothing.
-// Each takes a [Clock], so the bill date, payment date and return date can be fixed (the debug demo seeder and tests).
+// Each takes a [Clock], so the bill date, payment date and return date can be fixed (the debug sample-data seeder and tests).
 
 /** What the Owner confirmed at the payment step (Doc 1 s5.1). [id] is made once per bill, so confirming twice stores one. */
 data class BillDraft(

@@ -21,7 +21,7 @@ fun payerKind(customer: Customer?): PayerKind = when {
 
 private val RECEIPT_NUMBER_PREFIX = "RCP"
 
-/** RCP-<DEVICE>-<SEQ>. The format is a demo choice: Doc 2 has no receipt number format (QUESTIONS). */
+/** RCP-<DEVICE>-<SEQ>. The format is a working choice: Doc 2 has no receipt number format (QUESTIONS). */
 fun receiptNumber(deviceCode: String, sequence: Int): String {
     require(deviceCode.isNotEmpty() && deviceCode.all { it in 'A'..'Z' || it in '0'..'9' }) {
         "device code must be A-Z and 0-9"

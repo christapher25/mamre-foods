@@ -107,17 +107,17 @@ class PaymentFlowViewModel @Inject constructor(
     /** What the last Record was refused for (the use case enforces the rules). */
     val error: StateFlow<String?> = _error
 
-    val ui: StateFlow<PaymentUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, demo, device ->
+    val ui: StateFlow<PaymentUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, sold, device ->
         if (snap == null) return@combine PaymentUi(deviceCode = device)
         // A corporate account's balance is never carried into the Sales area (Doc 1 s4.1, Doc 2 I-16).
-        val balance = inp.customer?.let { demo.balanceShownInSales(it.id, it.isCorporate) } ?: 0L
+        val balance = inp.customer?.let { sold.balanceShownInSales(it.id, it.isCorporate) } ?: 0L
         PaymentUi(
             loading = false,
             deviceCode = device,
             query = inp.query,
             // Saved customers only: a walk-in has no ledger to take a payment against (Doc 1 s4.1).
             customers = filterCustomers(snap.customers, inp.query)
-                .map { CustomerRow(it, snap.typeName(it), demo.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
+                .map { CustomerRow(it, snap.typeName(it), sold.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
             customer = inp.customer,
             balanceCents = balance,
             amountText = inp.amountText,

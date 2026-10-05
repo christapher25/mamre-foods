@@ -22,8 +22,9 @@ class MainSourceGuardTest {
 
     @Test fun mainNeverNamesDemoCredentialsOrFakeOrDemoClasses() {
         assertTrue("expected the main sources", mainFiles().size > 80)
-        val found = hits(Regex("""FakeCredentials|admin5|\bFake[A-Z]\w*|\bDemo[A-Z]\w*|DEMO[ _]DATA|DEMO_"""))
-        assertEquals("a demo or fake name is written in main: $found", emptyList<String>(), found)
+        // Case-insensitive and over the whole file, so words in COMMENTS and variable names count too.
+        val found = hits(Regex("""(?i)admin5|\bdemo\w*|\bfake\w*"""))
+        assertEquals("a demo or fake word is written in main (code or comment): $found", emptyList<String>(), found)
     }
 
     @Test fun mainHasNoDestructiveMigrationAndNoNetworkClient() {

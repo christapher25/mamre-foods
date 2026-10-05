@@ -16,7 +16,6 @@ import com.mamre.billing.data.repo.ExpenseRepository
 import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.StockRepository
-import com.mamre.billing.data.repo.identityKey
 import com.mamre.billing.data.repo.toAdmin
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.BusinessSettings
@@ -37,6 +36,7 @@ import com.mamre.billing.domain.admin.validateSettings
 import com.mamre.billing.domain.model.CustomerIdentity
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.checkCustomerIdentity
+import com.mamre.billing.domain.model.identityKey
 import com.mamre.billing.domain.model.identityProblemMessage
 import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.centsToPlain

@@ -111,7 +111,7 @@ class ReturnFlowViewModel @Inject constructor(
     /** What the last Record was refused for (the use case enforces the rules). */
     val error: StateFlow<String?> = _error
 
-    val ui: StateFlow<ReturnUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, demo, device ->
+    val ui: StateFlow<ReturnUi> = combine(input, snapshot, sales.observeState(), deviceCode) { inp, snap, sold, device ->
         if (snap == null) return@combine ReturnUi(deviceCode = device)
         val today = LocalDate.now(clock)
         ReturnUi(
@@ -119,7 +119,7 @@ class ReturnFlowViewModel @Inject constructor(
             deviceCode = device,
             query = inp.query,
             customers = filterCustomers(snap.customers, inp.query)
-                .map { CustomerRow(it, snap.typeName(it), demo.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
+                .map { CustomerRow(it, snap.typeName(it), sold.balanceShownInSales(it.id, it.isCorporate) ?: 0L) },
             customer = inp.customer,
             products = snap.products.map { ProductRow(it, snap.priceFor(inp.customer, it, today)) },
             productId = inp.productId,
