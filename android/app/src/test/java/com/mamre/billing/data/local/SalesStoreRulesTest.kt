@@ -108,14 +108,14 @@ class SalesStoreRulesTest {
     /** AT-9: a credit reduces the balance, a replacement does not. */
     @Test fun aCreditReturnReducesTheBalance() = runBlocking {
         val (w, id) = worldWithSection65Ledger()
-        val record = w.recordReturn(w.returnOf(id, qty = 4, unit = 250, credit = true))
-        assertEquals(1000L, record.creditCents)
-        assertEquals(11000L, w.sales.state().balanceOf(id))
+        val record = w.recordReturn(w.returnOf(id, qty = 4, credit = true))
+        assertEquals(400L, record.creditCents) // 4 packets at the customer's current price, 1.00 here
+        assertEquals(11600L, w.sales.state().balanceOf(id))
     }
 
     @Test fun aReplacementLeavesTheBalanceAlone() = runBlocking {
         val (w, id) = worldWithSection65Ledger()
-        val record = w.recordReturn(w.returnOf(id, qty = 4, unit = 250, credit = false))
+        val record = w.recordReturn(w.returnOf(id, qty = 4, credit = false))
         assertEquals(0L, record.creditCents)
         assertEquals(ReturnResolution.REPLACEMENT, record.resolution)
         assertEquals(12000L, w.sales.state().balanceOf(id))
@@ -123,16 +123,16 @@ class SalesStoreRulesTest {
 
     @Test fun aReturnRecordedTwiceWithTheSameIdIsStoredOnce() = runBlocking {
         val (w, id) = worldWithSection65Ledger()
-        w.recordReturn(w.returnOf(id, qty = 4, unit = 250, id = "r1"))
-        w.recordReturn(w.returnOf(id, qty = 4, unit = 250, id = "r1"))
+        w.recordReturn(w.returnOf(id, qty = 4, id = "r1"))
+        w.recordReturn(w.returnOf(id, qty = 4, id = "r1"))
         assertEquals(1, w.sales.state().returns.size)
-        assertEquals(11000L, w.sales.state().balanceOf(id))
+        assertEquals(11600L, w.sales.state().balanceOf(id))
     }
 
     @Test fun recordsAreOnlyEverAdded() = runBlocking {
         val (w, id) = worldWithSection65Ledger()
         w.recordPayment(w.payment(id, 5000, id = "p9"))
-        w.recordReturn(w.returnOf(id, qty = 4, unit = 250, id = "r9"))
+        w.recordReturn(w.returnOf(id, qty = 4, id = "r9"))
         val state = w.sales.state()
         assertEquals(1, state.payments.count { it.id == "p9" })
         assertEquals(1, state.returns.count { it.id == "r9" })

@@ -65,6 +65,9 @@ class SalesRepository(private val db: MamreDatabase, private val zone: () -> Zon
 
     suspend fun returnRow(id: String): ReturnEntity? = db.returnDao().get(id)
 
+    /** Everything already returned against one bill (credits and replacements). */
+    suspend fun returnsOfInvoice(invoiceId: String): List<ReturnEntity> = db.returnDao().forInvoice(invoiceId)
+
     suspend fun insertReturn(row: ReturnEntity) = db.returnDao().insert(row)
 
     suspend fun state(): SalesState = build(rows(), db.customerDao().getAll())

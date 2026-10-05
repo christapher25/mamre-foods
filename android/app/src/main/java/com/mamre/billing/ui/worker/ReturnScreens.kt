@@ -159,11 +159,10 @@ class ReturnFlowViewModel @Inject constructor(
         val product = u.product ?: return
         val reason = u.reason ?: return
         val resolution = u.resolution ?: return
-        val price = u.unitPriceCents ?: return
         viewModelScope.launch {
             try {
                 val record = recordReturn(
-                    ReturnDraft(draftId, customer.id, product.product.id, u.qty, reason, resolution, price),
+                    ReturnDraft(draftId, customer.id, product.product.id, u.qty, product.standardSize, reason, resolution),
                 )
                 _error.value = null
                 input.update { it.copy(saved = record) }

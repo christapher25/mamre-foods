@@ -22,7 +22,9 @@ import com.mamre.billing.domain.pricing.PriceResult
 import com.mamre.billing.domain.pricing.resolvePrice
 import com.mamre.billing.domain.worker.InvoiceLine
 import com.mamre.billing.domain.worker.InvoiceRecord
+import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
 import com.mamre.billing.domain.worker.MAX_PRICE_FACTOR
+import com.mamre.billing.domain.worker.isValidPacketSize
 import com.mamre.billing.domain.worker.PayerKind
 import com.mamre.billing.domain.worker.PaymentCheck
 import com.mamre.billing.domain.worker.PaymentMethod
@@ -209,22 +211,31 @@ class RecordPayment(
     }
 }
 
-/** What the Owner confirmed on the Return screen (Doc 1 s7.1). [unitPriceCents] is the price the credit is worked out at. */
+/**
+ * What the Owner confirmed on the Return screen (Doc 1 s7.1). There is no price in it: the use case works the price out
+ * ([RecordReturn]). [chapathisPerPacket] is the size of the returned packets (12 for a standard packet).
+ */
 data class ReturnDraft(
     val id: String,
     val customerId: String,
     val productId: String,
     val qtyPackets: Int,
+    val chapathisPerPacket: Int,
     val reason: ReturnReason,
     val resolution: ReturnResolution,
-    val unitPriceCents: Long,
     val invoiceId: String? = null,
     val note: String = "",
 )
 
 /**
- * Records a customer return (Doc 1 s7.1, AT-9): a Credit lowers the balance by packets x price; a Replacement changes no
- * balance. A missing price is refused, never zero. A linked bill must belong to the customer and contain the product.
+ * Records a customer return (Doc 1 s7.1, AT-9). Enforced here:
+ *  - the credit is worth packets x the LINKED bill's unit price for that product and packet size, or, with no bill linked,
+ *    the customer's CURRENT price (override or type default, a custom size priced half up); no price means no return;
+ *  - the returned packet size is stored (not the product's standard size), 1 to 200 chapathis;
+ *  - a linked bill must be the customer's, must hold that product in that packet size, and the quantity returned cannot
+ *    exceed what the bill held less what was already returned against it (credits and replacements both count);
+ *  - a Credit lowers the balance, a Replacement changes none.
+ * Repeating a draft id stores one return (Doc 2 I-11).
  */
 class RecordReturn(
     private val unitOfWork: UnitOfWork,
@@ -236,27 +247,43 @@ class RecordReturn(
     suspend operator fun invoke(draft: ReturnDraft): ReturnRecord {
         unitOfWork.run {
             if (sales.returnRow(draft.id) != null) return@run
-            customers.customer(draft.customerId) ?: refuse("The customer was not found")
+            val customerRow = customers.customer(draft.customerId) ?: refuse("The customer was not found")
             val product = prices.products().firstOrNull { it.id == draft.productId } ?: refuse("The product was not found")
             if (draft.qtyPackets <= 0) refuse("A return needs at least one packet")
-            if (draft.unitPriceCents <= 0) refuse("A return needs a price: no price means no credit")
-            draft.invoiceId?.let { id ->
-                val bill = sales.invoice(id) ?: refuse("The bill was not found")
+            if (!isValidPacketSize(draft.chapathisPerPacket)) refuse("A packet holds 1 to $MAX_PACKET_SIZE chapathis")
+            val unitPrice: Long
+            val invoiceId = draft.invoiceId
+            if (invoiceId != null) {
+                val bill = sales.invoice(invoiceId) ?: refuse("The bill was not found")
                 if (bill.customerId != draft.customerId) refuse("That bill belongs to another customer")
-                if (sales.itemsOf(id).none { it.productId == draft.productId }) refuse("That bill does not contain ${product.name}")
+                val lines = sales.itemsOf(invoiceId).filter { it.productId == draft.productId && it.chapathisPerPacket == draft.chapathisPerPacket }
+                if (lines.isEmpty()) refuse("That bill does not contain ${product.name} in packets of ${draft.chapathisPerPacket}")
+                val held = lines.sumOf { it.qtyPackets }
+                val returned = sales.returnsOfInvoice(invoiceId)
+                    .filter { it.productId == draft.productId && it.chapathisPerPacket == draft.chapathisPerPacket }.sumOf { it.qtyPackets }
+                val left = held - returned
+                if (draft.qtyPackets > left) refuse("Only $left of the $held packets on that bill can still be returned")
+                // The packets were sold at this price on this bill (Doc 1 s7.1).
+                unitPrice = lines.first().unitPriceCents
+            } else {
+                val standardProduct = Product(product.id, product.code, product.name, product.standardPacketSize, product.isActive)
+                val found = resolvePrice(customerRow.toCustomer(), standardProduct, LocalDate.now(clock), prices.priceBook()) as? PriceResult.Found
+                val standard = found?.unitPriceCents ?: refuse("A return needs a price: no price is set for ${product.name}")
+                unitPrice = customPacketPriceCents(standard, draft.chapathisPerPacket, product.standardPacketSize)
             }
+            if (unitPrice <= 0) refuse("A return needs a price: no price means no credit")
             sales.insertReturn(
                 ReturnEntity(
                     id = draft.id,
                     customerId = draft.customerId,
-                    invoiceId = draft.invoiceId,
+                    invoiceId = invoiceId,
                     productId = draft.productId,
                     qtyPackets = draft.qtyPackets,
-                    chapathisPerPacket = product.standardPacketSize,
+                    chapathisPerPacket = draft.chapathisPerPacket,
                     reason = draft.reason.stored(),
                     resolution = draft.resolution.stored(),
-                    unitPriceCents = draft.unitPriceCents,
-                    creditCents = returnCreditCents(draft.resolution, draft.qtyPackets, draft.unitPriceCents),
+                    unitPriceCents = unitPrice,
+                    creditCents = returnCreditCents(draft.resolution, draft.qtyPackets, unitPrice),
                     occurredAt = clock.millis(),
                     note = draft.note.trim(),
                 ),

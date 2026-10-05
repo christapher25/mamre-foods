@@ -133,7 +133,7 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
         }
         history.returns.forEach { r ->
             events += Event(r.date.atTime(14, 0), 4, r.id) {
-                recordReturn(ReturnDraft(r.id, r.customerId, r.productId, r.qtyPackets, r.reason, r.resolution, r.unitPriceCents, r.invoiceId))
+                recordReturn(ReturnDraft(r.id, r.customerId, r.productId, r.qtyPackets, r.chapathisPerPacket, r.reason, r.resolution, r.invoiceId))
             }
         }
         val addPurchase = AddPurchase(u, stock, log, clock)

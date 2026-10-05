@@ -147,8 +147,18 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
     fun payment(customerId: String, cents: Long, method: PaymentMethod = PaymentMethod.CASH, note: String = "", id: String = UUID.randomUUID().toString()) =
         PaymentDraft(id, customerId, cents, method, note)
 
-    fun returnOf(customerId: String, qty: Int, unit: Long, credit: Boolean = true, id: String = UUID.randomUUID().toString()) = ReturnDraft(
-        id, customerId, ReferenceIds.PRODUCT_FRESH, qty, com.mamre.billing.domain.worker.ReturnReason.DAMAGED,
-        if (credit) com.mamre.billing.domain.worker.ReturnResolution.CREDIT else com.mamre.billing.domain.worker.ReturnResolution.REPLACEMENT, unit,
+    /** A return of [qty] packets of [size] chapathis; the price is worked out by the use case (linked bill, or current price). */
+    fun returnOf(
+        customerId: String,
+        qty: Int,
+        credit: Boolean = true,
+        id: String = UUID.randomUUID().toString(),
+        invoiceId: String? = null,
+        size: Int = 12,
+        product: String = ReferenceIds.PRODUCT_FRESH,
+    ) = ReturnDraft(
+        id, customerId, product, qty, size, com.mamre.billing.domain.worker.ReturnReason.DAMAGED,
+        if (credit) com.mamre.billing.domain.worker.ReturnResolution.CREDIT else com.mamre.billing.domain.worker.ReturnResolution.REPLACEMENT,
+        invoiceId,
     )
 }

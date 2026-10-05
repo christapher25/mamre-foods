@@ -282,12 +282,11 @@ class MakeBillRulesTest {
         val c = w.customer("Spice Garden", "Irving")
         w.makeBill(w.draft(c.id, listOf(w.line(qty = 10, unit = 250))))
         assertEquals(2500L, w.sales.state().balanceOf(c.id))
-        w.recordReturn(w.returnOf(c.id, qty = 2, unit = 250, credit = true))
+        w.recordReturn(w.returnOf(c.id, qty = 2, credit = true))
         assertEquals(2000L, w.sales.state().balanceOf(c.id))
-        w.recordReturn(w.returnOf(c.id, qty = 3, unit = 250, credit = false))
+        w.recordReturn(w.returnOf(c.id, qty = 3, credit = false))
         assertEquals(2000L, w.sales.state().balanceOf(c.id))
-        assertTrue(refused { w.recordReturn(w.returnOf(c.id, qty = 0, unit = 250)) }.isNotEmpty())
-        assertTrue(refused { w.recordReturn(w.returnOf(c.id, qty = 1, unit = 0)) }.contains("price"))
+        assertTrue(refused { w.recordReturn(w.returnOf(c.id, qty = 0)) }.isNotEmpty())
         assertEquals(2, w.db.returnDao().getAll().size)
     }
 

@@ -166,6 +166,9 @@ interface ReturnDao {
 
     @Query("SELECT * FROM return_records WHERE customer_id = :customerId ORDER BY occurred_at, id")
     suspend fun forCustomer(customerId: String): List<ReturnEntity>
+
+    @Query("SELECT * FROM return_records WHERE invoice_id = :invoiceId ORDER BY occurred_at, id")
+    suspend fun forInvoice(invoiceId: String): List<ReturnEntity>
 }
 
 @Dao
