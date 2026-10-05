@@ -1,7 +1,7 @@
 package com.mamre.billing.ui.admin
 
 import com.mamre.billing.domain.admin.sharePercent
-import com.mamre.billing.domain.auth.Role
+import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.domain.auth.routeAllowed
 import com.mamre.billing.domain.auth.startDestinationFor
 import org.junit.Assert.assertEquals
@@ -11,17 +11,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AdminNavigationTest {
-    @Test fun everyAdminRouteBelongsToTheAdminAndNoWorkerCanReachOne() {
+    @Test fun everyAdminRouteBelongsToTheAdminAreaAndNoSalesRouteCanReachOne() {
         assertTrue(AdminRoutes.all.size >= 15)
         for (r in AdminRoutes.all) {
-            assertTrue(r, routeAllowed(Role.ADMIN, r))
-            assertFalse(r, routeAllowed(Role.WORKER, r))
-            assertFalse(r, routeAllowed(null, r))
+            assertTrue(r, routeAllowed(Area.ADMIN, r))
+            assertFalse(r, routeAllowed(Area.SALES, r))
         }
     }
 
     @Test fun theAdminStartsOnTheDashboard() {
-        assertEquals(AdminRoutes.DASHBOARD, startDestinationFor(Role.ADMIN))
+        assertEquals(AdminRoutes.DASHBOARD, startDestinationFor(Area.ADMIN))
     }
 
     @Test fun routesAreUniqueSoNoScreenShadowsAnother() {
@@ -38,7 +37,7 @@ class AdminNavigationTest {
         for (r in listOf(AdminRoutes.MORE, AdminRoutes.COSTING, AdminRoutes.EXPENSES, AdminRoutes.RETURNS, AdminRoutes.BALANCES, AdminRoutes.SETTINGS)) {
             assertEquals(r, AdminTab.MORE, tabOf(r))
         }
-        assertNull(tabOf("worker/home"))
+        assertNull(tabOf("sales/home"))
         assertNull(tabOf(null))
     }
 

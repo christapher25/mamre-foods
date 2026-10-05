@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,7 +31,6 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.data.admin.DataSpan
-import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminInvoice
 import com.mamre.billing.domain.admin.InvoiceDetail
@@ -100,7 +100,7 @@ fun SalesListContent(ui: SalesListUi, onFilter: (InvoiceFilter) -> Unit, onOpen:
     var pickCustomer by remember { mutableStateOf(false) }
     val shown = remember(ui.invoices, ui.filter) { filterInvoices(ui.invoices, ui.filter) }
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Sales", actions = { DemoChip() })
+        AppTopBar(title = "Sales", actions = { DataLabelChip() })
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(Spacing.lg),
@@ -202,7 +202,6 @@ data class SalesDetailUi(
 @HiltViewModel
 class SalesDetailViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val id: String = checkNotNull(savedState[AdminRoutes.ARG_ID])
@@ -218,7 +217,7 @@ class SalesDetailViewModel @Inject constructor(
     fun voidInvoice(reason: String) {
         viewModelScope.launch {
             try {
-                api.voidInvoice(id, reason, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.voidInvoice(id, reason)
                 _ui.update { it.copy(error = null) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -240,7 +239,7 @@ fun SalesDetailContent(ui: SalesDetailUi, onBack: () -> Unit, onVoid: (String) -
     var confirm by remember { mutableStateOf(false) }
     val d = ui.detail
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Invoice", subtitle = d?.invoice?.number, onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Invoice", subtitle = d?.invoice?.number, onBack = onBack, actions = { DataLabelChip() })
         if (d == null) {
             if (!ui.loading) EmptyState("Invoice not found")
             return@Column

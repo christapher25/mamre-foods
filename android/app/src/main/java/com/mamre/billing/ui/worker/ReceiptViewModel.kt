@@ -3,8 +3,8 @@ package com.mamre.billing.ui.worker
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mamre.billing.data.demo.DemoStore
-import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.data.repo.SalesRepository
+import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.print.PrintDocument
 import com.mamre.billing.print.PrintResult
@@ -37,8 +37,8 @@ data class ReceiptUi(
 @HiltViewModel
 class ReceiptViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    private val store: DemoStore,
-    private val catalog: CatalogRepository,
+    private val sales: SalesRepository,
+    private val settings: SettingsRepository,
     private val printer: ReceiptPrinter,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(ReceiptUi())
@@ -54,15 +54,16 @@ class ReceiptViewModel @Inject constructor(
     }
 
     private suspend fun invoiceUi(id: String, duplicate: Boolean): ReceiptUi {
-        val state = store.state.value
+        val state = sales.state()
         val invoice = state.invoices.firstOrNull { it.id == id } ?: return ReceiptUi(title = "Invoice not found")
-        val customer = invoice.customerId?.let { catalog.customer(it) }
+        val mode = invoice.customerId?.let { sales.customerPaymentMode(it) }
         val receipt = invoiceReceiptOf(
             invoice = invoice,
             customerLedger = invoice.customerId?.let(state::ledgerOf).orEmpty(),
-            showMonthSummary = customer?.paymentMode == PaymentMode.CREDIT,
-            header = catalog.businessHeader(),
+            showMonthSummary = mode == PaymentMode.CREDIT,
+            header = settings.businessHeader(),
             duplicate = duplicate,
+            openingBalanceCents = invoice.customerId?.let(state::openingOf) ?: 0L,
         )
         return ReceiptUi(
             title = invoice.number,
@@ -72,9 +73,9 @@ class ReceiptViewModel @Inject constructor(
     }
 
     private suspend fun paymentUi(id: String): ReceiptUi {
-        val state = store.state.value
+        val state = sales.state()
         val payment = state.payments.firstOrNull { it.id == id } ?: return ReceiptUi(title = "Receipt not found")
-        val receipt = paymentReceiptOf(payment, state.balanceOf(payment.customerId), catalog.businessHeader())
+        val receipt = paymentReceiptOf(payment, state.balanceOf(payment.customerId), settings.businessHeader())
         return ReceiptUi(title = payment.receiptNumber, lines = layoutPaymentReceipt(receipt))
     }
 

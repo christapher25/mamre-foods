@@ -95,7 +95,7 @@ fun AdminBottomBar(selected: AdminTab?, onSelect: (AdminTab) -> Unit) {
 
 /** More opens the five less frequent screens (owner brief). */
 @Composable
-fun MoreScreen(onOpen: (String) -> Unit) {
+fun MoreScreen(onOpen: (String) -> Unit, onSalesArea: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "More")
         Column(
@@ -106,7 +106,8 @@ fun MoreScreen(onOpen: (String) -> Unit) {
             MoreItem("Expenses", "Material purchases and other expenses", AdminRoutes.EXPENSES, onOpen)
             MoreItem("Returns and damage", "Customer returns and production damage", AdminRoutes.RETURNS, onOpen)
             MoreItem("Balances", "Who owes what, with ageing", AdminRoutes.BALANCES, onOpen)
-            MoreItem("Settings", "Business details, salesmen, log out", AdminRoutes.SETTINGS, onOpen)
+            MoreItem("Settings", "Business details and wastage", AdminRoutes.SETTINGS, onOpen)
+            MoreItem("Sales area", "Switch to bills, payments and returns", "", { onSalesArea() })
         }
     }
 }

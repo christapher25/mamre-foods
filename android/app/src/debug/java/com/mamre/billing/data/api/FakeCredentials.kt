@@ -1,25 +1,24 @@
 package com.mamre.billing.data.api
 
-import com.mamre.billing.domain.auth.Role
+import com.mamre.billing.domain.auth.Area
 
 /**
- * TEST CREDENTIALS, never in a release build.
+ * TEST CREDENTIALS, never in a release build (this file is in the debug source set only).
  *
- * Used only by FakeApi, which the release build type switches off (USE_FAKE_API=false).
- * The role of an account comes back from /me, never from the typed username.
+ * The debug build puts a demo login in front of the app, so the screenshots and the manual checks can open either area.
+ * The area an account opens comes from this table, never from anything the user types.
  */
 object FakeCredentials {
     data class Account(
         val username: String,
         val password: String,
-        val role: Role,
+        val area: Area,
         val fullName: String,
-        val deviceCode: String?,
     )
 
     val accounts = listOf(
-        Account("admin", "admin5", Role.ADMIN, "Test Admin", null),
-        Account("user1", "user1", Role.WORKER, "Rajesh", "W1"),
+        Account("admin", "admin5", Area.ADMIN, "Test Admin"),
+        Account("user1", "user1", Area.SALES, "Rajesh"),
     )
 
     /** Exact, case-sensitive match on both fields; anything else is null. */

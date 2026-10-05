@@ -129,6 +129,9 @@ interface InvoiceItemDao {
     @Query("SELECT * FROM invoice_items WHERE invoice_id = :invoiceId ORDER BY rowid")
     suspend fun forInvoice(invoiceId: String): List<InvoiceItemEntity>
 
+    @Query("SELECT * FROM invoice_items WHERE invoice_id IN (:invoiceIds) ORDER BY rowid")
+    suspend fun forInvoices(invoiceIds: List<String>): List<InvoiceItemEntity>
+
     @Query("SELECT * FROM invoice_items ORDER BY rowid") suspend fun getAll(): List<InvoiceItemEntity>
 
     @Query("SELECT * FROM invoice_items ORDER BY rowid") fun observeAll(): Flow<List<InvoiceItemEntity>>
@@ -160,6 +163,9 @@ interface ReturnDao {
     @Query("SELECT * FROM return_records ORDER BY occurred_at, id") fun observeAll(): Flow<List<ReturnEntity>>
 
     @Query("SELECT * FROM return_records WHERE id = :id") suspend fun get(id: String): ReturnEntity?
+
+    @Query("SELECT * FROM return_records WHERE customer_id = :customerId ORDER BY occurred_at, id")
+    suspend fun forCustomer(customerId: String): List<ReturnEntity>
 }
 
 @Dao

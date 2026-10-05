@@ -57,7 +57,6 @@ class BooksLogicTest {
         openingStock = emptyMap(),
         wastageBp = 200,
         settings = BusinessSettings("", "", "", ""),
-        workers = emptyList(),
         today = today,
     )
 

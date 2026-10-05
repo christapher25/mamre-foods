@@ -15,7 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,11 +28,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mamre.billing.data.demo.DEMO_DATA_LABEL
+import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
-import com.mamre.billing.ui.components.ChipKind
-import com.mamre.billing.ui.components.StatusChip
 import com.mamre.billing.ui.theme.Spacing
 
 /** One Home tile (Doc 2 s10, W1). */
@@ -41,24 +39,23 @@ enum class HomeTile(val title: String) {
     RECORD_PAYMENT("Record payment"),
     RETURN("Return"),
     TODAYS_INVOICES("Today's invoices"),
-    SYNC_STATUS("Sync status"),
 }
 
-/** W1 Home: the salesman's name and device code on top, a large New invoice tile, a 2x2 grid. */
+/** W1 Home: the Owner's name and device code on top, a large New invoice tile, a 2x2 grid with the switch to the Admin area. */
 @Composable
 fun HomeScreen(
     onTile: (HomeTile) -> Unit,
+    onAdminArea: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
-            title = state.workerName ?: "Mamre Foods",
+            // The business name is a Settings value, never a string in the code (Doc 1 A-31).
+            title = state.businessName.ifBlank { "Billing" },
             showLogo = true,
-            subtitle = state.deviceCode?.let { "Salesman - device $it" } ?: "Salesman",
-            actions = {
-                StatusChip(DEMO_DATA_LABEL, kind = ChipKind.ACCENT, modifier = Modifier.padding(end = Spacing.sm))
-            },
+            subtitle = "${state.ownerName.ifBlank { "Owner" }} - device ${state.deviceCode}",
+            actions = { DataLabelChip() },
         )
         Column(
             modifier = Modifier
@@ -86,12 +83,7 @@ fun HomeScreen(
                 GridTile("Today's invoices", Icons.Default.Today, Modifier.weight(1f).fillMaxHeight()) {
                     onTile(HomeTile.TODAYS_INVOICES)
                 }
-                GridTile(
-                    "Sync status",
-                    Icons.Default.Sync,
-                    Modifier.weight(1f).fillMaxHeight(),
-                    detail = "Pending: ${state.pendingCount}",
-                ) { onTile(HomeTile.SYNC_STATUS) }
+                GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
             }
         }
     }

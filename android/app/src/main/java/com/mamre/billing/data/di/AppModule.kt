@@ -2,22 +2,23 @@ package com.mamre.billing.data.di
 
 import android.content.Context
 import androidx.room.Room
-import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.admin.AdminApi
-import com.mamre.billing.data.admin.UnavailableAdminApi
-import com.mamre.billing.data.api.AppVersionInterceptor
-import com.mamre.billing.data.api.BackendApi
-import com.mamre.billing.data.api.MamreService
-import com.mamre.billing.data.api.RetrofitBackendApi
-import com.mamre.billing.data.auth.EncryptedTokenStore
-import com.mamre.billing.data.auth.SessionManager
-import com.mamre.billing.data.auth.TokenStore
-import com.mamre.billing.data.db.AppDatabase
-import com.mamre.billing.data.db.RoomTransactionRunner
-import com.mamre.billing.data.db.TransactionRunner
-import com.mamre.billing.data.demo.DemoStore
-import com.mamre.billing.data.repository.CatalogRemote
-import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.data.admin.LocalAdminApi
+import com.mamre.billing.data.local.MamreDatabase
+import com.mamre.billing.data.local.ReferenceSeed
+import com.mamre.billing.data.local.RoomUnitOfWork
+import com.mamre.billing.data.local.UnitOfWork
+import com.mamre.billing.data.repo.BooksRepository
+import com.mamre.billing.data.repo.ExpenseRepository
+import com.mamre.billing.data.repo.ChangeLogRepository
+import com.mamre.billing.data.repo.CustomerRepository
+import com.mamre.billing.data.repo.PriceRepository
+import com.mamre.billing.data.repo.SalesRepository
+import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.data.repo.StockRepository
+import com.mamre.billing.domain.usecase.MakeBill
+import com.mamre.billing.domain.usecase.RecordPayment
+import com.mamre.billing.domain.usecase.RecordReturn
 import com.mamre.billing.print.MockPrinter
 import com.mamre.billing.print.ReceiptPrinter
 import dagger.Module
@@ -25,87 +26,83 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import java.util.Optional
+import java.time.Clock
 import javax.inject.Singleton
-import kotlinx.serialization.json.Json
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
+/**
+ * The database, the repositories and the use cases (Doc 2 s3, s5.1). One Room database file, mamre.db, with its written
+ * migrations and NO destructive fallback (Doc 2 I-15): a schema the app cannot open is an error, never a wipe.
+ */
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
     @Provides @Singleton
-    fun json(): Json = Json {
-        ignoreUnknownKeys = true
-        explicitNulls = false
-    }
+    fun clock(): Clock = Clock.systemDefaultZone()
 
-    /**
-     * The real server client, or the demo stand-in when this is a debug build (USE_FAKE_API) and the debug source
-     * set bound one. A release build has no demo classes at all, so [demo] is empty there (Doc 2 s2).
-     */
     @Provides @Singleton
-    fun backendApi(json: Json, @DemoImpl demo: Optional<BackendApi>): BackendApi {
-        if (BuildConfig.USE_FAKE_API && demo.isPresent) return demo.get()
-        val client = OkHttpClient.Builder()
-            .addInterceptor(AppVersionInterceptor(BuildConfig.VERSION_NAME))
+    fun database(@ApplicationContext context: Context): MamreDatabase =
+        Room.databaseBuilder(context, MamreDatabase::class.java, MamreDatabase.FILE_NAME)
+            .addMigrations(*MamreDatabase.MIGRATIONS)
             .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(BuildConfig.BASE_URL)
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
-        return RetrofitBackendApi(retrofit.create(MamreService::class.java), json)
-    }
 
     @Provides @Singleton
-    fun tokenStore(@ApplicationContext context: Context): TokenStore = EncryptedTokenStore(context)
+    fun unitOfWork(db: MamreDatabase): UnitOfWork = RoomUnitOfWork(db)
 
     @Provides @Singleton
-    fun sessionManager(api: BackendApi, store: TokenStore) = SessionManager(api, store, adminSignInAvailable = BuildConfig.USE_FAKE_API && BuildConfig.DEBUG)
+    fun referenceSeed(db: MamreDatabase, unitOfWork: UnitOfWork) = ReferenceSeed(db, unitOfWork)
 
-    /** The worker's in-memory records until Room and the outbox arrive (P2); a debug build starts it with demo data. */
+    // ------------------------------------------------------------------ repositories
+
     @Provides @Singleton
-    fun demoStore(@DemoImpl demo: Optional<DemoStore>): DemoStore = demo.orElseGet { DemoStore() }
+    fun settingsRepository(db: MamreDatabase) = SettingsRepository(db.settingDao())
 
-    /**
-     * The Admin API. There are no admin endpoints yet (QUESTIONS), so a release build gets the stub that always
-     * answers "Admin sign-in is not available on the server yet"; a debug build uses the demo server stand-in.
-     */
     @Provides @Singleton
-    fun adminApi(@DemoImpl demo: Optional<AdminApi>): AdminApi =
-        if (BuildConfig.USE_FAKE_API && demo.isPresent) demo.get() else UnavailableAdminApi()
+    fun customerRepository(db: MamreDatabase) = CustomerRepository(db)
 
-    /** MockPrinter until the Symcode printer SDK arrives (Doc 2 s7, P3). */
+    @Provides @Singleton
+    fun priceRepository(db: MamreDatabase) = PriceRepository(db)
+
+    @Provides @Singleton
+    fun salesRepository(db: MamreDatabase) = SalesRepository(db)
+
+    @Provides @Singleton
+    fun stockRepository(db: MamreDatabase) = StockRepository(db)
+
+    @Provides @Singleton
+    fun expenseRepository(db: MamreDatabase) = ExpenseRepository(db)
+
+    @Provides @Singleton
+    fun changeLogRepository(db: MamreDatabase) = ChangeLogRepository(db)
+
+    @Provides @Singleton
+    fun booksRepository(db: MamreDatabase) = BooksRepository(db)
+
+    // ------------------------------------------------------------------ the Sales area use cases
+
+    @Provides
+    fun makeBill(
+        u: UnitOfWork,
+        sales: SalesRepository,
+        customers: CustomerRepository,
+        prices: PriceRepository,
+        settings: SettingsRepository,
+        clock: Clock,
+    ) = MakeBill(u, sales, customers, prices, settings, clock)
+
+    @Provides
+    fun recordPayment(u: UnitOfWork, sales: SalesRepository, customers: CustomerRepository, settings: SettingsRepository, clock: Clock) =
+        RecordPayment(u, sales, customers, settings, clock)
+
+    @Provides
+    fun recordReturn(u: UnitOfWork, sales: SalesRepository, customers: CustomerRepository, prices: PriceRepository, clock: Clock) =
+        RecordReturn(u, sales, customers, prices, clock)
+
+    // ------------------------------------------------------------------ the Admin area
+
+    @Provides @Singleton
+    fun adminApi(db: MamreDatabase, clock: Clock): AdminApi = LocalAdminApi.create(db, clock)
+
+    /** MockPrinter until the handheld's printer library arrives (Doc 2 s7, P-1). */
     @Provides @Singleton
     fun receiptPrinter(): ReceiptPrinter = MockPrinter()
-
-    @Provides @Singleton
-    fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "mamre.db")
-            .fallbackToDestructiveMigration(true) // the catalog and its cursor are pulled again; nothing else is stored yet
-            .build()
-
-    @Provides @Singleton
-    fun transactionRunner(db: AppDatabase): TransactionRunner = RoomTransactionRunner(db)
-
-    @Provides @Singleton
-    fun catalogRepository(
-        db: AppDatabase,
-        transactions: TransactionRunner,
-        api: BackendApi,
-        session: SessionManager,
-    ) = CatalogRepository(
-        products = db.productDao(),
-        customerTypes = db.customerTypeDao(),
-        customers = db.customerDao(),
-        priceDefaults = db.priceDefaultDao(),
-        priceOverrides = db.priceOverrideDao(),
-        syncState = db.syncStateDao(),
-        settings = db.settingDao(),
-        transactions = transactions,
-        remote = CatalogRemote { cursor -> session.authorized { api.catalog(it, cursor) } },
-    )
 }

@@ -1,7 +1,6 @@
 package com.mamre.billing.data.admin
 
 import com.mamre.billing.domain.books.BooksLogic
-import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.Figure
 import com.mamre.billing.domain.admin.StockRow
 import com.mamre.billing.domain.worker.customPacketPriceCents
@@ -15,17 +14,17 @@ import org.junit.Test
 /** Change set C2 on the demo data: standard packets of 12, custom packets, chapathi based usage. */
 class ChapathiSeedTest {
     private val today = LocalDate.of(2026, 10, 2)
-    private val state = AdminSeed.build(today, SharedPriceTable.seeded(today, baseVersion = 10))
+    private val state = AdminSeed.build(today)
 
     @Test fun theStandardPacketIsTwelveChapathisAndTheYieldIs32() {
         assertTrue(state.products.all { it.unitsPerPacket == 12 && it.yieldPerKg == 32 })
     }
 
 
-    @Test fun theDefaultAndTheWorkersCatalogAlsoSayTwelve() {
+    @Test fun theDefaultAndTheFirstRunReferenceDataAlsoSayTwelve() {
         assertEquals(12, com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE)
-        assertEquals(12, SharedPriceTable.STANDARD_PACKET_SIZE)
-        assertTrue(SharedPriceTable.seeded(today, baseVersion = 10).products().all { it.standardPacketSize == 12 })
+        assertEquals(12, com.mamre.billing.data.local.ReferenceSeed.STANDARD_PACKET_SIZE)
+        assertTrue(com.mamre.billing.data.local.ReferenceSeed.products.all { it.standardPacketSize == 12 })
     }
     @Test fun everyInvoiceLineAddsUpAndHoldsOneToTwoHundredChapathis() {
         for (item in state.invoices.flatMap { it.items }) {

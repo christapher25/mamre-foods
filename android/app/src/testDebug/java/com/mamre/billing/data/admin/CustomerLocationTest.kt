@@ -1,45 +1,37 @@
 package com.mamre.billing.data.admin
 
-import com.mamre.billing.data.FakeCustomerDao
-import com.mamre.billing.data.FakeCustomerTypeDao
-import com.mamre.billing.data.FakePriceDefaultDao
-import com.mamre.billing.data.FakePriceOverrideDao
-import com.mamre.billing.data.FakeProductDao
-import com.mamre.billing.data.FakeSettingDao
-import com.mamre.billing.data.FakeSyncStateDao
-import com.mamre.billing.data.FakeTransactionRunner
-import com.mamre.billing.data.api.FakeApi
-import com.mamre.billing.data.demo.DemoIds
-import com.mamre.billing.data.demo.SharedPriceTable
-import com.mamre.billing.data.repository.CatalogRemote
-import com.mamre.billing.data.repository.CatalogRepository
+import com.mamre.billing.data.demo.DemoCustomerIds
+import com.mamre.billing.data.demo.DemoWorld
+import com.mamre.billing.data.local.ReferenceIds
+import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.admin.CustomerForm
 import com.mamre.billing.domain.model.PaymentMode
-import com.mamre.billing.domain.model.label
-import java.time.Clock
-import java.time.LocalDate
-import java.time.ZoneId
-import kotlinx.coroutines.test.runTest
+import com.mamre.billing.ui.worker.WorkerCatalog
+import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
-/** Change set D2: a customer is a name plus a location; the pair is unique; locations travel through the catalog and Sync now. */
+/** Change set D2 on the real database: a customer is a name plus a location, the pair is unique, and the Sales area sees a change at once. */
+@RunWith(RobolectricTestRunner::class)
 class CustomerLocationTest {
-    private val today = LocalDate.of(2026, 10, 3)
-    private val zone = ZoneId.systemDefault()
-    private val clock = Clock.fixed(today.atTime(12, 0).atZone(zone).toInstant(), zone)
-    private val table = SharedPriceTable.seeded(today)
-    private val admin = FakeAdminApi(clock, table)
-    private val api = FakeApi(table)
-    private val repo = CatalogRepository(
-        FakeProductDao(), FakeCustomerTypeDao(), FakeCustomerDao(), FakePriceDefaultDao(), FakePriceOverrideDao(),
-        FakeSyncStateDao(), FakeSettingDao(), FakeTransactionRunner(),
-        CatalogRemote { cursor -> api.catalog(api.login("user1", "user1").access, cursor) },
-    )
+    private lateinit var w: World
+    private val admin get() = w.admin
 
-    private fun form(name: String, location: String, type: String = DemoIds.SHOP_TYPE, mode: PaymentMode = PaymentMode.CASH) =
+    @Before fun open() {
+        w = runBlocking { DemoWorld.open() }
+    }
+
+    @After fun close() {
+        w.db.close()
+    }
+
+    private fun form(name: String, location: String, type: String = ReferenceIds.TYPE_SHOP, mode: PaymentMode = PaymentMode.CASH) =
         CustomerForm(name, type, "", "", mode, "", true, location = location)
 
     private suspend fun refused(block: suspend () -> Unit): String {
@@ -51,85 +43,77 @@ class CustomerLocationTest {
         throw AssertionError("expected AdminRuleException")
     }
 
+    private suspend fun salesCustomers() = WorkerCatalog(w.customers, w.prices).load().customers
+
     // ------------------------------------------------------------------ the seed
 
-    @Test fun everySeededCustomerHasALocationAndNameWithLocationIsUnique() {
-        val rows = table.customers()
+    @Test fun everySeededCustomerHasALocationAndNameWithLocationIsUnique() = runBlocking {
+        val rows = admin.customers()
         assertTrue(rows.all { it.location.isNotBlank() })
         assertEquals(rows.size, rows.map { it.name.lowercase() to it.location.lowercase() }.toSet().size)
     }
 
-    @Test fun freshMartIsTwoStoresOfOneChainOnCredit() = runTest {
-        val stores = table.customers().filter { it.name == "FreshMart" }
+    @Test fun freshMartIsTwoStoresOfOneChainOnCredit() = runBlocking {
+        val stores = admin.customers().filter { it.name == "FreshMart" }
         assertEquals(setOf("Downtown", "Westside"), stores.map { it.location }.toSet())
         assertTrue(stores.all { it.paymentMode == PaymentMode.CREDIT })
-        assertEquals(setOf(DemoIds.FRESHMART_DOWNTOWN, DemoIds.FRESHMART_WESTSIDE), stores.map { it.id }.toSet())
+        assertEquals(setOf(DemoCustomerIds.FRESHMART_DOWNTOWN, DemoCustomerIds.FRESHMART_WESTSIDE), stores.map { it.id }.toSet())
         // The Admin has both, told apart by their labels, each with its own ledger.
-        val adminStores = admin.customers().filter { it.name == "FreshMart" }
-        assertEquals(listOf("FreshMart - Downtown", "FreshMart - Westside"), adminStores.map { it.label }.sorted())
-        for (s in adminStores) {
-            assertTrue(admin.invoices().any { it.customerId == s.id && it.customerName == s.label })
-        }
+        assertEquals(listOf("FreshMart - Downtown", "FreshMart - Westside"), stores.map { it.label }.sorted())
+        for (s in stores) assertTrue(admin.invoices().any { it.customerId == s.id && it.customerName == s.name })
         assertTrue(admin.balances().any { it.customerName == "FreshMart - Downtown" })
         assertTrue(admin.balances().any { it.customerName == "FreshMart - Westside" })
     }
 
     // ------------------------------------------------------------------ the Admin form rules
 
-    @Test fun aSecondFreshMartNeedsADifferentLocation() = runTest {
-        val msg = refused { admin.addCustomer(form("FreshMart", "downtown"), "Test Admin") }
+    @Test fun aSecondFreshMartNeedsADifferentLocation() = runBlocking {
+        val msg = refused { admin.addCustomer(form("FreshMart", "downtown")) }
         assertTrue(msg, msg.contains("name and location already exists"))
-        assertTrue(refused { admin.addCustomer(form(" freshmart ", " Downtown  "), "Test Admin") }.isNotBlank())
-        val c = admin.addCustomer(form("FreshMart", "Midtown"), "Test Admin")
+        assertTrue(refused { admin.addCustomer(form(" freshmart ", " Downtown  ")) }.isNotBlank())
+        val c = admin.addCustomer(form("FreshMart", "Midtown"))
         assertEquals("FreshMart - Midtown", c.label)
-        assertTrue(admin.changeLog.value.single().after.contains("location 'Midtown'"))
+        assertTrue(w.newLog().single().after.contains("location 'Midtown'"))
     }
 
-    @Test fun aLocationIsRequiredExceptForANewRetailName() = runTest {
-        assertTrue(refused { admin.addCustomer(form("Curry Corner", "", DemoIds.RESTAURANT_TYPE), "Test Admin") }.contains("location"))
-        assertTrue(refused { admin.addCustomer(form("Hall", "  ", DemoIds.CATERING_TYPE), "Test Admin") }.contains("location"))
-        val walkInLike = admin.addCustomer(form("Nair Family", "", DemoIds.RETAIL_TYPE), "Test Admin")
+    @Test fun aLocationIsRequiredExceptForANewRetailName() = runBlocking {
+        assertTrue(refused { admin.addCustomer(form("Curry Corner", "", ReferenceIds.TYPE_RESTAURANT)) }.contains("location"))
+        assertTrue(refused { admin.addCustomer(form("Hall", "  ", ReferenceIds.TYPE_CATERING)) }.contains("location"))
+        val walkInLike = admin.addCustomer(form("Nair Family", "", ReferenceIds.TYPE_RETAIL))
         assertEquals("Nair Family", walkInLike.label) // no location, label is just the name
         // The name now exists, so a second one needs a location, even in Retail.
-        assertTrue(refused { admin.addCustomer(form("Nair Family", "", DemoIds.RETAIL_TYPE), "Test Admin") }.contains("already exists"))
-        assertEquals("Nair Family - Coppell", admin.addCustomer(form("Nair Family", "Coppell", DemoIds.RETAIL_TYPE), "Test Admin").label)
+        assertTrue(refused { admin.addCustomer(form("Nair Family", "", ReferenceIds.TYPE_RETAIL)) }.contains("already exists"))
+        assertEquals("Nair Family - Coppell", admin.addCustomer(form("Nair Family", "Coppell", ReferenceIds.TYPE_RETAIL)).label)
     }
 
-    @Test fun anEditKeepsItsOwnNameAndLocationButCannotTakeAnotherCustomers() = runTest {
-        val downtown = admin.customers().first { it.id == DemoIds.FRESHMART_DOWNTOWN }
-        val same = admin.updateCustomer(downtown.id, form("FreshMart", "Downtown", DemoIds.SHOP_TYPE, PaymentMode.CREDIT).copy(phone = "555"), "Test Admin")
+    @Test fun anEditKeepsItsOwnNameAndLocationButCannotTakeAnotherCustomers() = runBlocking {
+        val downtown = admin.customers().first { it.id == DemoCustomerIds.FRESHMART_DOWNTOWN }
+        val same = admin.updateCustomer(downtown.id, form("FreshMart", "Downtown", ReferenceIds.TYPE_SHOP, PaymentMode.CREDIT).copy(phone = "555"))
         assertEquals("555", same.phone)
-        refused { admin.updateCustomer(downtown.id, form("FreshMart", "Westside", DemoIds.SHOP_TYPE, PaymentMode.CREDIT), "Test Admin") }
+        refused { admin.updateCustomer(downtown.id, form("FreshMart", "Westside", ReferenceIds.TYPE_SHOP, PaymentMode.CREDIT)) }
         assertEquals("Downtown", admin.customer(downtown.id)!!.location)
     }
 
-    @Test fun extraSpacesInTheLocationAreTidiedWhenSaved() = runTest {
-        val c = admin.addCustomer(form("  Green   Leaf ", "  North   Dallas "), "Test Admin")
+    @Test fun extraSpacesInTheLocationAreTidiedWhenSaved() = runBlocking {
+        val c = admin.addCustomer(form("  Green   Leaf ", "  North   Dallas "))
         assertEquals("Green Leaf", c.name)
         assertEquals("North Dallas", c.location)
     }
 
-    // ------------------------------------------------------------------ the catalog and Sync now
+    // ------------------------------------------------------------------ the Sales area (one database: a change is seen at once)
 
-    @Test fun theLocationReachesTheSalesmanOnlyAfterSyncNow() = runTest {
-        repo.refresh()
-        assertTrue(repo.activeCustomers().none { it.location == "Midtown" })
-        admin.addCustomer(form("FreshMart", "Midtown", mode = PaymentMode.CREDIT), "Test Admin")
-        assertTrue(repo.activeCustomers().none { it.location == "Midtown" }) // not before the sync
-        repo.refresh()
-        val labels = repo.activeCustomers().map { it.label }
+    @Test fun aNewLocationIsInTheSalesAreaAtOnce() = runBlocking {
+        assertTrue(salesCustomers().none { it.location == "Midtown" })
+        admin.addCustomer(form("FreshMart", "Midtown", mode = PaymentMode.CREDIT))
+        val labels = salesCustomers().map { "${it.name} - ${it.location}" }
         assertTrue(labels.toString(), "FreshMart - Midtown" in labels)
         assertTrue("FreshMart - Downtown" in labels && "FreshMart - Westside" in labels)
     }
 
-    @Test fun anEditedLocationReachesTheSalesmanAtTheNextSync() = runTest {
-        repo.refresh()
+    @Test fun anEditedLocationIsInTheSalesAreaAtOnce() = runBlocking {
         val taj = admin.customers().first { it.name == "Taj Kitchen" }
-        admin.updateCustomer(taj.id, form("Taj Kitchen", "Little Elm", DemoIds.RESTAURANT_TYPE, PaymentMode.CREDIT), "Test Admin")
-        assertEquals("Frisco", repo.activeCustomers().first { it.id == taj.id }.location)
-        repo.refresh()
-        assertEquals("Little Elm", repo.activeCustomers().first { it.id == taj.id }.location)
-        assertFalse(repo.activeCustomers().any { it.label == "Taj Kitchen - Frisco" })
+        admin.updateCustomer(taj.id, form("Taj Kitchen", "Little Elm", ReferenceIds.TYPE_RESTAURANT, PaymentMode.CREDIT))
+        assertEquals("Little Elm", salesCustomers().first { it.id == taj.id }.location)
+        assertFalse(salesCustomers().any { "${it.name} - ${it.location}" == "Taj Kitchen - Frisco" })
     }
-
 }

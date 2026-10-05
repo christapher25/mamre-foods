@@ -24,7 +24,7 @@ sealed interface PriceEditResult {
 /**
  * THE rule for a charged price (change set C3, review finding 2): above zero and at most [MAX_PRICE_FACTOR] times the
  * list price of that packet. One function, called by [checkPriceEdit] (typed text), [buildPacketLines] and
- * DemoStore.confirmInvoice, so no layer can accept a price another layer would refuse. Null means the price is fine.
+ * the MakeBill use case, so no layer can accept a price another layer would refuse. Null means the price is fine.
  */
 fun priceLimitProblem(chargedCents: Long, listCents: Long): PriceEditProblem? = when {
     chargedCents <= 0 -> PriceEditProblem.NOT_POSITIVE

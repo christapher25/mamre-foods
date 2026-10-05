@@ -38,7 +38,6 @@ data class AdminProduct(
     val name: String,
     /** Chapathis in a standard packet (12). Synced to workers; the Admin edits it on the Costing screen. */
     val unitsPerPacket: Int,
-    val packingCostCents: Long,
     /** Chapathis made from 1 kg of wheat (32). Admin only: recipe quantities are per 1 kg of wheat. */
     val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,
 )
@@ -421,14 +420,6 @@ data class BalanceRow(
 )
 
 data class BusinessSettings(val businessName: String, val address: String, val phone: String, val footerText: String)
-
-data class WorkerAccount(
-    val id: String,
-    val fullName: String,
-    val username: String,
-    val deviceCode: String,
-    val isActive: Boolean,
-)
 
 /** Who changed what, before and after: mirrors the server AuditLog (Doc 2 s4.2). */
 data class ChangeLogEntry(

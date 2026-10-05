@@ -1,5 +1,6 @@
 package com.mamre.billing.data.local
 
+import com.mamre.billing.data.admin.LocalAdminApi
 import com.mamre.billing.data.repo.BooksRepository
 import com.mamre.billing.data.repo.ChangeLogRepository
 import com.mamre.billing.data.repo.CustomerRepository
@@ -9,6 +10,7 @@ import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.StockRepository
 import com.mamre.billing.domain.admin.AdminCustomer
+import com.mamre.billing.domain.admin.ChangeLogEntry
 import com.mamre.billing.domain.admin.CustomerForm
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.usecase.AddCustomer
@@ -75,6 +77,17 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
     val expenses = ExpenseRepository(db)
     val changeLog = ChangeLogRepository(db)
     val books = BooksRepository(db, zone)
+
+    /** The Admin area on this database, on the same clock. */
+    val admin: LocalAdminApi = LocalAdminApi.create(db, clock, zone)
+
+    /** How many change log rows existed when this world was opened: [newLog] shows only what happened since. */
+    var logBaseline = 0
+
+    suspend fun newLog(): List<ChangeLogEntry> {
+        val all = books.changeLog() // newest first
+        return all.take(all.size - logBaseline)
+    }
 
     val makeBill = MakeBill(unitOfWork, sales, customers, prices, settings, clock)
     val recordPayment = RecordPayment(unitOfWork, sales, customers, settings, clock)

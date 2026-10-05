@@ -5,7 +5,6 @@ import com.mamre.billing.domain.books.BooksSnapshot
 import com.mamre.billing.domain.books.ReturnRow
 import com.mamre.billing.domain.books.DamageRow
 import com.mamre.billing.domain.books.OpeningStock
-import com.mamre.billing.data.demo.SharedPriceTable
 import com.mamre.billing.domain.admin.AdminInvoice
 import com.mamre.billing.domain.admin.Expense
 import com.mamre.billing.domain.admin.ExpenseKind
@@ -35,7 +34,7 @@ class StockCostingTest {
     private val today = LocalDate.of(2026, 10, 2)
     private val september = YearMonth.of(2026, 9)
     private val october = YearMonth.of(2026, 10)
-    private val base = AdminSeed.build(today, SharedPriceTable.seeded(today, baseVersion = 10))
+    private val base = AdminSeed.build(today)
 
     /** An invoice of [packets] packets of [size] chapathis each (a standard packet holds 12), at 100 cents a packet. */
     private fun invoice(packets: Int, product: String = SeedIds.FRESH, day: LocalDate = LocalDate.of(2026, 9, 15), n: Int = 1, size: Int = 12) =
@@ -47,7 +46,7 @@ class StockCostingTest {
         )
 
     private fun purchase(material: String, qtyMb: Long, cents: Long, day: LocalDate = LocalDate.of(2026, 9, 2), n: Int = 1) =
-        Purchase("t-pu-$material-$n", day, material, material, qtyMb, cents, "", "Test Admin")
+        Purchase("t-pu-$material-$n", day, material, material, qtyMb, cents, "", "Owner")
 
     /** One invoice, one purchase of wheat, nothing else: the owner's golden case. */
     private fun golden() = base.copy(

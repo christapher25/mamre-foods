@@ -4,6 +4,7 @@ import com.mamre.billing.data.local.MamreDatabase
 import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.Stored
 import com.mamre.billing.domain.admin.AdminCustomerType
+import com.mamre.billing.domain.model.inTypeOrder
 import com.mamre.billing.domain.admin.AdminInvoice
 import com.mamre.billing.domain.admin.AdminPayment
 import com.mamre.billing.domain.admin.AdminProduct
@@ -78,8 +79,8 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
         }
 
         return BooksSnapshot(
-            types = types.map { AdminCustomerType(it.id, it.name, it.salesmanCanEditPrice) },
-            products = productRows.map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, 0L, it.yieldPerKg) },
+            types = types.inTypeOrder { it.name }.map { AdminCustomerType(it.id, it.name, it.salesmanCanEditPrice) },
+            products = productRows.map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, it.yieldPerKg) },
             customers = customerRows.map { c ->
                 c.toAdmin(typeName[c.typeId].orEmpty())
             },
@@ -162,7 +163,6 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
                 phone = settings[SettingKeys.PHONE].orEmpty(),
                 footerText = settings[SettingKeys.FOOTER_TEXT].orEmpty(),
             ),
-            workers = emptyList(),
             today = today,
         )
     }

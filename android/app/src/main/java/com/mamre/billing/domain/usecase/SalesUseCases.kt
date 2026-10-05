@@ -156,7 +156,7 @@ class MakeBill(
             }
             sales.insertBill(invoice, items, payment)
         }
-        return sales.state().invoices.first { it.id == draft.id }
+        return sales.invoiceRecord(draft.id)!!
     }
 
     companion object {
@@ -205,7 +205,7 @@ class RecordPayment(
                 ),
             )
         }
-        return sales.state().payments.first { it.id == draft.id }
+        return sales.paymentRecord(draft.id)!!
     }
 }
 
@@ -262,7 +262,7 @@ class RecordReturn(
                 ),
             )
         }
-        return sales.state().returns.first { it.id == draft.id }
+        return sales.returnRecord(draft.id)!!
     }
 }
 

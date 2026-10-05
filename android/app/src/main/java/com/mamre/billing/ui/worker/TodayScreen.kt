@@ -19,7 +19,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.mamre.billing.data.demo.DemoStore
+import com.mamre.billing.data.repo.SalesRepository
+import java.time.Clock
+import java.time.LocalDate
 import com.mamre.billing.domain.worker.InvoiceRecord
 import com.mamre.billing.ui.components.AmountSize
 import com.mamre.billing.ui.components.AmountText
@@ -38,12 +40,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
-class TodayViewModel @Inject constructor(store: DemoStore) : ViewModel() {
+class TodayViewModel @Inject constructor(sales: SalesRepository, clock: Clock) : ViewModel() {
     /** Invoices made today, newest first. Reads only; nothing here can edit or delete one. */
-    val invoices: StateFlow<List<InvoiceRecord>> = store.state
-        .map { demo ->
-            val today = store.today()
-            demo.invoices.filter { it.issuedAt.toLocalDate() == today }.sortedByDescending { it.issuedAt }
+    val invoices: StateFlow<List<InvoiceRecord>> = sales.observeState()
+        .map { state ->
+            val today = LocalDate.now(clock)
+            state.invoices.filter { it.issuedAt.toLocalDate() == today }.sortedByDescending { it.issuedAt }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 }

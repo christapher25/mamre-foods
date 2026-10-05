@@ -89,10 +89,11 @@ class AddCustomer(
     private val changeLog: ChangeLogRepository,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) {
-    suspend operator fun invoke(form: CustomerForm): AdminCustomer = unitOfWork.run {
+    /** [id] is a new UUID unless the caller needs a fixed one (the debug sample data keeps stable ids). */
+    suspend operator fun invoke(form: CustomerForm, id: String = UUID.randomUUID().toString()): AdminCustomer = unitOfWork.run {
         val type = customers.type(form.typeId)
         checkForm(form, type?.name, customers.customers().map { CustomerIdentity(it.id, it.name, it.location) })
-        val row = form.toEntity(UUID.randomUUID().toString(), form.openingBalanceCents)
+        val row = form.toEntity(id, form.openingBalanceCents)
         customers.insert(row)
         changeLog.add(clock.millis(), "Add customer ${row.name}", "-", describe(row, type!!.name))
         row.toAdmin(type.name)

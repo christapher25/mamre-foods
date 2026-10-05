@@ -10,7 +10,7 @@ import androidx.navigation.compose.navigation
 import com.mamre.billing.domain.auth.Routes
 
 /** The admin experience: Dashboard, Sales, Customers, Prices and More (owner brief, Stage B). */
-fun NavGraphBuilder.adminGraph(navController: NavController) {
+fun NavGraphBuilder.adminGraph(navController: NavController, onOpenSales: () -> Unit) {
     navigation(route = Routes.ADMIN_GRAPH, startDestination = AdminRoutes.DASHBOARD) {
         composable(AdminRoutes.DASHBOARD) { DashboardScreen() }
         composable(AdminRoutes.SALES) { SalesListScreen(onOpen = { navController.navigate(AdminRoutes.salesDetail(it)) }) }
@@ -41,7 +41,7 @@ fun NavGraphBuilder.adminGraph(navController: NavController) {
         composable(AdminRoutes.PRICE_SET, arguments = idArgs(AdminRoutes.ARG_PRODUCT, AdminRoutes.ARG_TYPE)) {
             PriceSetScreen(onBack = { navController.popBackStack() })
         }
-        composable(AdminRoutes.MORE) { MoreScreen(onOpen = { navController.navigate(it) }) }
+        composable(AdminRoutes.MORE) { MoreScreen(onOpen = { navController.navigate(it) }, onSalesArea = onOpenSales) }
         composable(AdminRoutes.COSTING) { CostingScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.EXPENSES) {
             ExpensesScreen(

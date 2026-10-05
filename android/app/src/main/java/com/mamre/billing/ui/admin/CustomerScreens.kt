@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.DataLabelChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,7 +32,6 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.data.admin.DataSpan
-import com.mamre.billing.data.auth.SessionManager
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.AdminCustomerType
 import com.mamre.billing.domain.admin.AdminProduct
@@ -129,7 +129,7 @@ fun CustomerListContent(
         (ui.typeId == null || it.typeId == ui.typeId) && (q.isEmpty() || customerMatches(it.name, it.location, q) || it.phone.contains(q))
     }
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Customers", actions = { DemoChip() })
+        AppTopBar(title = "Customers", actions = { DataLabelChip() })
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(Spacing.lg),
@@ -190,7 +190,6 @@ data class CustomerDetailUi(
 @HiltViewModel
 class CustomerDetailViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val id: String = checkNotNull(savedState[AdminRoutes.ARG_ID])
@@ -228,7 +227,7 @@ class CustomerDetailViewModel @Inject constructor(
     fun clearOverride(productId: String) {
         viewModelScope.launch {
             try {
-                api.clearOverride(id, productId, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.clearOverride(id, productId)
                 _ui.update { it.copy(error = null) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -260,7 +259,7 @@ fun CustomerDetailContent(
     var clearing by remember { mutableStateOf<AdminProduct?>(null) }
     val c = ui.customer
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = c?.label ?: "Customer", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = c?.label ?: "Customer", onBack = onBack, actions = { DataLabelChip() })
         if (c == null) {
             if (!ui.loading) EmptyState("Customer not found")
             return@Column
@@ -312,7 +311,7 @@ fun CustomerDetailContent(
 
             SectionHeader("Override prices")
             Text(
-                "An override beats the customer type price for this customer only. Salesmen receive it at their next sync.",
+                "An override beats the customer type price for this customer only. It applies to new bills at once.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -366,7 +365,6 @@ data class CustomerFormUi(
 @HiltViewModel
 class CustomerFormViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val id: String? = savedState[AdminRoutes.ARG_ID]
@@ -383,9 +381,8 @@ class CustomerFormViewModel @Inject constructor(
 
     fun save(form: CustomerForm) {
         viewModelScope.launch {
-            val by = session.profile?.fullName ?: DEFAULT_ADMIN_NAME
             try {
-                val saved = if (id == null) api.addCustomer(form, by) else api.updateCustomer(id, form, by)
+                val saved = if (id == null) api.addCustomer(form) else api.updateCustomer(id, form)
                 _ui.update { it.copy(error = null, savedId = saved.id) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -425,7 +422,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
     val openingBad = e == null && openingCents == null
 
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = if (e == null) "Add customer" else "Edit customer", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = if (e == null) "Add customer" else "Edit customer", onBack = onBack, actions = { DataLabelChip() })
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -483,7 +480,7 @@ fun CustomerFormContent(ui: CustomerFormUi, onBack: () -> Unit, onSave: (Custome
                 }
             }
             Text(
-                "Salesmen receive this at their next sync.",
+                "It applies to new bills at once.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -511,7 +508,6 @@ data class OverrideUi(
 @HiltViewModel
 class OverrideViewModel @Inject constructor(
     private val api: AdminApi,
-    private val session: SessionManager,
     savedState: SavedStateHandle,
 ) : ViewModel() {
     private val customerId: String = checkNotNull(savedState[AdminRoutes.ARG_ID])
@@ -537,7 +533,7 @@ class OverrideViewModel @Inject constructor(
     fun save(priceCents: Long, from: LocalDate, note: String) {
         viewModelScope.launch {
             try {
-                api.setOverride(customerId, productId, priceCents, from, note, session.profile?.fullName ?: DEFAULT_ADMIN_NAME)
+                api.setOverride(customerId, productId, priceCents, from, note)
                 _ui.update { it.copy(error = null, saved = true) }
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(error = e.message) }
@@ -562,7 +558,7 @@ fun OverrideContent(ui: OverrideUi, onBack: () -> Unit, onSave: (Long, LocalDate
     val check = validateNewPrice(price, date, ui.current?.effectiveFrom)
     val problems = (check as? PriceCheck.Invalid)?.problems.orEmpty()
     Column(Modifier.fillMaxSize()) {
-        AppTopBar(title = "Override price", onBack = onBack, actions = { DemoChip() })
+        AppTopBar(title = "Override price", onBack = onBack, actions = { DataLabelChip() })
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
@@ -585,7 +581,7 @@ fun OverrideContent(ui: OverrideUi, onBack: () -> Unit, onSave: (Long, LocalDate
             )
             LabeledTextField("Note (optional)", note, { note = it })
             Text(
-                "Salesmen receive this at their next sync.",
+                "It applies to new bills at once.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

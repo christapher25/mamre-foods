@@ -51,6 +51,12 @@ class SalesRepository(private val db: MamreDatabase, private val zone: () -> Zon
 
     suspend fun itemsOf(invoiceId: String): List<InvoiceItemEntity> = db.invoiceItemDao().forInvoice(invoiceId)
 
+    /** Whether a customer pays cash or on credit: a credit customer's bill shows the month summary (Doc 1 s5.3). */
+    suspend fun customerPaymentMode(customerId: String): com.mamre.billing.domain.model.PaymentMode? =
+        db.customerDao().get(customerId)?.let {
+            if (it.paymentMode == Stored.CREDIT) com.mamre.billing.domain.model.PaymentMode.CREDIT else com.mamre.billing.domain.model.PaymentMode.CASH
+        }
+
     suspend fun payment(id: String): PaymentEntity? = db.paymentDao().get(id)
 
     suspend fun insertPayment(payment: PaymentEntity) = db.paymentDao().insert(payment)
@@ -60,6 +66,36 @@ class SalesRepository(private val db: MamreDatabase, private val zone: () -> Zon
     suspend fun insertReturn(row: ReturnEntity) = db.returnDao().insert(row)
 
     suspend fun state(): SalesState = build(rows(), db.customerDao().getAll())
+
+    /**
+     * One bill as the Sales screens read it, built from that bill and its customer's records only (a use case returns it
+     * right after saving, so it must not read every bill the phone holds).
+     */
+    suspend fun invoiceRecord(id: String): InvoiceRecord? {
+        val inv = db.invoiceDao().get(id) ?: return null
+        return build(rowsAround(inv.customerId, inv), customerRows(inv.customerId)).invoices.firstOrNull { it.id == id }
+    }
+
+    suspend fun paymentRecord(id: String): PaymentRecord? {
+        val p = db.paymentDao().get(id) ?: return null
+        return build(rowsAround(p.customerId, null), customerRows(p.customerId)).payments.firstOrNull { it.id == id }
+    }
+
+    suspend fun returnRecord(id: String): ReturnRecord? {
+        val r = db.returnDao().get(id) ?: return null
+        return build(rowsAround(r.customerId, null), customerRows(r.customerId)).returns.firstOrNull { it.id == id }
+    }
+
+    private suspend fun customerRows(customerId: String?): List<CustomerEntity> =
+        customerId?.let { db.customerDao().get(it) }?.let { listOf(it) }.orEmpty()
+
+    /** The rows of one customer (or of one walk-in bill) that a record needs. */
+    private suspend fun rowsAround(customerId: String?, walkIn: InvoiceEntity?): SalesRows {
+        val invoices = if (customerId != null) db.invoiceDao().forCustomer(customerId) else listOfNotNull(walkIn)
+        val payments = if (customerId != null) db.paymentDao().forCustomer(customerId) else walkIn?.let { db.paymentDao().forInvoice(it.id) }.orEmpty()
+        val returns = customerId?.let { db.returnDao().forCustomer(it) }.orEmpty()
+        return SalesRows(invoices, db.invoiceItemDao().forInvoices(invoices.map { it.id }), payments, returns)
+    }
 
     /** Emits a new state whenever a customer or any sales row changes. */
     fun observeState(): Flow<SalesState> = combine(
@@ -117,14 +153,19 @@ fun buildSalesState(
     }
     val opening = customers.associate { it.id to it.openingBalanceCents }
 
+    val invoicesOf = rows.invoices.filter { it.customerId != null }.groupBy { it.customerId!! }
+    val paymentsOf = rows.payments.filter { it.customerId != null }.groupBy { it.customerId!! }
+    val creditsOf = rows.returns.filter { it.resolution == ReturnResolution.CREDIT.stored() }.groupBy { it.customerId }
+
+    /** The balance as of this bill (Doc 1 s6.3): the records of the customer made up to this bill's time. */
     fun balanceAfter(inv: InvoiceEntity): Long {
         val id = inv.customerId ?: return 0L
         var total = opening[id] ?: 0L
-        rows.invoices.filter { it.customerId == id && it.status != Stored.VOID && (it.issuedAt < inv.issuedAt || (it.issuedAt == inv.issuedAt && it.number <= inv.number)) }
+        invoicesOf[id].orEmpty()
+            .filter { it.status != Stored.VOID && (it.issuedAt < inv.issuedAt || (it.issuedAt == inv.issuedAt && it.number <= inv.number)) }
             .forEach { total += it.totalCents }
-        rows.payments.filter { it.customerId == id && it.paidAt <= inv.issuedAt }.forEach { total -= it.amountCents }
-        rows.returns.filter { it.customerId == id && it.resolution == ReturnResolution.CREDIT.stored() && it.occurredAt <= inv.issuedAt }
-            .forEach { total -= it.creditCents }
+        paymentsOf[id].orEmpty().filter { it.paidAt <= inv.issuedAt }.forEach { total -= it.amountCents }
+        creditsOf[id].orEmpty().filter { it.occurredAt <= inv.issuedAt }.forEach { total -= it.creditCents }
         return total
     }
 

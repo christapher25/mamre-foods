@@ -11,7 +11,6 @@ import com.mamre.billing.domain.admin.ExpenseCategory
 import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.Purchase
-import com.mamre.billing.domain.admin.WorkerAccount
 import com.mamre.billing.domain.worker.DEFAULT_PACKET_SIZE
 import com.mamre.billing.domain.worker.ReturnReason
 import com.mamre.billing.domain.worker.ReturnResolution
@@ -81,6 +80,5 @@ data class BooksSnapshot(
     /** Wastage in basis points (200 is 2%), 0 to 500. */
     val wastageBp: Int,
     val settings: BusinessSettings,
-    val workers: List<WorkerAccount>,
     val today: LocalDate,
 )
