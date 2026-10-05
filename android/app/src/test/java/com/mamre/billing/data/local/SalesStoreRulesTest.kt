@@ -48,6 +48,31 @@ class SalesStoreRulesTest {
         assertTrue(w.sales.state().invoices.none { it.issuedAt.toLocalDate() == w.today })
     }
 
+    /** The old DemoStoreTest.theFirstNewInvoiceIsNumberOneForThatDevice, on a fresh real database (no bill at all before it). */
+    @Test fun theFirstNewInvoiceIsNumberOneForThatDevice() = runBlocking {
+        val w = World(TestDatabase.inMemory())
+        w.seed()
+        w.price(ReferenceIds.TYPE_RESTAURANT, 250, 280)
+        val c = w.customer("Spice Garden", "Irving", ReferenceIds.TYPE_RESTAURANT, PaymentMode.CREDIT)
+        assertEquals(0, w.db.invoiceDao().count())
+        assertEquals("1", w.settings.get(SettingKeys.NEXT_BILL_SEQ))
+        assertEquals("MAM-W1-0001", w.makeBill(w.draft(c.id, listOf(w.line(qty = 1, unit = 250)))).number)
+    }
+
+    /** The old DemoStoreTest.theInvoiceIsStampedWithTheClock: the date AND the time of the bill are the clock's, stored as UTC milliseconds. */
+    @Test fun theInvoiceIsStampedWithTheClock() = runBlocking {
+        val w = World(TestDatabase.inMemory(), MutableClock("2026-10-02T14:20:05Z"))
+        w.seed()
+        w.price(ReferenceIds.TYPE_RESTAURANT, 250, 280)
+        val c = w.customer("Spice Garden", "Irving", ReferenceIds.TYPE_RESTAURANT, PaymentMode.CREDIT)
+        val record = w.makeBill(w.draft(c.id, listOf(w.line(qty = 1, unit = 250))))
+        assertEquals(w.today, record.issuedAt.toLocalDate())
+        assertEquals(java.time.LocalDateTime.of(2026, 10, 2, 14, 20, 5), record.issuedAt)
+        assertEquals(java.time.Instant.parse("2026-10-02T14:20:05Z").toEpochMilli(), w.db.invoiceDao().get(record.id)!!.issuedAt)
+        w.clock.set("2026-10-03T08:00:00Z")
+        assertEquals(java.time.LocalDate.of(2026, 10, 3), w.makeBill(w.draft(c.id, listOf(w.line(qty = 1, unit = 250)))).issuedAt.toLocalDate())
+    }
+
     @Test fun numbersGoUpByOneAreNeverReusedAndFollowTheDeviceCodeSetting() = runBlocking {
         val (w, id) = worldWithSection65Ledger() // three bills already: 0001 to 0003
         val a = w.makeBill(w.draft(id, listOf(w.line(qty = 1, unit = 100))))
