@@ -207,7 +207,8 @@ fun buildSalesState(
             totalCents = inv.totalCents,
             paidNowCents = taken.sumOf { it.amountCents },
             method = taken.firstOrNull()?.let { paymentMethodOf(it.method) },
-            balanceAfterCents = balanceAfter(inv),
+            // A corporate account never gets a balance into the Sales-area data (Doc 2 I-16); the Admin data path has it.
+            balanceAfterCents = if (inv.isCorporate) null else balanceAfter(inv),
             status = if (inv.status == Stored.VOID) InvoiceStatus.VOID else InvoiceStatus.ACTIVE,
             voidReason = inv.voidReason,
             salesmanName = inv.salesmanName,
