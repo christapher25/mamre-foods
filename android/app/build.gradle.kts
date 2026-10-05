@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -20,17 +19,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // Doc 2 s2: the base URL is a build config value; USE_FAKE_API picks FakeApi
-        // because there is no hosted server yet.
-        buildConfigField("String", "BASE_URL", "\"https://api.example.invalid/api/v1/\"")
-        buildConfigField("boolean", "USE_FAKE_API", "true")
     }
 
     buildTypes {
         release {
-            // TEST CREDENTIALS and FakeApi must never ship (DECISIONS 2026-10-02).
-            buildConfigField("boolean", "USE_FAKE_API", "false")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
@@ -80,12 +72,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
-    implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.androidx.security.crypto)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.kotlinx.serialization)
-    implementation(libs.okhttp)
-    implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
@@ -97,4 +83,20 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+// Doc 2 s6, Doc 3 N18: the release app requests no INTERNET permission. The MERGED release manifest (ours plus every
+// library's) is checked on every assembleRelease, so a library that brings the permission in fails the build.
+val verifyReleaseManifest = tasks.register("verifyReleaseManifest") {
+    val merged = layout.buildDirectory.file("intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml")
+    inputs.file(merged)
+    doLast {
+        val text = merged.get().asFile.readText()
+        val found = Regex("""android\.permission\.(INTERNET|ACCESS_NETWORK_STATE|ACCESS_WIFI_STATE)""").findAll(text).map { it.value }.toList()
+        check(found.isEmpty()) { "the release manifest requests a network permission: $found" }
+    }
+}
+
+afterEvaluate {
+    verifyReleaseManifest.configure { dependsOn("processReleaseMainManifest") }
+    tasks.named("assembleRelease") { dependsOn(verifyReleaseManifest) }
 }
