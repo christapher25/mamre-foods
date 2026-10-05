@@ -309,7 +309,7 @@ data class ChangeLogEntity(
     @ColumnInfo(name = "after_text") val afterText: String,
 )
 
-/** Setting keys (Doc 2 s4.2). The PIN keys are written in step 2 and never exported. */
+/** Setting keys (Doc 2 s4.2). The PIN keys (pin_hash, pin_salt, pin_fail_count, pin_locked_until) are never exported. */
 object SettingKeys {
     const val OWNER_NAME = "owner_name"
     const val DEVICE_CODE = "device_code"
@@ -322,6 +322,10 @@ object SettingKeys {
     const val LOCK_MINUTES = "lock_minutes"
     const val PIN_HASH = "pin_hash"
     const val PIN_SALT = "pin_salt"
+
+    /** Wrong PINs in a row, and the time (epoch ms) until which every PIN is refused: in the database so a killed app cannot reset them. Never exported. */
+    const val PIN_FAIL_COUNT = "pin_fail_count"
+    const val PIN_LOCKED_UNTIL = "pin_locked_until"
     const val NEXT_BILL_SEQ = "next_bill_seq"
     const val NEXT_RECEIPT_SEQ = "next_receipt_seq"
 }
