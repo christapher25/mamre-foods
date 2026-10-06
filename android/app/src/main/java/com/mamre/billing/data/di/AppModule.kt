@@ -4,6 +4,8 @@ import android.content.Context
 import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.LocalAdminApi
+import com.mamre.billing.data.export.ExportBuilder
+import com.mamre.billing.data.export.ExportWriter
 import com.mamre.billing.data.local.MamreDatabase
 import com.mamre.billing.data.local.RoomUnitOfWork
 import com.mamre.billing.data.local.UnitOfWork
@@ -50,6 +52,12 @@ object AppModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): MamreDatabase =
         MamreDatabase.builder(context).build()
+
+    @Provides
+    fun exportBuilder(db: MamreDatabase, clock: Clock): ExportBuilder = ExportBuilder(db, clock)
+
+    @Provides
+    fun exportWriter(@ApplicationContext context: Context): ExportWriter = ExportWriter(context.cacheDir)
 
     @Provides @Singleton
     fun unitOfWork(db: MamreDatabase): UnitOfWork = RoomUnitOfWork(db)

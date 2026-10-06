@@ -122,10 +122,11 @@ class SettingsActions(
     val saveWastage: (Int) -> Unit,
     val saveLockMinutes: (Int) -> Unit,
     val logout: () -> Unit,
+    val export: () -> Unit,
 )
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     SettingsContent(
         ui = ui,
@@ -137,6 +138,7 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
             saveWastage = viewModel::saveWastage,
             saveLockMinutes = viewModel::saveLockMinutes,
             logout = viewModel::logout,
+            export = onExport,
         ),
     )
 }
@@ -227,6 +229,10 @@ fun SettingsContent(ui: SettingsUi, onBack: () -> Unit, actions: SettingsActions
                 SecondaryButton("Edit wastage", onClick = { editWastage = true }, modifier = Modifier.padding(top = Spacing.sm))
             }
             SectionMessage(ui, SettingsSection.WASTAGE)
+
+            SectionHeader("Export")
+            Hint("Make plain text files of all your data and share them, for example with your accountant.")
+            SecondaryButton("Export data", onClick = actions.export)
 
             if (ui.canLogOut) SecondaryButton("Log out", onClick = { confirmLogout = true })
         }
