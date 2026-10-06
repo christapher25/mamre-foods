@@ -117,7 +117,7 @@ private fun TypeTiles(ui: InvoiceUi, onType: (CustomerType) -> Unit, walkIn: @Co
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         if (!ui.loading && ui.types.isEmpty()) {
-            Text("No customer types yet. Tap Sync now on the Sync screen.", style = MaterialTheme.typography.bodyLarge)
+            Text("No customer types yet.", style = MaterialTheme.typography.bodyLarge)
         }
         ui.types.chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {

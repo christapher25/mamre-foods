@@ -1,5 +1,6 @@
 package com.mamre.billing.domain.admin
 
+import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.parseCents
 import java.time.LocalDate
 import java.time.YearMonth
@@ -86,10 +87,49 @@ fun validateExpense(categoryId: String?, date: LocalDate?, amountText: String): 
 
 // --- settings (B9) ---
 
-enum class SettingsProblem { NAME_REQUIRED }
+enum class SettingsProblem { NAME_REQUIRED, NAME_TOO_LONG, ADDRESS_TOO_MANY_LINES, ADDRESS_LINE_TOO_LONG, PHONE_TOO_LONG, FOOTER_TOO_LONG }
 
-fun validateSettings(settings: BusinessSettings): Set<SettingsProblem> =
-    if (settings.businessName.isBlank()) setOf(SettingsProblem.NAME_REQUIRED) else emptySet()
+const val MAX_BUSINESS_NAME = 40
+const val MAX_ADDRESS_LINES = 4
+const val MAX_ADDRESS_LINE = 40
+const val MAX_PHONE = 20
+const val MAX_FOOTER = 80
+
+/** The business details the bill header prints (Doc 1 A-31, P-6): a name is required; the rest may be empty and then prints a placeholder. */
+fun validateSettings(settings: BusinessSettings): Set<SettingsProblem> = buildSet {
+    val name = settings.businessName.trim()
+    if (name.isEmpty()) add(SettingsProblem.NAME_REQUIRED) else if (name.length > MAX_BUSINESS_NAME) add(SettingsProblem.NAME_TOO_LONG)
+    val lines = settings.address.lines().map { it.trim() }.filter { it.isNotEmpty() }
+    if (lines.size > MAX_ADDRESS_LINES) add(SettingsProblem.ADDRESS_TOO_MANY_LINES)
+    if (lines.any { it.length > MAX_ADDRESS_LINE }) add(SettingsProblem.ADDRESS_LINE_TOO_LONG)
+    if (settings.phone.trim().length > MAX_PHONE) add(SettingsProblem.PHONE_TOO_LONG)
+    if (settings.footerText.trim().length > MAX_FOOTER) add(SettingsProblem.FOOTER_TOO_LONG)
+}
+
+fun settingsProblemMessage(problem: SettingsProblem): String = when (problem) {
+    SettingsProblem.NAME_REQUIRED -> "The business needs a name"
+    SettingsProblem.NAME_TOO_LONG -> "The business name is at most $MAX_BUSINESS_NAME characters"
+    SettingsProblem.ADDRESS_TOO_MANY_LINES -> "The address is at most $MAX_ADDRESS_LINES lines"
+    SettingsProblem.ADDRESS_LINE_TOO_LONG -> "Each address line is at most $MAX_ADDRESS_LINE characters"
+    SettingsProblem.PHONE_TOO_LONG -> "The phone is at most $MAX_PHONE characters"
+    SettingsProblem.FOOTER_TOO_LONG -> "The footer is at most $MAX_FOOTER characters"
+}
+
+/** The owner name printed after "Salesman:" (Doc 1 A-29, P-12): 2 to 40 characters, inner spaces collapsed. Null when it does not fit. */
+const val MIN_OWNER_NAME = 2
+const val MAX_OWNER_NAME = 40
+
+fun cleanOwnerName(text: String): String? =
+    normalizeSpaces(text).takeIf { it.length in MIN_OWNER_NAME..MAX_OWNER_NAME }
+
+/** The device code in bill numbers (Doc 2 I-3): capital letters A to Z and digits, 1 to 8; typed lowercase is made uppercase. Null when it does not fit. */
+const val MAX_DEVICE_CODE = 8
+
+fun cleanDeviceCode(text: String): String? =
+    text.trim().uppercase(java.util.Locale.ROOT).takeIf { code -> code.length in 1..MAX_DEVICE_CODE && code.all { it in 'A'..'Z' || it in '0'..'9' } }
+
+const val MIN_LOCK_MINUTES = 1
+const val MAX_LOCK_MINUTES = 30
 
 // --- invoice list (B2) ---
 

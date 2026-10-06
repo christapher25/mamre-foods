@@ -16,6 +16,7 @@ private const val ADDRESS_PHONE_PENDING = "(address / phone pending)"
 private const val ADDRESS_PENDING = "(address pending)"
 private const val PHONE_PENDING = "(phone pending)"
 private const val NAME_PENDING = "(business name pending)"
+private const val OWNER_PENDING = "(owner name pending)"
 private const val DUPLICATE_COPY = "DUPLICATE COPY"
 private const val VOID_MARK = "*** VOID ***"
 private val DATE = DateTimeFormatter.ofPattern("MM/dd/yyyy")
@@ -53,7 +54,7 @@ data class MonthSummary(
 )
 
 data class InvoiceReceipt(
-    /** Name, address lines, phone and footer from the synced business settings (change set E4). */
+    /** Name, address lines, phone and footer from the business settings (change set E4). */
     val header: BusinessHeader,
     val number: String,
     val issuedAt: LocalDateTime,
@@ -110,7 +111,7 @@ fun layoutInvoiceReceipt(r: InvoiceReceipt): List<String> = buildList {
     addAll(labelled("Bill No:  ", r.number))
     add("Date:     ${r.issuedAt.format(DATE)}")
     add("Time:     ${r.issuedAt.format(TIME)}")
-    addAll(labelled("Salesman: ", r.salesmanName))
+    addAll(salesmanLines(r.salesmanName))
     addAll(customerLines(r.customerName, r.customerLocation))
     add(rule())
     add(itemHeader())
@@ -141,7 +142,7 @@ fun layoutPaymentReceipt(r: PaymentReceipt): List<String> = buildList {
     addAll(labelled("Receipt:  ", r.receiptNumber))
     add("Date:     ${r.paidAt.format(DATE)}")
     add("Time:     ${r.paidAt.format(TIME)}")
-    addAll(labelled("Salesman: ", r.salesmanName))
+    addAll(salesmanLines(r.salesmanName))
     addAll(customerLines(r.customerName, r.customerLocation))
     add(rule())
     add(leftRight("Payment received (${r.method.label})", centsToPlain(r.amountCents)))
@@ -233,6 +234,9 @@ private fun labelled(label: String, value: String): List<String> {
     val chunks = wrap(value, RECEIPT_WIDTH - label.length)
     return chunks.mapIndexed { i, c -> (if (i == 0) label else pad) + c }
 }
+
+/** The owner's name from Settings (Doc 1 A-29); never a device code, and a placeholder until the name is set (P-12). */
+private fun salesmanLines(name: String): List<String> = labelled("Salesman: ", name.ifBlank { OWNER_PENDING })
 
 /** "Customer: Name" with the location on the next line, indented under the name (change set D2, D3). */
 private fun customerLines(name: String, location: String): List<String> {

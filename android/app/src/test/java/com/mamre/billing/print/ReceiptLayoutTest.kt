@@ -127,6 +127,13 @@ class ReceiptLayoutTest {
         assertTrue(long.all { it.length <= RECEIPT_WIDTH })
     }
 
+    @Test fun aMissingOwnerNamePrintsAPlaceholderNeverABlankOrADeviceCode() {
+        for (blank in listOf("", "   ")) {
+            assertTrue(layoutInvoiceReceipt(credit.copy(salesmanName = blank)).contains("Salesman: (owner name pending)"))
+            assertTrue(layoutPaymentReceipt(payment.copy(salesmanName = blank)).contains("Salesman: (owner name pending)"))
+        }
+    }
+
     @Test fun theLocationIsOnTheNextLineIndentedTenAndWrapsUnderItself() {
         val lines = layoutInvoiceReceipt(credit)
         val i = lines.indexOf("Customer: Spice Garden")

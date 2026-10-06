@@ -57,7 +57,7 @@ import kotlinx.coroutines.launch
 
 // B4 Prices (Doc 1 s4.3; Doc 2 s9). A price is added with a later effective-from date and never rewritten.
 
-const val SALESMEN_SYNC_NOTE = "It applies to new bills at once."
+const val NEW_BILLS_NOTE = "It applies to new bills at once."
 
 data class PricesUi(
     val loading: Boolean = true,
@@ -79,7 +79,7 @@ class PricesViewModel @Inject constructor(
         }
     }
 
-    /** Switches "Salesman can edit price" for a customer type; the change is logged and synced to salesmen. */
+    /** Switches "Salesman can edit price" for a customer type; the change is logged. */
     fun setWorkerCanEdit(typeId: String, allowed: Boolean) {
         viewModelScope.launch {
             try {
@@ -110,7 +110,7 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCa
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(
-                "Price per packet by product and customer type. $SALESMEN_SYNC_NOTE",
+                "Price per packet by product and customer type. $NEW_BILLS_NOTE",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -143,7 +143,7 @@ fun PricesContent(ui: PricesUi, onSetPrice: (String, String) -> Unit, onWorkerCa
                     }
                 }
                 Text(
-                    SALESMEN_SYNC_NOTE,
+                    NEW_BILLS_NOTE,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = Spacing.md),
@@ -273,7 +273,7 @@ fun PriceSetContent(ui: PriceSetUi, onBack: () -> Unit, onSave: (Long, LocalDate
                 "Effective from", date, { date = it },
                 errorText = messages(PriceProblem.DATE_REQUIRED, PriceProblem.DATE_NOT_LATER),
             )
-            Text(SALESMEN_SYNC_NOTE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(NEW_BILLS_NOTE, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             PrimaryButton("Save price", onClick = {
                 tried = true

@@ -6,7 +6,7 @@ import com.mamre.billing.domain.worker.LedgerEntry
 import com.mamre.billing.domain.worker.PaymentRecord
 
 /**
- * Test-only business header. The production code has no address at all (change set E4): it comes from the synced
+ * Test-only business header. The production code has no address at all (change set E4): it comes from the
  * business settings, and the debug seed holds the demo values. The goldens use these same values.
  */
 object TestHeaders {
