@@ -16,6 +16,9 @@ object Routes {
     /** The Dashboard: the first screen of the Admin area while analytics are shown (version 2). */
     const val ADMIN_HOME = "admin/home"
     const val ADMIN_SALES = "admin/sales"
+
+    /** The PIN screen (Doc 2 s6): the single gate, in neither area. Setup on a first run, entry afterwards. */
+    const val PIN = "pin"
     const val ADMIN_COSTING = "admin/more/costing"
 }
 
@@ -60,4 +63,4 @@ private fun inGraph(route: String, graph: String) = route == graph || route.star
  * step). A build may install an entry gate that puts one screen in front (the debug build's login screen): then the app
  * starts at the gate's route, and the gate decides when the Sales Home is reached.
  */
-fun appStartDestination(gateRoute: String?): String = gateRoute ?: Routes.SALES_GRAPH
+fun appStartDestination(gateRoute: String?): String = gateRoute ?: Routes.PIN

@@ -25,6 +25,10 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.mamre.billing.domain.usecase.ChangePin
+import com.mamre.billing.domain.usecase.PinStatus
+import com.mamre.billing.domain.usecase.SetPin
+import com.mamre.billing.domain.usecase.VerifyPin
 import dagger.hilt.components.SingletonComponent
 import java.time.Clock
 import javax.inject.Singleton
@@ -95,6 +99,20 @@ object AppModule {
     @Provides
     fun recordReturn(u: UnitOfWork, sales: SalesRepository, customers: CustomerRepository, prices: PriceRepository, clock: Clock) =
         RecordReturn(u, sales, customers, prices, clock)
+
+    // ------------------------------------------------------------------ the PIN (Doc 2 s6)
+
+    @Provides
+    fun pinStatus(settings: SettingsRepository) = PinStatus(settings)
+
+    @Provides
+    fun setPin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock) = SetPin(u, settings, changeLog, clock)
+
+    @Provides
+    fun changePin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock) = ChangePin(u, settings, changeLog, clock)
+
+    @Provides
+    fun verifyPin(u: UnitOfWork, settings: SettingsRepository, clock: Clock) = VerifyPin(u, settings, clock)
 
     // ------------------------------------------------------------------ the Admin area
 

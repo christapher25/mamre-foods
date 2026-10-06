@@ -18,6 +18,10 @@ import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.data.startup.AppReadiness
 import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.auth.Features
+import com.mamre.billing.domain.auth.Routes
+import com.mamre.billing.domain.security.AppLock
+import com.mamre.billing.ui.lock.PinScreen
+import androidx.navigation.compose.composable
 import com.mamre.billing.domain.auth.appStartDestination
 import com.mamre.billing.domain.auth.startDestinationFor
 import com.mamre.billing.ui.admin.AdminBottomBar
@@ -39,6 +43,7 @@ class AppViewModel @Inject constructor(
     gate: Optional<EntryGate>,
     val features: Features,
     readiness: AppReadiness,
+    private val appLock: AppLock,
 ) : ViewModel() {
     /** False until the database is open: the first screen is a short loading screen (Doc 2 s5.2). */
     val ready: StateFlow<Boolean> = readiness.ready
@@ -48,6 +53,9 @@ class AppViewModel @Inject constructor(
 
     /** True when there is no gate or the gate has let the Owner through. */
     val gateOpen: StateFlow<Boolean> = this.gate?.open ?: MutableStateFlow(true)
+
+    /** True until the right PIN is given; true at every process start (Doc 2 s6). */
+    val locked: StateFlow<Boolean> = appLock.locked
 
     fun openArea(area: Area) = areaState.open(area)
 }
@@ -67,6 +75,7 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
     }
     val area by appViewModel.area.collectAsStateWithLifecycle()
     val gateOpen by appViewModel.gateOpen.collectAsStateWithLifecycle()
+    val locked by appViewModel.locked.collectAsStateWithLifecycle()
     val gate = appViewModel.gate
     val features = appViewModel.features
     val navController = rememberNavController()
@@ -76,20 +85,22 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
 
     // Switching area, opening the gate or closing it, and every move afterwards: the one policy (navTarget) decides.
     val gateState = gate?.let { GateState(it.route, gateOpen) }
-    LaunchedEffect(area, gateOpen) {
-        navTarget(area, features, gateState, navController.currentDestination?.route ?: gate?.route)?.let { navController.goTo(it) }
+    val lockGate = LockGate(Routes.PIN, locked)
+    LaunchedEffect(area, gateOpen, locked) {
+        navTarget(area, features, gateState, lockGate, navController.currentDestination?.route ?: gate?.route)?.let { navController.goTo(it) }
         navController.currentBackStackEntryFlow.collect { entry ->
-            navTarget(area, features, gateState, entry.destination.route)?.let { navController.goTo(it) }
+            navTarget(area, features, gateState, lockGate, entry.destination.route)?.let { navController.goTo(it) }
         }
     }
 
     Column(Modifier.fillMaxSize()) {
         NavHost(navController, startDestination = start, modifier = Modifier.weight(1f)) {
             gate?.register(this)
+            composable(Routes.PIN) { PinScreen() }
             workerGraph(navController, onOpenAdmin = { appViewModel.openArea(Area.ADMIN) })
             adminGraph(navController, features, onOpenSales = { appViewModel.openArea(Area.SALES) })
         }
-        if (area == Area.ADMIN && gateOpen && showsBottomBar(route)) {
+        if (area == Area.ADMIN && gateOpen && !locked && showsBottomBar(route)) {
             AdminBottomBar(tabs = adminTabs(features), selected = tabOf(route), onSelect = { tab ->
                 navController.navigate(tab.route) {
                     popUpTo(startDestinationFor(Area.ADMIN, features)) { saveState = true }

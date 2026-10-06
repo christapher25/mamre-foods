@@ -7,6 +7,8 @@ import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.Routes
 import com.mamre.billing.domain.auth.appStartDestination
+import com.mamre.billing.domain.security.AppLock
+import java.time.Clock
 import java.util.Optional
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,16 +44,16 @@ class StartDestinationTest {
     }
 
     @Test fun withoutAGateTheAppStartsAtTheSalesHomeAndIsOpen() {
-        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready)
+        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(Clock.systemUTC()))
         assertNull(vm.gate)
         assertTrue(vm.gateOpen.value)
-        assertEquals(Routes.SALES_GRAPH, appStartDestination(vm.gate?.route))
+        assertEquals(Routes.PIN, appStartDestination(vm.gate?.route)) // the PIN screen comes before the Sales Home
         assertEquals(Area.SALES, vm.area.value)
     }
 
     @Test fun withAGateTheAppStartsAtTheGateAndStaysClosedUntilItOpens() {
         val gate = FakeGate()
-        val vm = AppViewModel(AreaState(), Optional.of(gate), Features(showAnalytics = false), Ready)
+        val vm = AppViewModel(AreaState(), Optional.of(gate), Features(showAnalytics = false), Ready, AppLock(Clock.systemUTC()))
         assertEquals("gate-screen", appStartDestination(vm.gate?.route))
         assertFalse(vm.gateOpen.value)
         gate.let()
@@ -63,14 +65,14 @@ class StartDestinationTest {
 
     @Test fun theGateNeverChangesWhichAreaOpensByItself() {
         val areas = AreaState()
-        val vm = AppViewModel(areas, Optional.of(FakeGate()), Features(showAnalytics = false), Ready)
+        val vm = AppViewModel(areas, Optional.of(FakeGate()), Features(showAnalytics = false), Ready, AppLock(Clock.systemUTC()))
         assertEquals(Area.SALES, vm.area.value)
         vm.openArea(Area.ADMIN)
         assertEquals(Area.ADMIN, vm.area.value)
     }
 
     @Test fun theStartRouteOfTheMainGraphIsNeverALoginRoute() {
-        assertEquals("sales", appStartDestination(null))
+        assertEquals("pin", appStartDestination(null))
         assertFalse(appStartDestination(null).contains("login", ignoreCase = true))
     }
 
@@ -78,9 +80,14 @@ class StartDestinationTest {
         val flag = MutableStateFlow(false)
         val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), object : AppReadiness {
             override val ready: StateFlow<Boolean> = flag
-        })
+        }, AppLock(Clock.systemUTC()))
         assertFalse(vm.ready.value)
         flag.value = true
         assertTrue(vm.ready.value)
+    }
+
+    @Test fun theAppViewModelStartsLockedSoARestartedProcessAsksForThePin() {
+        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(Clock.systemUTC()))
+        assertTrue(vm.locked.value)
     }
 }

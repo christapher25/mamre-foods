@@ -52,6 +52,7 @@ class NavigationHostTest {
         controller.navigatorProvider.addNavigator(ComposeNavigator())
         val graph = controller.createGraph(startDestination = appStartDestination(gate?.route)) {
             gate?.let { g -> composable(g.route) { } }
+            composable(Routes.PIN) { }
             workerGraph(controller, onOpenAdmin = {})
             adminGraph(controller, features, onOpenSales = {})
         }
@@ -60,8 +61,8 @@ class NavigationHostTest {
     }
 
     /** What the host does after any change: ask the policy where to go, and go there (clearing the back stack). */
-    private fun NavHostController.settle(area: Area, features: Features, gate: GateState? = null) {
-        navTarget(area, features, gate, currentDestination?.route)?.let { target ->
+    private fun NavHostController.settle(area: Area, features: Features, gate: GateState? = null, lock: LockGate = LockGate(Routes.PIN, locked = false)) {
+        navTarget(area, features, gate, lock, currentDestination?.route)?.let { target ->
             navigate(target) { popUpTo(0) { inclusive = true } }
         }
     }
@@ -73,12 +74,33 @@ class NavigationHostTest {
     private val release = Features(showAnalytics = false)
     private val analytics = Features(showAnalytics = true)
 
-    @Test fun theReleaseStartIsTheSalesHomeWithNoLoginInFront() {
+    @Test fun theReleaseStartIsThePinScreenAndOnlyAnUnlockReachesTheSalesHome() {
         val c = host(release)
+        assertEquals(Routes.PIN, c.currentDestination?.route) // no login in front, and nothing before the PIN
+        // Locked: whatever is tried, the host ends on the PIN screen.
+        c.navigate(Routes.SALES_HOME)
+        c.settle(Area.SALES, release, lock = LockGate(Routes.PIN, locked = true))
+        assertEquals(Routes.PIN, c.currentDestination?.route)
+        c.settle(Area.SALES, release, lock = LockGate(Routes.PIN, locked = false)) // the PIN was right
         assertEquals(Routes.SALES_HOME, c.currentDestination?.route)
-        assertEquals(Routes.SALES_GRAPH, appStartDestination(null))
-        c.settle(Area.SALES, release)
-        assertEquals(Routes.SALES_HOME, c.currentDestination?.route) // nothing to do: the policy keeps it
+    }
+
+    @Test fun everyRouteOfTheRealGraphsIsRefusedWhileLocked() {
+        val c = host(release)
+        for (route in listOf(Routes.SALES_HOME, WorkerRoutes.TODAY, WorkerRoutes.INVOICE_CUSTOMER, AdminRoutes.SALES, AdminRoutes.SETTINGS, AdminRoutes.CUSTOMERS)) {
+            c.navigate(route)
+            c.settle(Area.SALES, release, lock = LockGate(Routes.PIN, locked = true))
+            assertEquals(route, Routes.PIN, c.currentDestination?.route)
+        }
+    }
+
+    @Test fun lockingAgainFromInsideTheAppBringsThePinScreenBack() {
+        val c = host(release)
+        c.settle(Area.SALES, release) // unlocked: PIN -> Sales Home
+        assertEquals(Routes.SALES_HOME, c.currentDestination?.route)
+        c.navigate(WorkerRoutes.TODAY)
+        c.settle(Area.SALES, release, lock = LockGate(Routes.PIN, locked = true)) // the app locked after the idle time
+        assertEquals(Routes.PIN, c.currentDestination?.route)
     }
 
     @Test fun withAnalyticsOffTheDashboardAndCostingAreNotInTheGraphAtAll() {
@@ -94,6 +116,7 @@ class NavigationHostTest {
 
     @Test fun aSalesRouteCannotReachAnAdminRouteAndTheHostBringsItBackToTheSalesHome() {
         val c = host(release)
+        c.settle(Area.SALES, release)
         c.navigate(AdminRoutes.SALES) // something tries to cross
         assertEquals(AdminRoutes.SALES, c.currentDestination?.route)
         c.settle(Area.SALES, release) // the Sales area is open: the policy refuses it
@@ -112,6 +135,7 @@ class NavigationHostTest {
 
     @Test fun onlyTheExplicitAreaSwitchMovesBetweenTheAreas() {
         val c = host(release)
+        c.settle(Area.SALES, release)
         assertEquals(Routes.SALES_HOME, c.currentDestination?.route)
         // Without a switch the Admin area never opens, whatever route is asked for.
         c.navigate(AdminRoutes.SETTINGS)
@@ -129,19 +153,19 @@ class NavigationHostTest {
         c.settle(Area.ADMIN, analytics)
         assertEquals(AdminRoutes.DASHBOARD, c.currentDestination?.route)
         // ...but the policy of a release build (flag off) never lets the Admin area sit on it.
-        assertEquals(AdminRoutes.SALES, navTarget(Area.ADMIN, release, null, AdminRoutes.DASHBOARD))
-        assertEquals(AdminRoutes.SALES, navTarget(Area.ADMIN, release, null, AdminRoutes.COSTING))
+        assertEquals(AdminRoutes.SALES, navTarget(Area.ADMIN, release, null, LockGate(Routes.PIN, false), AdminRoutes.DASHBOARD))
+        assertEquals(AdminRoutes.SALES, navTarget(Area.ADMIN, release, null, LockGate(Routes.PIN, false), AdminRoutes.COSTING))
     }
 
     @Test fun aGateInFrontKeepsTheAppAtTheGateUntilItOpensThenGoesToTheOpenArea() {
         val closed = GateState("gate-screen", open = false)
         val c = host(release, closed)
         assertEquals("gate-screen", c.currentDestination?.route)
-        assertNull(navTarget(Area.SALES, release, closed, "gate-screen"))
-        assertEquals("gate-screen", navTarget(Area.SALES, release, closed, Routes.SALES_HOME)) // anything else goes back to the gate
+        assertNull(navTarget(Area.SALES, release, closed, LockGate(Routes.PIN, false), "gate-screen"))
+        assertEquals("gate-screen", navTarget(Area.SALES, release, closed, LockGate(Routes.PIN, false), Routes.SALES_HOME)) // anything else goes back to the gate
         val open = GateState("gate-screen", open = true)
-        assertEquals(Routes.SALES_HOME, navTarget(Area.SALES, release, open, "gate-screen"))
-        assertEquals(AdminRoutes.SALES, navTarget(Area.ADMIN, release, open, "gate-screen"))
-        assertFalse(navTarget(Area.SALES, release, open, Routes.SALES_HOME) != null)
+        assertEquals(Routes.SALES_HOME, navTarget(Area.SALES, release, open, LockGate(Routes.PIN, false), "gate-screen"))
+        assertEquals(AdminRoutes.SALES, navTarget(Area.ADMIN, release, open, LockGate(Routes.PIN, false), "gate-screen"))
+        assertFalse(navTarget(Area.SALES, release, open, LockGate(Routes.PIN, false), Routes.SALES_HOME) != null)
     }
 }
