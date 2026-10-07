@@ -39,6 +39,17 @@ object PinHasher {
         return MessageDigest.isEqual(expected, actual)
     }
 
+    /** True when the stored hash and salt are both present and readable; anything else is damaged data, not a wrong PIN. */
+    fun isWellFormed(saltBase64: String?, stored: String?): Boolean {
+        if (saltBase64.isNullOrEmpty() || stored.isNullOrEmpty()) return false
+        val salt = runCatching { Base64.getDecoder().decode(saltBase64) }.getOrNull()
+        if (salt == null || salt.isEmpty()) return false
+        val parts = stored.split(":")
+        if (parts.size != 3 || parts[0] != PREFIX) return false
+        if (parts[1].toIntOrNull()?.takeIf { it in 1..10_000_000 } == null) return false
+        return runCatching { Base64.getDecoder().decode(parts[2]) }.getOrNull()?.isNotEmpty() == true
+    }
+
     private fun derive(pin: String, saltBase64: String, iterations: Int): ByteArray {
         val salt = Base64.getDecoder().decode(saltBase64)
         val spec = PBEKeySpec(pin.toCharArray(), salt, iterations, KEY_BITS)

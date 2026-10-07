@@ -1,5 +1,6 @@
 package com.mamre.billing.data.local
 
+import com.mamre.billing.domain.security.PinHasher
 import com.mamre.billing.domain.security.PinResult
 import com.mamre.billing.domain.usecase.ChangePin
 import com.mamre.billing.domain.usecase.PinDelay
@@ -209,6 +210,87 @@ class PinUseCasesTest {
         p.change("1234", "5678", "5678")
         assertTrue(salt != w.settings.get(SettingKeys.PIN_SALT))
         assertTrue(hash != w.settings.get(SettingKeys.PIN_HASH))
+    }
+
+    // ---------------------------------------------------------------- damaged PIN data fails CLOSED (review item 2)
+
+    private suspend fun goodPair(w: World): Pair<String, String> {
+        Pin(w).set("1234", "1234")
+        return w.settings.get(SettingKeys.PIN_HASH)!! to w.settings.get(SettingKeys.PIN_SALT)!!
+    }
+
+    /** Whatever is stored: the PIN counts as set, nothing opens, setup is refused, a change is refused, and nothing is counted. */
+    private suspend fun assertClosed(w: World) {
+        val p = Pin(w)
+        assertTrue("counts as set", p.status.isSet())
+        for (pin in listOf("1234", "0000", "")) assertEquals(PinResult.Damaged, p.verify(pin))
+        assertTrue(refused { p.set("5678", "5678") }.contains("already"))
+        assertTrue(runCatching { p.change("1234", "5678", "5678") }.exceptionOrNull() is RuleException)
+        assertNull("nothing is counted", w.settings.get(SettingKeys.PIN_FAIL_COUNT)?.takeIf { it != "0" })
+    }
+
+    @Test fun aHashWithoutASaltIsDamagedAndNothingOpens() = runBlocking {
+        val w = world()
+        val (hash, _) = goodPair(w)
+        w.db.openHelper.writableDatabase.execSQL("DELETE FROM settings WHERE key = '${SettingKeys.PIN_SALT}'")
+        assertEquals(hash, w.settings.get(SettingKeys.PIN_HASH))
+        assertClosed(w)
+    }
+
+    @Test fun aSaltWithoutAHashIsDamagedAndNeverReachesSetup() = runBlocking {
+        val w = world()
+        goodPair(w)
+        w.db.openHelper.writableDatabase.execSQL("DELETE FROM settings WHERE key = '${SettingKeys.PIN_HASH}'")
+        assertClosed(w)
+    }
+
+    @Test fun emptyValuesAreDamagedAndNeverReachSetup() = runBlocking {
+        val w = world()
+        goodPair(w)
+        w.settings.put(SettingKeys.PIN_HASH, "")
+        w.settings.put(SettingKeys.PIN_SALT, "")
+        assertClosed(w)
+        w.settings.put(SettingKeys.PIN_SALT, PinHasher.newSalt())
+        assertClosed(w) // empty hash, good salt
+    }
+
+    @Test fun anEmptySaltWithAGoodHashIsDamaged() = runBlocking {
+        val w = world()
+        goodPair(w)
+        w.settings.put(SettingKeys.PIN_SALT, "")
+        assertClosed(w)
+    }
+
+    @Test fun aMalformedHashStringIsDamagedNotJustWrong() = runBlocking {
+        val w = world()
+        goodPair(w)
+        for (bad in listOf("x", "pbkdf2-sha256:abc:def", "pbkdf2-sha256:120000:", "md5:1:AAAA", "pbkdf2-sha256:120000:!!!notbase64")) {
+            w.settings.put(SettingKeys.PIN_HASH, bad)
+            assertClosed(w)
+        }
+    }
+
+    @Test fun aSaltThatIsNotBase64IsDamaged() = runBlocking {
+        val w = world()
+        goodPair(w)
+        w.settings.put(SettingKeys.PIN_SALT, "***")
+        assertClosed(w)
+    }
+
+    @Test fun damagedDataIsRepairedByNothingTheAppDoes() = runBlocking {
+        val w = world()
+        goodPair(w)
+        w.settings.put(SettingKeys.PIN_HASH, "garbage")
+        assertClosed(w)
+        assertEquals("garbage", w.settings.get(SettingKeys.PIN_HASH)) // the app never overwrites it
+    }
+
+    @Test fun undamagedDataStillVerifiesAndAnUnsetPinIsStillNotSet() = runBlocking {
+        val w = world()
+        assertFalse(Pin(w).status.isSet())
+        assertEquals(PinResult.NotSet, Pin(w).verify("1234"))
+        goodPair(w)
+        assertEquals(PinResult.Ok, Pin(w).verify("1234"))
     }
 
     // ---------------------------------------------------------------- the Change PIN screen's rules (Doc 1 A-25, A-26; Doc 2 s6)

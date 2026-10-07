@@ -7,8 +7,11 @@ data class PinLockState(val failCount: Int = 0, val lockedUntilMs: Long = 0)
 sealed interface PinResult {
     data object Ok : PinResult
 
-    /** No PIN has been chosen yet. */
+    /** No PIN has been chosen yet: NEITHER the hash nor the salt exists. */
     data object NotSet : PinResult
+
+    /** A hash or a salt exists but the pair is unusable (a half missing, empty, malformed). Fails closed: nothing opens. */
+    data object Damaged : PinResult
 
     /** Refused; [triesBeforeDelay] more wrong PINs are free before the delay starts. */
     data class Wrong(val triesBeforeDelay: Int) : PinResult

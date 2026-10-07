@@ -131,6 +131,27 @@ class PinViewModelTest {
         assertNotNull(v.ui.value)
     }
 
+    @Test fun damagedPinDataShowsTheEntryScreenNeverTheSetupAndNothingOpens() = runBlocking {
+        SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("1234", "1234")
+        for (damage in listOf<suspend () -> Unit>(
+            { w.db.openHelper.writableDatabase.execSQL("DELETE FROM settings WHERE key = 'pin_salt'") },
+            { w.settings.put("pin_salt", "") },
+            { w.settings.put("pin_salt", "AAAAAAAAAAAAAAAAAAAAAA=="); w.settings.put("pin_hash", "garbage") },
+        )) {
+            damage()
+            val v = vm()
+            val ui = v.ready(PinMode.ENTRY) // never SETUP
+            assertFalse(ui.mode == PinMode.SETUP)
+            v.onPin("1234")
+            v.submit()
+            val after = v.until { it.message != null }
+            assertEquals(PIN_DAMAGED_TEXT, after.message)
+            assertEquals(PinMode.ENTRY, after.mode)
+            assertTrue(lock.locked.value)
+            assertTrue(PinStatus(w.settings).isSet())
+        }
+    }
+
     @Test fun theSubmitButtonNeedsAtLeastFourDigits() = runBlocking {
         val v = vm()
         v.ready(PinMode.SETUP)

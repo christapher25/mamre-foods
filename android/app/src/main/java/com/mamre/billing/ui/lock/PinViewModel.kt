@@ -39,6 +39,9 @@ data class PinUi(
 const val SETUP_NO_RECOVERY_TEXT = "If you forget this PIN, the only way back in is to clear the app's data, which deletes everything."
 const val SETUP_WRITE_DOWN_TEXT = "Write this PIN down and keep it somewhere safe at home. It cannot be recovered."
 
+/** Said when the stored PIN data is unusable: the app stays locked and offers no way to choose a new PIN. */
+const val PIN_DAMAGED_TEXT = "The PIN data on this phone is damaged, so the app stays locked. The only way back in is to clear the app's data, which deletes everything."
+
 /** The PIN screen (Doc 2 s6): choose a PIN on a first run, enter it on every start and after the lock time. */
 @HiltViewModel
 class PinViewModel @Inject constructor(
@@ -78,6 +81,7 @@ class PinViewModel @Inject constructor(
                     when (val r = verifyPin(now.pin)) {
                         PinResult.Ok -> finish()
                         PinResult.NotSet -> _ui.update { it.copy(busy = false, pin = "", mode = PinMode.SETUP) }
+                        PinResult.Damaged -> _ui.update { it.copy(busy = false, pin = "", message = PIN_DAMAGED_TEXT) }
                         is PinResult.Wrong -> _ui.update {
                             it.copy(busy = false, pin = "", message = "Wrong PIN. ${r.triesBeforeDelay} tries left before a wait.")
                         }
