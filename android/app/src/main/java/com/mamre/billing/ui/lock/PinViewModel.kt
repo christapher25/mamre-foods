@@ -10,7 +10,7 @@ import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.domain.usecase.SetPin
 import com.mamre.billing.domain.usecase.VerifyPin
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.Clock
+import com.mamre.billing.domain.security.MonotonicClock
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -49,7 +49,7 @@ class PinViewModel @Inject constructor(
     private val setPin: SetPin,
     private val verifyPin: VerifyPin,
     private val lock: AppLock,
-    private val clock: Clock,
+    private val clock: MonotonicClock,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(PinUi())
     val ui: StateFlow<PinUi> = _ui.asStateFlow()
@@ -100,13 +100,13 @@ class PinViewModel @Inject constructor(
     }
 
     private fun startWait(remainingMs: Long) {
-        val until = clock.millis() + remainingMs
+        val until = clock.elapsedMs() + remainingMs
         _ui.update { it.copy(busy = false, pin = "", waitMs = remainingMs, message = "Too many wrong PINs. Please wait ${seconds(remainingMs)} seconds.") }
         countdown?.cancel()
         countdown = viewModelScope.launch {
             while (true) {
                 delay(1_000)
-                val left = until - clock.millis()
+                val left = until - clock.elapsedMs()
                 if (left <= 0) {
                     _ui.update { it.copy(waitMs = 0, message = null) }
                     return@launch

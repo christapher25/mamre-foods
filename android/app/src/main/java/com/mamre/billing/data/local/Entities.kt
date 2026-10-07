@@ -326,6 +326,11 @@ object SettingKeys {
     /** Wrong PINs in a row, and the time (epoch ms) until which every PIN is refused: in the database so a killed app cannot reset them. Never exported. */
     const val PIN_FAIL_COUNT = "pin_fail_count"
     const val PIN_LOCKED_UNTIL = "pin_locked_until"
+
+    /** The delay as written (ms), the monotonic reading at that moment and the boot it belongs to: the delay cannot be shortened by moving the phone's clock. Never exported. */
+    const val PIN_LOCK_DELAY_MS = "pin_lock_delay_ms"
+    const val PIN_LOCK_MONO_AT = "pin_lock_mono_at"
+    const val PIN_LOCK_BOOT = "pin_lock_boot"
     const val NEXT_BILL_SEQ = "next_bill_seq"
     const val NEXT_RECEIPT_SEQ = "next_receipt_seq"
 }

@@ -7,7 +7,9 @@ import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.domain.security.PinHasher
 import com.mamre.billing.domain.security.PinLockState
 import com.mamre.billing.domain.security.PinLockout
+import com.mamre.billing.domain.security.MonotonicClock
 import com.mamre.billing.domain.security.PinResult
+import com.mamre.billing.domain.security.PinTime
 import java.time.Clock
 
 // The PIN (Doc 2 s6). Version 1 has NO recovery: a forgotten PIN means clearing the app's data. Only a salted PBKDF2 hash and the
@@ -24,21 +26,29 @@ class PinStatus(private val settings: SettingsRepository) {
 private suspend fun readLock(settings: SettingsRepository) = PinLockState(
     failCount = settings.get(SettingKeys.PIN_FAIL_COUNT)?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
     lockedUntilMs = settings.get(SettingKeys.PIN_LOCKED_UNTIL)?.toLongOrNull()?.coerceAtLeast(0) ?: 0,
+    delayMs = settings.get(SettingKeys.PIN_LOCK_DELAY_MS)?.toLongOrNull()?.coerceAtLeast(0) ?: 0,
+    monoAtMs = settings.get(SettingKeys.PIN_LOCK_MONO_AT)?.toLongOrNull()?.coerceAtLeast(0) ?: 0,
+    bootId = settings.get(SettingKeys.PIN_LOCK_BOOT).orEmpty(),
 )
 
 private suspend fun writeLock(settings: SettingsRepository, s: PinLockState) {
     settings.put(SettingKeys.PIN_FAIL_COUNT, s.failCount.toString())
     settings.put(SettingKeys.PIN_LOCKED_UNTIL, s.lockedUntilMs.toString())
+    settings.put(SettingKeys.PIN_LOCK_DELAY_MS, s.delayMs.toString())
+    settings.put(SettingKeys.PIN_LOCK_MONO_AT, s.monoAtMs.toString())
+    settings.put(SettingKeys.PIN_LOCK_BOOT, s.bootId)
 }
 
+private fun readTime(clock: Clock, mono: MonotonicClock) = PinTime(clock.millis(), mono.elapsedMs(), mono.bootId())
+
 /** Checks a PIN, counting wrong ones and enforcing the delay. Must run inside a transaction. */
-private suspend fun checkPin(settings: SettingsRepository, clock: Clock, pin: String): PinResult {
+private suspend fun checkPin(settings: SettingsRepository, clock: Clock, mono: MonotonicClock, pin: String): PinResult {
     val hash = settings.get(SettingKeys.PIN_HASH)
     val salt = settings.get(SettingKeys.PIN_SALT)
     if (hash == null && salt == null) return PinResult.NotSet
     if (!PinHasher.isWellFormed(salt, hash)) return PinResult.Damaged // nothing is counted and nothing is repaired
     hash!!; salt!!
-    val now = clock.millis()
+    val now = readTime(clock, mono)
     val state = readLock(settings)
     val remaining = PinLockout.remainingMs(state, now)
     // During the delay every PIN is refused, the right one too, and a try does not count or lengthen it.
@@ -57,9 +67,10 @@ private suspend fun checkPin(settings: SettingsRepository, clock: Clock, pin: St
 class VerifyPin(
     private val unitOfWork: UnitOfWork,
     private val settings: SettingsRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
+    private val clock: Clock,
+    private val mono: MonotonicClock,
 ) {
-    suspend operator fun invoke(pin: String): PinResult = unitOfWork.run { checkPin(settings, clock, pin) }
+    suspend operator fun invoke(pin: String): PinResult = unitOfWork.run { checkPin(settings, clock, mono, pin) }
 }
 
 private fun checkNewPin(pin: String, confirm: String) {
@@ -105,11 +116,12 @@ class ChangePin(
     private val unitOfWork: UnitOfWork,
     private val settings: SettingsRepository,
     private val changeLog: ChangeLogRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
+    private val clock: Clock,
+    private val mono: MonotonicClock,
 ) {
     suspend operator fun invoke(oldPin: String, newPin: String, confirm: String) {
         // The old PIN is checked in its own transaction, so a wrong one is COUNTED even though the change is then refused.
-        when (val r = unitOfWork.run { checkPin(settings, clock, oldPin) }) {
+        when (val r = unitOfWork.run { checkPin(settings, clock, mono, oldPin) }) {
             PinResult.Ok -> Unit
             PinResult.NotSet -> refuse("No PIN is set")
             PinResult.Damaged -> refuse("The PIN data on this phone is damaged, so the PIN cannot be changed.")

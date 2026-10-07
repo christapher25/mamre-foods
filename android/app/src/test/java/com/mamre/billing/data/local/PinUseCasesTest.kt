@@ -34,8 +34,8 @@ class PinUseCasesTest {
 
     private class Pin(w: World) {
         val set = SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)
-        val change = ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock)
-        val verify = VerifyPin(w.unitOfWork, w.settings, w.clock)
+        val change = ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock, w.clock)
+        val verify = VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock)
         val status = PinStatus(w.settings)
     }
 

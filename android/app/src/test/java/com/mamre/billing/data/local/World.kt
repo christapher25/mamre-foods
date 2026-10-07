@@ -47,8 +47,10 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /** A clock the tests move by hand: every use case reads it for the bill, payment and return date. */
-class MutableClock(start: String = "2026-10-04T10:00:00Z") : Clock() {
+class MutableClock(start: String = "2026-10-04T10:00:00Z") : Clock(), com.mamre.billing.domain.security.MonotonicClock {
     private var now: Instant = Instant.parse(start)
+    private var mono: Long = 1_000_000L
+    private var boot: String = "boot-1"
 
     override fun getZone(): ZoneId = ZoneOffset.UTC
 
@@ -56,12 +58,34 @@ class MutableClock(start: String = "2026-10-04T10:00:00Z") : Clock() {
 
     override fun instant(): Instant = now
 
+    override fun elapsedMs(): Long = mono
+
+    override fun bootId(): String = boot
+
+    /** Time passes: the wall clock goes to [iso] and the monotonic clock moves on by the same forward amount (never back). */
     fun set(iso: String) {
-        now = Instant.parse(iso)
+        val to = Instant.parse(iso)
+        mono += maxOf(0L, to.toEpochMilli() - now.toEpochMilli())
+        now = to
     }
 
-    fun advanceMinutes(minutes: Long) {
-        now = now.plusSeconds(minutes * 60)
+    /** Time passes: both clocks move on. */
+    fun advanceMinutes(minutes: Long) = advanceMs(minutes * 60_000)
+
+    fun advanceMs(ms: Long) {
+        now = now.plusMillis(ms)
+        mono += ms
+    }
+
+    /** Somebody changes the date and time settings: ONLY the wall clock moves, by [ms] (negative = back). */
+    fun jumpWallMs(ms: Long) {
+        now = now.plusMillis(ms)
+    }
+
+    /** The phone restarts: a new boot id, the monotonic clock starts again near zero, the wall clock is unchanged. */
+    fun reboot(sinceBootMs: Long = 2_000L) {
+        boot = "boot-${boot.removePrefix("boot-").toInt() + 1}"
+        mono = sinceBootMs
     }
 }
 

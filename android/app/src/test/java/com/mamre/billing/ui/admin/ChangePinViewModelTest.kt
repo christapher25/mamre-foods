@@ -47,9 +47,9 @@ class ChangePinViewModelTest {
         w.db.close()
     }
 
-    private fun vm() = ChangePinViewModel(ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock), lock, w.clock)
+    private fun vm() = ChangePinViewModel(ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock, w.clock), lock, w.clock)
 
-    private fun verify(pin: String) = runBlocking { VerifyPin(w.unitOfWork, w.settings, w.clock)(pin) }
+    private fun verify(pin: String) = runBlocking { VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock)(pin) }
 
     private suspend fun ChangePinViewModel.until(p: (ChangePinUi) -> Boolean): ChangePinUi = withTimeout(10_000) { ui.first(p) }
 

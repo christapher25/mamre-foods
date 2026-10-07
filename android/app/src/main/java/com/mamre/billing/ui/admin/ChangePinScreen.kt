@@ -32,7 +32,7 @@ import com.mamre.billing.ui.components.PrimaryButton
 import com.mamre.billing.ui.lock.SETUP_WRITE_DOWN_TEXT
 import com.mamre.billing.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.Clock
+import com.mamre.billing.domain.security.MonotonicClock
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -67,7 +67,7 @@ data class ChangePinUi(
 class ChangePinViewModel @Inject constructor(
     private val changePin: ChangePin,
     private val lock: AppLock,
-    private val clock: Clock,
+    private val clock: MonotonicClock,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(ChangePinUi())
     val ui: StateFlow<ChangePinUi> = _ui.asStateFlow()
@@ -104,13 +104,13 @@ class ChangePinViewModel @Inject constructor(
     }
 
     private fun startWait(remainingMs: Long) {
-        val until = clock.millis() + remainingMs
+        val until = clock.elapsedMs() + remainingMs
         _ui.update { ChangePinUi(waitMs = remainingMs, message = waitText(remainingMs)) }
         countdown?.cancel()
         countdown = viewModelScope.launch {
             while (true) {
                 delay(1_000)
-                val left = until - clock.millis()
+                val left = until - clock.elapsedMs()
                 if (left <= 0) {
                     _ui.update { it.copy(waitMs = 0, message = null) }
                     return@launch

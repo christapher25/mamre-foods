@@ -17,6 +17,8 @@ import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.StockRepository
+import com.mamre.billing.data.system.AndroidMonotonicClock
+import com.mamre.billing.domain.security.MonotonicClock
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.usecase.MakeBill
 import com.mamre.billing.domain.usecase.RecordPayment
@@ -44,6 +46,9 @@ import javax.inject.Singleton
 object AppModule {
     @Provides @Singleton
     fun clock(): Clock = Clock.systemDefaultZone()
+
+    @Provides @Singleton
+    fun monotonicClock(@ApplicationContext context: Context): MonotonicClock = AndroidMonotonicClock(context)
 
     /** What this build shows: SHOW_ANALYTICS is false in release (Doc 2 s9, A-28). */
     @Provides @Singleton
@@ -117,10 +122,11 @@ object AppModule {
     fun setPin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock) = SetPin(u, settings, changeLog, clock)
 
     @Provides
-    fun changePin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock) = ChangePin(u, settings, changeLog, clock)
+    fun changePin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock, mono: MonotonicClock) =
+        ChangePin(u, settings, changeLog, clock, mono)
 
     @Provides
-    fun verifyPin(u: UnitOfWork, settings: SettingsRepository, clock: Clock) = VerifyPin(u, settings, clock)
+    fun verifyPin(u: UnitOfWork, settings: SettingsRepository, clock: Clock, mono: MonotonicClock) = VerifyPin(u, settings, clock, mono)
 
     // ------------------------------------------------------------------ the Admin area
 

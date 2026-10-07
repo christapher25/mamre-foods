@@ -1,8 +1,5 @@
 package com.mamre.billing.domain.security
 
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -58,26 +55,27 @@ class PinCoreTest {
         assertEquals(900_000L, PinLockout.delayAfter(1_000_000))
     }
 
+    private fun at(ms: Long) = PinTime(wallMs = ms, monoMs = ms, bootId = "b")
+
     @Test fun aWrongPinCountsAndSetsTheLockedUntilTimeAndACorrectOneResets() {
         var s = PinLockState()
-        for (i in 1..4) s = PinLockout.afterWrong(s, nowMs = 1_000)
-        assertEquals(0L, PinLockout.remainingMs(s, 1_000))
-        s = PinLockout.afterWrong(s, nowMs = 1_000)
+        for (i in 1..4) s = PinLockout.afterWrong(s, at(1_000))
+        assertEquals(0L, PinLockout.remainingMs(s, at(1_000)))
+        s = PinLockout.afterWrong(s, at(1_000))
         assertEquals(5, s.failCount)
         assertEquals(31_000L, s.lockedUntilMs)
-        assertEquals(30_000L, PinLockout.remainingMs(s, 1_000))
-        assertEquals(0L, PinLockout.remainingMs(s, 31_000)) // the delay is over
+        assertEquals(30_000L, PinLockout.remainingMs(s, at(1_000)))
+        assertEquals(0L, PinLockout.remainingMs(s, at(31_000))) // the delay is over
         assertEquals(PinLockState(), PinLockout.afterCorrect())
     }
 
     // ---------------------------------------------------------------- the lock after inactivity (a fixed clock)
 
-    private class TestClock : Clock() {
-        var now: Instant = Instant.parse("2026-10-06T09:00:00Z")
-        override fun getZone() = ZoneOffset.UTC
-        override fun withZone(zone: java.time.ZoneId?) = this
-        override fun instant(): Instant = now
-        fun plusMinutes(m: Long) { now = now.plusSeconds(m * 60) }
+    private class TestClock : MonotonicClock {
+        var ms = 5_000_000L
+        override fun elapsedMs() = ms
+        override fun bootId() = "boot-1"
+        fun plusMinutes(m: Long) { ms += m * 60_000 }
     }
 
     @Test fun theAppStartsLockedAndOnlyAnExplicitUnlockOpensIt() {

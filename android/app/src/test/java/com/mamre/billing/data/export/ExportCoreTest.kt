@@ -125,7 +125,7 @@ class ExportCoreTest {
     @Test fun thePinHashSaltAndLockoutKeysAreInNoFile() = runBlocking {
         val w = fullWorld()
         SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
-        val verify = VerifyPin(w.unitOfWork, w.settings, w.clock)
+        val verify = VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock)
         repeat(5) { verify("0000") } // five wrong PINs write pin_fail_count and pin_locked_until
         val hash = w.settings.get(SettingKeys.PIN_HASH)!!
         val salt = w.settings.get(SettingKeys.PIN_SALT)!!
@@ -133,14 +133,17 @@ class ExportCoreTest {
         assertTrue(w.settings.get(SettingKeys.PIN_LOCKED_UNTIL)!!.isNotEmpty())
         val bundle = ExportBuilder(w.db, w.clock).build()
         for (file in bundle.files) {
-            for (needle in listOf(hash, salt, "pin_hash", "pin_salt", "pin_fail_count", "pin_locked_until", "pbkdf2")) {
+            for (needle in listOf(hash, salt, "pin_hash", "pin_salt", "pin_fail_count", "pin_locked_until", "pin_lock_delay_ms", "pin_lock_mono_at", "pin_lock_boot", "pbkdf2")) {
                 assertFalse("${file.name} contains $needle", file.text.contains(needle))
             }
         }
         // The other settings are there: the owner name, and the manifest count leaves the four PIN rows out.
         val keys = bundle.rows("settings").map { it["key"] }
         assertTrue("owner_name" in keys && "device_code" in keys && "next_bill_seq" in keys)
-        assertEquals(count(w.db, "settings") - 4, keys.size)
+        // The seven PIN rows: hash, salt, fail count, locked until, and the delay, monotonic reading and boot of the delay.
+        val pinRows = w.settings.all().keys.filter { it.startsWith("pin_") }
+        assertEquals(7, pinRows.size)
+        assertEquals(count(w.db, "settings") - pinRows.size, keys.size)
         // The change log says a PIN was set but never what it is.
         assertTrue(bundle.rows("change_log").any { it["what"] == "PIN set" })
     }
@@ -259,7 +262,7 @@ class ExportCoreTest {
         // A PIN is digits only, so its digits can occur by chance inside a hex UUID or an amount: the test therefore never
         // searches for the PIN's digits. It checks the four keys and the stored hash and salt (random, long, never a UUID).
         SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
-        ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "9034", "9034")
+        ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock, w.clock)("4821", "9034", "9034")
         val hash = w.settings.get(SettingKeys.PIN_HASH)!!
         val salt = w.settings.get(SettingKeys.PIN_SALT)!!
         assertTrue(hash.isNotEmpty() && salt.isNotEmpty())

@@ -45,7 +45,7 @@ class PinViewModelTest {
     }
 
     private fun vm() = PinViewModel(
-        PinStatus(w.settings), SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock), VerifyPin(w.unitOfWork, w.settings, w.clock), lock, w.clock,
+        PinStatus(w.settings), SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock), VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock), lock, w.clock,
     )
 
     private suspend fun PinViewModel.ready(mode: PinMode): PinUi = withTimeout(10_000) { ui.first { it.mode == mode } }
