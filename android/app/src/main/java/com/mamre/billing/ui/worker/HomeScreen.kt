@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Replay
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -49,13 +51,17 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val onLockNow = viewModel::lockNow
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
             // The business name is a Settings value, never a string in the code (Doc 1 A-31).
             title = state.businessName.ifBlank { "Billing" },
             showLogo = true,
             subtitle = "${state.ownerName.ifBlank { "Owner" }} - device ${state.deviceCode}",
-            actions = { DataLabelChip() },
+            actions = {
+                DataLabelChip()
+                LockNowButton(onClick = onLockNow)
+            },
         )
         Column(
             modifier = Modifier
@@ -86,6 +92,17 @@ fun HomeScreen(
                 GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
             }
         }
+    }
+}
+
+/**
+ * The top bar's "Lock now": locks the app at once. Only the lock icon, named "Lock now" for screen readers: a text label took the
+ * title's width at font scale 1.3 and 360 dp and squeezed the business name into a column.
+ */
+@Composable
+private fun LockNowButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(Icons.Default.Lock, contentDescription = "Lock now")
     }
 }
 

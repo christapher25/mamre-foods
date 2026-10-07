@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.domain.security.AppLock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -31,6 +32,7 @@ class HomeViewModel @Inject constructor(
     sales: SalesRepository,
     settings: SettingsRepository,
     clock: Clock,
+    private val lock: AppLock,
 ) : ViewModel() {
     val state: StateFlow<HomeState> = combine(sales.observeState(), settings.observeAll()) { sold, s ->
         val today = LocalDate.now(clock)
@@ -41,4 +43,7 @@ class HomeViewModel @Inject constructor(
             invoicesToday = sold.invoices.count { it.issuedAt.toLocalDate() == today },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())
+
+    /** The "Lock now" button: the app locks at once and asks for the PIN (Doc 2 s6). The lock minutes setting is not touched. */
+    fun lockNow() = lock.lockNow()
 }

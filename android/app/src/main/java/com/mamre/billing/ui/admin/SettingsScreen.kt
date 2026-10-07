@@ -27,6 +27,7 @@ import com.mamre.billing.domain.admin.SettingsProblem
 import com.mamre.billing.domain.admin.formatWastage
 import com.mamre.billing.domain.admin.settingsProblemMessage
 import com.mamre.billing.domain.admin.validateSettings
+import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.EntryGate
 import com.mamre.billing.ui.components.AppCard
@@ -73,6 +74,7 @@ data class SettingsUi(
 class SettingsViewModel @Inject constructor(
     private val api: AdminApi,
     gate: Optional<EntryGate>,
+    private val appLock: AppLock,
 ) : ViewModel() {
     private val entryGate: EntryGate? = gate.orElse(null)
     private val _ui = MutableStateFlow(SettingsUi(canLogOut = entryGate != null))
@@ -113,6 +115,9 @@ class SettingsViewModel @Inject constructor(
     fun saveLockMinutes(minutes: Int) = save(SettingsSection.LOCK) { api.setLockMinutes(minutes) }
 
     fun logout() = entryGate?.close()
+
+    /** The "Lock now" button: the app locks at once and asks for the PIN (Doc 2 s6). The lock minutes setting is not touched. */
+    fun lockNow() = appLock.lockNow()
 }
 
 class SettingsActions(
@@ -124,6 +129,7 @@ class SettingsActions(
     val logout: () -> Unit,
     val export: () -> Unit,
     val changePin: () -> Unit,
+    val lockNow: () -> Unit,
 )
 
 @Composable
@@ -141,6 +147,7 @@ fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, onChangePin: () -> 
             logout = viewModel::logout,
             export = onExport,
             changePin = onChangePin,
+            lockNow = viewModel::lockNow,
         ),
     )
 }
@@ -221,6 +228,8 @@ fun SettingsContent(ui: SettingsUi, onBack: () -> Unit, actions: SettingsActions
             PrimaryButton("Save lock time", onClick = { actions.saveLockMinutes(lock.toIntOrNull() ?: 0) })
             Hint("Your PIN opens the app. Changing it needs the current PIN.")
             SecondaryButton("Change PIN", onClick = actions.changePin)
+            Hint("Locks the app now. The PIN is asked for again.")
+            SecondaryButton("Lock now", onClick = actions.lockNow)
 
             SectionHeader("Costing")
             AppCard {

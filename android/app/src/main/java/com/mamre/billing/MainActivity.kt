@@ -26,6 +26,7 @@ import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.ui.LocalDataLabel
 import com.mamre.billing.ui.LocalFeatures
 import com.mamre.billing.ui.MamreNavHost
+import com.mamre.billing.ui.applyWindowSecurity
 import com.mamre.billing.ui.theme.MamreBillingTheme
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Optional
@@ -57,6 +58,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Release only: FLAG_SECURE blanks the recent-apps preview and refuses screenshots (BuildConfig.SECURE_WINDOW).
+        applyWindowSecurity(window, BuildConfig.SECURE_WINDOW)
         // Light theme only: dark icons on the light bars, even when the phone is in dark mode.
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
