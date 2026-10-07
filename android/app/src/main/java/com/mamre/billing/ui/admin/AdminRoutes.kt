@@ -29,6 +29,7 @@ object AdminRoutes {
     const val BALANCES = "admin/more/balances"
     const val SETTINGS = "admin/more/settings"
     const val EXPORT = "admin/more/settings/export"
+    const val CHANGE_PIN = "admin/more/settings/change-pin"
 
     const val ARG_ID = "id"
     const val ARG_PRODUCT = "productId"
@@ -42,7 +43,7 @@ object AdminRoutes {
 
     val all = listOf(
         DASHBOARD, SALES, SALES_DETAIL, CUSTOMERS, CUSTOMER_NEW, CUSTOMER_DETAIL, CUSTOMER_EDIT, OVERRIDE_SET,
-        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, SETTINGS, EXPORT,
+        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, SETTINGS, EXPORT, CHANGE_PIN,
     )
 }
 

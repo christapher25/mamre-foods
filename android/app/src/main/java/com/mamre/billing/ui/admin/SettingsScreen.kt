@@ -123,10 +123,11 @@ class SettingsActions(
     val saveLockMinutes: (Int) -> Unit,
     val logout: () -> Unit,
     val export: () -> Unit,
+    val changePin: () -> Unit,
 )
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, onChangePin: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     SettingsContent(
         ui = ui,
@@ -139,6 +140,7 @@ fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, viewModel: Settings
             saveLockMinutes = viewModel::saveLockMinutes,
             logout = viewModel::logout,
             export = onExport,
+            changePin = onChangePin,
         ),
     )
 }
@@ -217,6 +219,8 @@ fun SettingsContent(ui: SettingsUi, onBack: () -> Unit, actions: SettingsActions
             )
             SectionMessage(ui, SettingsSection.LOCK)
             PrimaryButton("Save lock time", onClick = { actions.saveLockMinutes(lock.toIntOrNull() ?: 0) })
+            Hint("Your PIN opens the app. Changing it needs the current PIN.")
+            SecondaryButton("Change PIN", onClick = actions.changePin)
 
             SectionHeader("Costing")
             AppCard {

@@ -2,7 +2,9 @@ package com.mamre.billing.data.local
 
 import com.mamre.billing.domain.security.PinResult
 import com.mamre.billing.domain.usecase.ChangePin
+import com.mamre.billing.domain.usecase.PinDelay
 import com.mamre.billing.domain.usecase.PinStatus
+import com.mamre.billing.domain.usecase.WrongCurrentPin
 import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.domain.usecase.SetPin
 import com.mamre.billing.domain.usecase.VerifyPin
@@ -202,8 +204,104 @@ class PinUseCasesTest {
         val w = world()
         val p = Pin(w)
         p.set("1234", "1234")
-        val first = w.settings.get(SettingKeys.PIN_SALT)
-        p.change("1234", "1234", "1234")
-        assertTrue(first != w.settings.get(SettingKeys.PIN_SALT))
+        val salt = w.settings.get(SettingKeys.PIN_SALT)
+        val hash = w.settings.get(SettingKeys.PIN_HASH)
+        p.change("1234", "5678", "5678")
+        assertTrue(salt != w.settings.get(SettingKeys.PIN_SALT))
+        assertTrue(hash != w.settings.get(SettingKeys.PIN_HASH))
+    }
+
+    // ---------------------------------------------------------------- the Change PIN screen's rules (Doc 1 A-25, A-26; Doc 2 s6)
+
+    @Test fun aWrongCurrentPinIsRefusedAndCountedAndTheTypedAnswerCarriesTheTriesLeft() = runBlocking {
+        val w = world()
+        val p = Pin(w)
+        p.set("1234", "1234")
+        val hash = w.settings.get(SettingKeys.PIN_HASH)
+        val salt = w.settings.get(SettingKeys.PIN_SALT)
+        try {
+            p.change("0000", "5678", "5678")
+            fail("expected the wrong current PIN to be refused")
+        } catch (e: WrongCurrentPin) {
+            assertEquals(4, e.triesBeforeDelay)
+        }
+        assertEquals("1", w.settings.get(SettingKeys.PIN_FAIL_COUNT))
+        assertEquals(hash, w.settings.get(SettingKeys.PIN_HASH))
+        assertEquals(salt, w.settings.get(SettingKeys.PIN_SALT))
+        assertEquals(PinResult.Ok, p.verify("1234"))
+    }
+
+    @Test fun fiveWrongCurrentPinsInARowStartTheDelayAndThenEvenTheRightOneIsRefused() = runBlocking {
+        val w = world()
+        val p = Pin(w)
+        p.set("1234", "1234")
+        repeat(4) { assertTrue(runCatching { p.change("0000", "5678", "5678") }.exceptionOrNull() is WrongCurrentPin) }
+        val fifth = runCatching { p.change("0000", "5678", "5678") }.exceptionOrNull()
+        assertEquals(30_000L, (fifth as PinDelay).remainingMs)
+        val during = runCatching { p.change("1234", "5678", "5678") }.exceptionOrNull()
+        assertEquals(30_000L, (during as PinDelay).remainingMs)
+        assertEquals("5", w.settings.get(SettingKeys.PIN_FAIL_COUNT)) // a try during the delay does not count
+        assertEquals(PinResult.Locked(30_000), p.verify("1234")) // the PIN screen shares the same delay
+        w.clock.set("2026-10-04T10:00:31Z")
+        p.change("1234", "5678", "5678")
+        assertEquals(PinResult.Ok, p.verify("5678"))
+    }
+
+    @Test fun aCorrectCurrentPinChangesTheHashAndTheSaltAndResetsTheCounter() = runBlocking {
+        val w = world()
+        val p = Pin(w)
+        p.set("1234", "1234")
+        repeat(2) { runCatching { p.change("0000", "5678", "5678") } }
+        val hash = w.settings.get(SettingKeys.PIN_HASH)
+        val salt = w.settings.get(SettingKeys.PIN_SALT)
+        p.change("1234", "5678", "5678")
+        assertTrue(hash != w.settings.get(SettingKeys.PIN_HASH))
+        assertTrue(salt != w.settings.get(SettingKeys.PIN_SALT))
+        assertEquals("0", w.settings.get(SettingKeys.PIN_FAIL_COUNT))
+        val entry = w.changeLog.all().single { it.what == "PIN changed" }
+        assertFalse(entry.beforeText.contains("1234") || entry.afterText.contains("5678"))
+        assertFalse(everythingStored(w).contains("5678"))
+    }
+
+    @Test fun afterTheDatabaseIsClosedAndReopenedTheOldPinIsRefusedAndTheNewOneOpens() = runBlocking {
+        var w = world(TestDatabase.file(file))
+        Pin(w).set("1234", "1234")
+        Pin(w).change("1234", "567890", "567890")
+        w.db.close()
+        w = World(TestDatabase.file(file), w.clock)
+        val p = Pin(w)
+        assertTrue(p.verify("1234") is PinResult.Wrong)
+        assertEquals(PinResult.Ok, p.verify("567890"))
+        w.db.close()
+    }
+
+    @Test fun aNewPinEqualToTheCurrentOneIsRefusedAndNothingChanges() = runBlocking {
+        val w = world()
+        val p = Pin(w)
+        p.set("1234", "1234")
+        val hash = w.settings.get(SettingKeys.PIN_HASH)
+        val salt = w.settings.get(SettingKeys.PIN_SALT)
+        assertTrue(refused { p.change("1234", "1234", "1234") }.contains("different"))
+        assertEquals(hash, w.settings.get(SettingKeys.PIN_HASH))
+        assertEquals(salt, w.settings.get(SettingKeys.PIN_SALT))
+        assertTrue(w.changeLog.all().none { it.what == "PIN changed" })
+    }
+
+    @Test fun twoDifferentNewPinEntriesAreRefusedAndNothingChanges() = runBlocking {
+        val w = world()
+        val p = Pin(w)
+        p.set("1234", "1234")
+        val hash = w.settings.get(SettingKeys.PIN_HASH)
+        assertTrue(refused { p.change("1234", "5678", "5679") }.contains("same"))
+        assertEquals(hash, w.settings.get(SettingKeys.PIN_HASH))
+        assertEquals(PinResult.Ok, p.verify("1234"))
+    }
+
+    @Test fun aWrongCurrentPinIsCountedBeforeTheNewPinIsLookedAt() = runBlocking {
+        val w = world()
+        val p = Pin(w)
+        p.set("1234", "1234")
+        assertTrue(runCatching { p.change("0000", "12", "34") }.exceptionOrNull() is WrongCurrentPin)
+        assertEquals("1", w.settings.get(SettingKeys.PIN_FAIL_COUNT))
     }
 }

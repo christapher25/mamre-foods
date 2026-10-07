@@ -87,6 +87,12 @@ class SetPin(
     }
 }
 
+/** The current PIN given to [ChangePin] was wrong; it was counted. Carries only the number of free tries left, never a PIN. */
+class WrongCurrentPin(val triesBeforeDelay: Int) : RuleException("The old PIN is not right")
+
+/** The wrong-PIN delay is running (or has just started); every PIN is refused for [remainingMs] more. */
+class PinDelay(val remainingMs: Long) : RuleException("Too many wrong PINs: wait ${(remainingMs + 999) / 1000} seconds")
+
 /**
  * Change PIN (Settings): the OLD PIN is required and counts towards the same wrong-PIN delay. There is no way around it: no
  * recovery in version 1 (Doc 2 s6, Doc 1 A-26).
@@ -102,11 +108,12 @@ class ChangePin(
         when (val r = unitOfWork.run { checkPin(settings, clock, oldPin) }) {
             PinResult.Ok -> Unit
             PinResult.NotSet -> refuse("No PIN is set")
-            is PinResult.Wrong -> refuse("The old PIN is not right")
-            is PinResult.Locked -> refuse("Too many wrong PINs: wait ${(r.remainingMs + 999) / 1000} seconds")
+            is PinResult.Wrong -> throw WrongCurrentPin(r.triesBeforeDelay)
+            is PinResult.Locked -> throw PinDelay(r.remainingMs)
         }
         unitOfWork.run {
             checkNewPin(newPin, confirm)
+            if (newPin == oldPin) refuse("The new PIN must be different from the current PIN.")
             store(settings, newPin)
             changeLog.add(clock.millis(), "PIN changed", "set", "set")
         }
