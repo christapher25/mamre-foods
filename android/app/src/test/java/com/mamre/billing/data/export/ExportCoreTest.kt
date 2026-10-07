@@ -256,10 +256,24 @@ class ExportCoreTest {
 
     @Test fun aChangedPinIsAlsoNeverExported() = runBlocking {
         val w = fullWorld()
+        // A PIN is digits only, so its digits can occur by chance inside a hex UUID or an amount: the test therefore never
+        // searches for the PIN's digits. It checks the four keys and the stored hash and salt (random, long, never a UUID).
         SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
         ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "9034", "9034")
         val hash = w.settings.get(SettingKeys.PIN_HASH)!!
+        val salt = w.settings.get(SettingKeys.PIN_SALT)!!
+        assertTrue(hash.isNotEmpty() && salt.isNotEmpty())
         val bundle = ExportBuilder(w.db, w.clock).build()
-        assertFalse(bundle.files.any { it.text.contains(hash) || it.text.contains("4821") || it.text.contains("9034") })
+        val exportedKeys = bundle.rows("settings").map { it.getValue("key") }
+        for (key in listOf("pin_hash", "pin_salt", "pin_fail_count", "pin_locked_until")) {
+            assertFalse("$key is exported", key in exportedKeys)
+        }
+        assertTrue("the other settings are still exported", exportedKeys.isNotEmpty())
+        assertTrue(exportedKeys.none { it.startsWith("pin_") })
+        for (f in bundle.files) {
+            assertFalse("${f.name} holds the PIN hash", f.text.contains(hash))
+            assertFalse("${f.name} holds the PIN salt", f.text.contains(salt))
+            assertFalse("${f.name} holds a PIN hash prefix", f.text.contains("pbkdf2-sha256"))
+        }
     }
 }
