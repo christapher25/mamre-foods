@@ -5,8 +5,6 @@ import com.mamre.billing.data.startup.AppReadiness
 import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.auth.Features
-import com.mamre.billing.domain.auth.Routes
-import com.mamre.billing.domain.auth.appStartDestination
 import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.data.local.MutableClock
 import java.util.Optional
@@ -47,14 +45,14 @@ class StartDestinationTest {
         val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(MutableClock()))
         assertNull(vm.gate)
         assertTrue(vm.gateOpen.value)
-        assertEquals(Routes.PIN, appStartDestination(vm.gate?.route)) // the PIN screen comes before the Sales Home
+        assertEquals(AppScreen.PIN, screenFor(vm.gate != null, vm.gateOpen.value, vm.locked.value)) // the PIN screen comes before the Sales Home
         assertEquals(Area.SALES, vm.area.value)
     }
 
     @Test fun withAGateTheAppStartsAtTheGateAndStaysClosedUntilItOpens() {
         val gate = FakeGate()
         val vm = AppViewModel(AreaState(), Optional.of(gate), Features(showAnalytics = false), Ready, AppLock(MutableClock()))
-        assertEquals("gate-screen", appStartDestination(vm.gate?.route))
+        assertEquals(AppScreen.GATE, screenFor(vm.gate != null, vm.gateOpen.value, vm.locked.value))
         assertFalse(vm.gateOpen.value)
         gate.let()
         assertTrue(vm.gateOpen.value)
@@ -69,11 +67,6 @@ class StartDestinationTest {
         assertEquals(Area.SALES, vm.area.value)
         vm.openArea(Area.ADMIN)
         assertEquals(Area.ADMIN, vm.area.value)
-    }
-
-    @Test fun theStartRouteOfTheMainGraphIsNeverALoginRoute() {
-        assertEquals("pin", appStartDestination(null))
-        assertFalse(appStartDestination(null).contains("login", ignoreCase = true))
     }
 
     @Test fun theFirstScreenWaitsOnTheDatabaseBeingOpen() {
