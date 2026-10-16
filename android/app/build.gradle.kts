@@ -106,6 +106,48 @@ val verifyReleaseManifest = tasks.register("verifyReleaseManifest") {
     }
 }
 
+// Doc 2 s6 (review item 8): the release app opens ONE door, the launcher. The MERGED release manifest must hold no activity but the
+// launcher and no exported provider, service or receiver except these known library entries (a component with an intent filter and no
+// exported attribute counts as exported). A new exported component, from us or from a library update, fails assembleRelease until a
+// person looks at it and adds it here on purpose.
+val releaseManifestAllowedExported = setOf(
+    "androidx.startup.InitializationProvider",
+    "androidx.room.MultiInstanceInvalidationService",
+    "androidx.profileinstaller.ProfileInstallReceiver",
+)
+val verifyReleaseComponents = tasks.register("verifyReleaseComponents") {
+    val merged = layout.buildDirectory.file("intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml")
+    inputs.file(merged)
+    val allowed = releaseManifestAllowedExported
+    doLast {
+        val androidNs = "http://schemas.android.com/apk/res/android"
+        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val app = factory.newDocumentBuilder().parse(merged.get().asFile).getElementsByTagName("application").item(0) as org.w3c.dom.Element
+        fun children(tag: String) = (0 until app.getElementsByTagName(tag).length).map { app.getElementsByTagName(tag).item(it) as org.w3c.dom.Element }
+        fun org.w3c.dom.Element.nameAttr() = getAttributeNS(androidNs, "name")
+        fun org.w3c.dom.Element.isLauncher() = (0 until getElementsByTagName("intent-filter").length).any { i ->
+            val f = getElementsByTagName("intent-filter").item(i) as org.w3c.dom.Element
+            fun has(tag: String, v: String) = (0 until f.getElementsByTagName(tag).length).any { (f.getElementsByTagName(tag).item(it) as org.w3c.dom.Element).nameAttr() == v }
+            has("action", "android.intent.action.MAIN") && has("category", "android.intent.category.LAUNCHER")
+        }
+        fun org.w3c.dom.Element.isExported() = when (getAttributeNS(androidNs, "exported")) {
+            "true" -> true
+            "false" -> false
+            else -> getElementsByTagName("intent-filter").length > 0
+        }
+        val problems = mutableListOf<String>()
+        for (tag in listOf("activity", "activity-alias")) {
+            children(tag).filterNot { it.isLauncher() }.forEach { problems += "$tag ${it.nameAttr()} is not the launcher" }
+        }
+        val launchers = children("activity").count { it.isLauncher() } + children("activity-alias").count { it.isLauncher() }
+        if (launchers != 1) problems += "expected exactly one launcher activity, found $launchers"
+        for (tag in listOf("provider", "service", "receiver")) {
+            children(tag).filter { it.isExported() && it.nameAttr() !in allowed }.forEach { problems += "exported $tag ${it.nameAttr()} is not on the allowlist" }
+        }
+        check(problems.isEmpty()) { "the merged release manifest opens doors it should not: $problems" }
+    }
+}
+
 // Version 1 hides the Dashboard, Costing and every cost figure: the release build must say SHOW_ANALYTICS = false, and it must mark
 // its window secure (SECURE_WINDOW = true).
 val verifyReleaseFlags = tasks.register("verifyReleaseFlags") {
@@ -120,6 +162,7 @@ val verifyReleaseFlags = tasks.register("verifyReleaseFlags") {
 
 afterEvaluate {
     verifyReleaseManifest.configure { dependsOn("processReleaseMainManifest") }
+    verifyReleaseComponents.configure { dependsOn("processReleaseMainManifest") }
     verifyReleaseFlags.configure { dependsOn("generateReleaseBuildConfig") }
-    tasks.named("assembleRelease") { dependsOn(verifyReleaseManifest, verifyReleaseFlags) }
+    tasks.named("assembleRelease") { dependsOn(verifyReleaseManifest, verifyReleaseComponents, verifyReleaseFlags) }
 }
