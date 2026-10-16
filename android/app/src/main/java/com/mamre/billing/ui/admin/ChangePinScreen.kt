@@ -30,12 +30,13 @@ import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.LabeledTextField
 import com.mamre.billing.ui.components.PrimaryButton
 import com.mamre.billing.ui.lock.SETUP_WRITE_DOWN_TEXT
+import com.mamre.billing.ui.lock.WaitCountdown
+import com.mamre.billing.ui.lock.pinDigits
+import com.mamre.billing.ui.lock.waitMessage
 import com.mamre.billing.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.mamre.billing.domain.security.MonotonicClock
 import javax.inject.Inject
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,15 +72,15 @@ class ChangePinViewModel @Inject constructor(
 ) : ViewModel() {
     private val _ui = MutableStateFlow(ChangePinUi())
     val ui: StateFlow<ChangePinUi> = _ui.asStateFlow()
-    private var countdown: Job? = null
+    private val countdown = WaitCountdown(viewModelScope, clock) { left ->
+        _ui.update { it.copy(waitMs = left, message = if (left > 0) waitMessage(left) else null) }
+    }
 
-    private fun digits(s: String) = s.filter { it in '0'..'9' }.take(PinHasher.MAX_DIGITS)
+    fun onCurrent(value: String) = _ui.update { it.copy(current = pinDigits(value), message = null) }
 
-    fun onCurrent(value: String) = _ui.update { it.copy(current = digits(value), message = null) }
+    fun onNew(value: String) = _ui.update { it.copy(newPin = pinDigits(value), message = null) }
 
-    fun onNew(value: String) = _ui.update { it.copy(newPin = digits(value), message = null) }
-
-    fun onConfirm(value: String) = _ui.update { it.copy(confirm = digits(value), message = null) }
+    fun onConfirm(value: String) = _ui.update { it.copy(confirm = pinDigits(value), message = null) }
 
     fun submit() {
         val now = _ui.value
@@ -104,23 +105,9 @@ class ChangePinViewModel @Inject constructor(
     }
 
     private fun startWait(remainingMs: Long) {
-        val until = clock.elapsedMs() + remainingMs
-        _ui.update { ChangePinUi(waitMs = remainingMs, message = waitText(remainingMs)) }
-        countdown?.cancel()
-        countdown = viewModelScope.launch {
-            while (true) {
-                delay(1_000)
-                val left = until - clock.elapsedMs()
-                if (left <= 0) {
-                    _ui.update { it.copy(waitMs = 0, message = null) }
-                    return@launch
-                }
-                _ui.update { it.copy(waitMs = left, message = waitText(left)) }
-            }
-        }
+        _ui.update { ChangePinUi() } // the fields are cleared, as for any refused try
+        countdown.start(remainingMs)
     }
-
-    private fun waitText(ms: Long) = "Too many wrong PINs. Please wait ${(ms + 999) / 1000} seconds."
 }
 
 @Composable

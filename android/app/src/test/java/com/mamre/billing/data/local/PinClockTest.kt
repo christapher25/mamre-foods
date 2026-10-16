@@ -183,7 +183,6 @@ class PinClockTest {
     @Test fun theBackgroundTimeCountsOnTheMonotonicClockToo() {
         val clock = MutableClock()
         val lock = AppLock(clock).also { it.unlock() }
-        lock.onBackgrounded()
         clock.jumpWallMs(-hour)
         clock.advanceMinutes(6)
         lock.onForegrounded(lockMinutes = 5)

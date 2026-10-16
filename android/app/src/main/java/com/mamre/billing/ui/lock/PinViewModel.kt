@@ -12,8 +12,6 @@ import com.mamre.billing.domain.usecase.VerifyPin
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.mamre.billing.domain.security.MonotonicClock
 import javax.inject.Inject
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,7 +51,9 @@ class PinViewModel @Inject constructor(
 ) : ViewModel() {
     private val _ui = MutableStateFlow(PinUi())
     val ui: StateFlow<PinUi> = _ui.asStateFlow()
-    private var countdown: Job? = null
+    private val countdown = WaitCountdown(viewModelScope, clock) { left ->
+        _ui.update { it.copy(waitMs = left, message = if (left > 0) waitMessage(left) else null) }
+    }
 
     init {
         viewModelScope.launch {
@@ -62,11 +62,9 @@ class PinViewModel @Inject constructor(
         }
     }
 
-    private fun digits(s: String) = s.filter { it in '0'..'9' }.take(PinHasher.MAX_DIGITS)
+    fun onPin(value: String) = _ui.update { it.copy(pin = pinDigits(value), message = null) }
 
-    fun onPin(value: String) = _ui.update { it.copy(pin = digits(value), message = null) }
-
-    fun onConfirm(value: String) = _ui.update { it.copy(confirm = digits(value), message = null) }
+    fun onConfirm(value: String) = _ui.update { it.copy(confirm = pinDigits(value), message = null) }
 
     fun submit() {
         val now = _ui.value
@@ -100,21 +98,7 @@ class PinViewModel @Inject constructor(
     }
 
     private fun startWait(remainingMs: Long) {
-        val until = clock.elapsedMs() + remainingMs
-        _ui.update { it.copy(busy = false, pin = "", waitMs = remainingMs, message = "Too many wrong PINs. Please wait ${seconds(remainingMs)} seconds.") }
-        countdown?.cancel()
-        countdown = viewModelScope.launch {
-            while (true) {
-                delay(1_000)
-                val left = until - clock.elapsedMs()
-                if (left <= 0) {
-                    _ui.update { it.copy(waitMs = 0, message = null) }
-                    return@launch
-                }
-                _ui.update { it.copy(waitMs = left, message = "Too many wrong PINs. Please wait ${seconds(left)} seconds.") }
-            }
-        }
+        _ui.update { it.copy(busy = false, pin = "") }
+        countdown.start(remainingMs)
     }
-
-    private fun seconds(ms: Long) = (ms + 999) / 1000
 }

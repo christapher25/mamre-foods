@@ -40,9 +40,6 @@ class AppLock @Inject constructor(private val clock: MonotonicClock) {
         return _locked.value
     }
 
-    /** The app left the foreground. Nothing to record: the time since the last touch already counts while the app is away. */
-    fun onBackgrounded() = Unit
-
     /** Back in the foreground: lock if the app was idle or away for [lockMinutes] or more. */
     fun onForegrounded(lockMinutes: Int) {
         checkIdle(lockMinutes)

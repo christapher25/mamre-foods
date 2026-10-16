@@ -51,11 +51,6 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { appLock.onForegrounded(settings.lockMinutes()) }
     }
 
-    override fun onStop() {
-        appLock.onBackgrounded()
-        super.onStop()
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Release only: FLAG_SECURE blanks the recent-apps preview and refuses screenshots (BuildConfig.SECURE_WINDOW).

@@ -107,11 +107,9 @@ class PinCoreTest {
     @Test fun comingBackFromTheBackgroundAfterTheSetMinutesLocks() {
         val clock = TestClock()
         val lock = AppLock(clock).also { it.unlock() }
-        lock.onBackgrounded()
         clock.plusMinutes(2)
         lock.onForegrounded(lockMinutes = 5)
         assertFalse("two minutes away is fine", lock.locked.value)
-        lock.onBackgrounded()
         clock.plusMinutes(6)
         lock.onForegrounded(lockMinutes = 5)
         assertTrue("six minutes away locks", lock.locked.value)
