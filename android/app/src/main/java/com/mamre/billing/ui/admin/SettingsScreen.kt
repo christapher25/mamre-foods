@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -14,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,7 +25,9 @@ import com.mamre.billing.data.admin.AdminRuleException
 import com.mamre.billing.domain.admin.BusinessSettings
 import com.mamre.billing.domain.admin.SettingsProblem
 import com.mamre.billing.domain.admin.formatWastage
+import com.mamre.billing.domain.admin.settingsProblemMessage
 import com.mamre.billing.domain.admin.validateSettings
+import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.EntryGate
 import com.mamre.billing.ui.components.AppCard
@@ -44,15 +48,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// B9 Settings: business details and wastage %. Every save goes to the change log. The PIN, the lock time, the owner name and
-// Export come in the next step (Doc 3 L2, L3).
+// B9 Settings (Doc 1 s13 P-6, P-12; Doc 2 s4.2): owner name, business details, device code, wastage and lock time. Every save goes
+// through a use case with validation and a change-log entry. The PIN screens are in ui/lock; Export is added in the next commit.
+
+/** Which block of the screen the last save or refusal belongs to, so the message appears under the right field. */
+enum class SettingsSection { OWNER, BUSINESS, DEVICE_CODE, WASTAGE, LOCK }
 
 data class SettingsUi(
     val loading: Boolean = true,
     val settings: BusinessSettings? = null,
+    val ownerName: String = "",
+    val deviceCode: String = "",
     val wastageBp: Int = 0,
+    val lockMinutes: Int = 5,
+    /** The refusal text and the block it belongs to; null when the last save worked. */
     val error: String? = null,
-    val savedNotice: Boolean = false,
+    val errorSection: SettingsSection? = null,
+    /** The block that was saved last, shown as "Saved." */
+    val savedSection: SettingsSection? = null,
     /** True when a build has put an entry gate in front of the app (the debug login): then there is a Log out. */
     val canLogOut: Boolean = false,
 )
@@ -61,6 +74,7 @@ data class SettingsUi(
 class SettingsViewModel @Inject constructor(
     private val api: AdminApi,
     gate: Optional<EntryGate>,
+    private val appLock: AppLock,
 ) : ViewModel() {
     private val entryGate: EntryGate? = gate.orElse(null)
     private val _ui = MutableStateFlow(SettingsUi(canLogOut = entryGate != null))
@@ -69,59 +83,104 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             api.revision.collect {
-                _ui.update { it.copy(loading = false, settings = api.settings(), wastageBp = api.wastageBp()) }
+                val settings = api.settings()
+                val owner = api.ownerName()
+                val code = api.deviceCode()
+                val wastage = api.wastageBp()
+                val lock = api.lockMinutes()
+                _ui.update { it.copy(loading = false, settings = settings, ownerName = owner, deviceCode = code, wastageBp = wastage, lockMinutes = lock) }
             }
         }
     }
 
-    fun saveBusiness(settings: BusinessSettings) {
+    private fun save(section: SettingsSection, write: suspend () -> Unit) {
         viewModelScope.launch {
             try {
-                api.saveSettings(settings)
-                _ui.update { it.copy(error = null, savedNotice = true) }
+                write()
+                _ui.update { it.copy(error = null, errorSection = null, savedSection = section) }
             } catch (e: AdminRuleException) {
-                _ui.update { it.copy(error = e.message, savedNotice = false) }
+                _ui.update { it.copy(error = e.message, errorSection = section, savedSection = null) }
             }
         }
     }
 
-    fun saveWastage(basisPoints: Int) {
-        viewModelScope.launch {
-            try {
-                api.setWastageBp(basisPoints)
-                _ui.update { it.copy(error = null) }
-            } catch (e: AdminRuleException) {
-                _ui.update { it.copy(error = e.message) }
-            }
-        }
-    }
+    fun saveOwnerName(name: String) = save(SettingsSection.OWNER) { api.setOwnerName(name) }
+
+    fun saveBusiness(settings: BusinessSettings) = save(SettingsSection.BUSINESS) { api.saveSettings(settings) }
+
+    fun saveDeviceCode(code: String) = save(SettingsSection.DEVICE_CODE) { api.setDeviceCode(code) }
+
+    fun saveWastage(basisPoints: Int) = save(SettingsSection.WASTAGE) { api.setWastageBp(basisPoints) }
+
+    fun saveLockMinutes(minutes: Int) = save(SettingsSection.LOCK) { api.setLockMinutes(minutes) }
 
     fun logout() = entryGate?.close()
+
+    /** The "Lock now" button: the app locks at once and asks for the PIN (Doc 2 s6). The lock minutes setting is not touched. */
+    fun lockNow() = appLock.lockNow()
 }
 
+class SettingsActions(
+    val saveOwnerName: (String) -> Unit,
+    val saveBusiness: (BusinessSettings) -> Unit,
+    val saveDeviceCode: (String) -> Unit,
+    val saveWastage: (Int) -> Unit,
+    val saveLockMinutes: (Int) -> Unit,
+    val logout: () -> Unit,
+    val export: () -> Unit,
+    val changePin: () -> Unit,
+    val lockNow: () -> Unit,
+)
+
 @Composable
-fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, onChangePin: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    SettingsContent(ui, onBack, viewModel::saveBusiness, viewModel::saveWastage, viewModel::logout)
+    SettingsContent(
+        ui = ui,
+        onBack = onBack,
+        actions = SettingsActions(
+            saveOwnerName = viewModel::saveOwnerName,
+            saveBusiness = viewModel::saveBusiness,
+            saveDeviceCode = viewModel::saveDeviceCode,
+            saveWastage = viewModel::saveWastage,
+            saveLockMinutes = viewModel::saveLockMinutes,
+            logout = viewModel::logout,
+            export = onExport,
+            changePin = onChangePin,
+            lockNow = viewModel::lockNow,
+        ),
+    )
 }
 
 @Composable
-fun SettingsContent(
-    ui: SettingsUi,
-    onBack: () -> Unit,
-    onSaveBusiness: (BusinessSettings) -> Unit,
-    onSaveWastage: (Int) -> Unit,
-    onLogout: () -> Unit,
-) {
+private fun SectionMessage(ui: SettingsUi, section: SettingsSection) {
+    if (ui.errorSection == section) {
+        ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+    } else if (ui.savedSection == section) {
+        Text("Saved.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun Hint(text: String) = Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+/** The problems that belong under the business name field; the others are shown under the group. */
+private val NAME_PROBLEMS = setOf(SettingsProblem.NAME_REQUIRED, SettingsProblem.NAME_TOO_LONG)
+
+@Composable
+fun SettingsContent(ui: SettingsUi, onBack: () -> Unit, actions: SettingsActions) {
     var confirmLogout by remember { mutableStateOf(false) }
     var editWastage by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Settings", onBack = onBack, actions = { DataLabelChip() })
         val s = ui.settings ?: return@Column
+        var owner by remember(ui.ownerName) { mutableStateOf(ui.ownerName) }
         var name by remember(s) { mutableStateOf(s.businessName) }
         var address by remember(s) { mutableStateOf(s.address) }
         var phone by remember(s) { mutableStateOf(s.phone) }
         var footer by remember(s) { mutableStateOf(s.footerText) }
+        var code by remember(ui.deviceCode) { mutableStateOf(ui.deviceCode) }
+        var lock by remember(ui.lockMinutes) { mutableStateOf(ui.lockMinutes.toString()) }
         var tried by remember { mutableStateOf(false) }
         val draft = BusinessSettings(name, address, phone, footer)
         val problems = validateSettings(draft)
@@ -129,25 +188,48 @@ fun SettingsContent(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
+            SectionHeader("Owner")
+            Hint("Printed after \"Salesman:\" on every bill. 2 to 40 characters.")
+            LabeledTextField("Owner name", owner, { owner = it })
+            SectionMessage(ui, SettingsSection.OWNER)
+            PrimaryButton("Save owner name", onClick = { actions.saveOwnerName(owner) })
+
             SectionHeader("Business details")
-            Text(
-                "Printed on bills: name, address (one line per text line), phone and footer.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Hint("Printed on bills: name, address (one line per text line, up to 4), phone and footer.")
             LabeledTextField(
                 "Business name", name, { name = it },
-                errorText = if (tried && SettingsProblem.NAME_REQUIRED in problems) "The business needs a name" else null,
+                errorText = if (tried) problems.firstOrNull { it in NAME_PROBLEMS }?.let(::settingsProblemMessage) else null,
             )
             LabeledTextField("Address", address, { address = it }, singleLine = false)
             LabeledTextField("Phone", phone, { phone = it })
             LabeledTextField("Receipt footer text", footer, { footer = it }, singleLine = false)
-            ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
-            if (ui.savedNotice) Text("Saved.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (tried) problems.firstOrNull { it !in NAME_PROBLEMS }?.let {
+                Text(settingsProblemMessage(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
+            SectionMessage(ui, SettingsSection.BUSINESS)
             PrimaryButton("Save business details", onClick = {
                 tried = true
-                if (problems.isEmpty()) onSaveBusiness(draft)
+                if (problems.isEmpty()) actions.saveBusiness(draft)
             })
+
+            SectionHeader("Bill numbers")
+            Hint("The device code in new bill and receipt numbers, like MAM-W1-0001. Capital letters and digits, 1 to 8. Bills already made keep their numbers.")
+            LabeledTextField("Device code", code, { code = it })
+            SectionMessage(ui, SettingsSection.DEVICE_CODE)
+            PrimaryButton("Save device code", onClick = { actions.saveDeviceCode(code) })
+
+            SectionHeader("Security")
+            Hint("The app locks after this many minutes without a touch, and when it was in the background that long. 1 to 30.")
+            LabeledTextField(
+                "Lock after (minutes)", lock, { lock = it.filter(Char::isDigit).take(2) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            SectionMessage(ui, SettingsSection.LOCK)
+            PrimaryButton("Save lock time", onClick = { actions.saveLockMinutes(lock.toIntOrNull() ?: 0) })
+            Hint("Your PIN opens the app. Changing it needs the current PIN.")
+            SecondaryButton("Change PIN", onClick = actions.changePin)
+            Hint("Locks the app now. The PIN is asked for again.")
+            SecondaryButton("Lock now", onClick = actions.lockNow)
 
             SectionHeader("Costing")
             AppCard {
@@ -159,11 +241,16 @@ fun SettingsContent(
                 )
                 SecondaryButton("Edit wastage", onClick = { editWastage = true }, modifier = Modifier.padding(top = Spacing.sm))
             }
+            SectionMessage(ui, SettingsSection.WASTAGE)
+
+            SectionHeader("Export")
+            Hint("Make plain text files of all your data and share them, for example with your accountant.")
+            SecondaryButton("Export data", onClick = actions.export)
 
             if (ui.canLogOut) SecondaryButton("Log out", onClick = { confirmLogout = true })
         }
     }
-    if (editWastage) WastageDialog(current = ui.wastageBp, onSave = onSaveWastage, onDismiss = { editWastage = false })
+    if (editWastage) WastageDialog(current = ui.wastageBp, onSave = actions.saveWastage, onDismiss = { editWastage = false })
     if (confirmLogout) {
         ConfirmDialog(
             title = "Log out?",
@@ -171,7 +258,7 @@ fun SettingsContent(
             confirmText = "Log out",
             onConfirm = {
                 confirmLogout = false
-                onLogout()
+                actions.logout()
             },
             onDismiss = { confirmLogout = false },
         )

@@ -294,7 +294,7 @@ fun ReturnDoneScreen(vm: ReturnFlowViewModel, onDone: () -> Unit) {
                     }
                 }
                 Text(
-                    "Saved on this device and waiting to sync.",
+                    "Saved on this phone.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

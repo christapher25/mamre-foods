@@ -110,12 +110,13 @@ class ReferenceSeed(
         /** One packing piece per packet, whatever the packet size (Doc 1 s9.2). */
         private const val PACKING_PIECE_MILLI = 1_000L
 
+        /** Every key is a UUID v4 (Doc 2 s4.1, so the export and version 2 can rely on it); a row is found by product and material, never by its key. */
         val recipe: List<RecipeItemEntity> = listOf(ReferenceIds.PRODUCT_FRESH, ReferenceIds.PRODUCT_CHAPATHI).flatMap { product ->
             val lines = baseRecipe.toMutableList<Pair<String, Long?>>()
             // Potassium sorbate only on Mamre Chapathi, with the quantity still unset (Doc 1 P-2).
             if (product == ReferenceIds.PRODUCT_CHAPATHI) lines += ReferenceIds.MATERIAL_SORBATE to null
             lines += ReferenceIds.MATERIAL_PACKING to PACKING_PIECE_MILLI
-            lines.map { (material, qty) -> RecipeItemEntity("$product:$material", product, material, qty) }
+            lines.map { (material, qty) -> RecipeItemEntity(java.util.UUID.randomUUID().toString(), product, material, qty) }
         }
 
         val expenseCategories = listOf(

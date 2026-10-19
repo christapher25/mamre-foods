@@ -4,6 +4,8 @@ import android.content.Context
 import com.mamre.billing.BuildConfig
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.LocalAdminApi
+import com.mamre.billing.data.export.ExportBuilder
+import com.mamre.billing.data.export.ExportWriter
 import com.mamre.billing.data.local.MamreDatabase
 import com.mamre.billing.data.local.RoomUnitOfWork
 import com.mamre.billing.data.local.UnitOfWork
@@ -15,6 +17,8 @@ import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.StockRepository
+import com.mamre.billing.data.system.AndroidMonotonicClock
+import com.mamre.billing.domain.security.MonotonicClock
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.usecase.MakeBill
 import com.mamre.billing.domain.usecase.RecordPayment
@@ -25,6 +29,10 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.mamre.billing.domain.usecase.ChangePin
+import com.mamre.billing.domain.usecase.PinStatus
+import com.mamre.billing.domain.usecase.SetPin
+import com.mamre.billing.domain.usecase.VerifyPin
 import dagger.hilt.components.SingletonComponent
 import java.time.Clock
 import javax.inject.Singleton
@@ -39,6 +47,9 @@ object AppModule {
     @Provides @Singleton
     fun clock(): Clock = Clock.systemDefaultZone()
 
+    @Provides @Singleton
+    fun monotonicClock(@ApplicationContext context: Context): MonotonicClock = AndroidMonotonicClock(context)
+
     /** What this build shows: SHOW_ANALYTICS is false in release (Doc 2 s9, A-28). */
     @Provides @Singleton
     fun features(): Features = Features(showAnalytics = BuildConfig.SHOW_ANALYTICS)
@@ -46,6 +57,12 @@ object AppModule {
     @Provides @Singleton
     fun database(@ApplicationContext context: Context): MamreDatabase =
         MamreDatabase.builder(context).build()
+
+    @Provides
+    fun exportBuilder(db: MamreDatabase, clock: Clock): ExportBuilder = ExportBuilder(db, clock)
+
+    @Provides
+    fun exportWriter(@ApplicationContext context: Context): ExportWriter = ExportWriter(context.cacheDir)
 
     @Provides @Singleton
     fun unitOfWork(db: MamreDatabase): UnitOfWork = RoomUnitOfWork(db)
@@ -95,6 +112,21 @@ object AppModule {
     @Provides
     fun recordReturn(u: UnitOfWork, sales: SalesRepository, customers: CustomerRepository, prices: PriceRepository, clock: Clock) =
         RecordReturn(u, sales, customers, prices, clock)
+
+    // ------------------------------------------------------------------ the PIN (Doc 2 s6)
+
+    @Provides
+    fun pinStatus(settings: SettingsRepository) = PinStatus(settings)
+
+    @Provides
+    fun setPin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock) = SetPin(u, settings, changeLog, clock)
+
+    @Provides
+    fun changePin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock, mono: MonotonicClock) =
+        ChangePin(u, settings, changeLog, clock, mono)
+
+    @Provides
+    fun verifyPin(u: UnitOfWork, settings: SettingsRepository, clock: Clock, mono: MonotonicClock) = VerifyPin(u, settings, clock, mono)
 
     // ------------------------------------------------------------------ the Admin area
 

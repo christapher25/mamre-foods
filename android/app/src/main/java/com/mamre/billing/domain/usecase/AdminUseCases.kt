@@ -33,6 +33,14 @@ import com.mamre.billing.domain.admin.validateCustomerForm
 import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validateNewPrice
 import com.mamre.billing.domain.admin.validateSettings
+import com.mamre.billing.domain.admin.cleanDeviceCode
+import com.mamre.billing.domain.admin.cleanOwnerName
+import com.mamre.billing.domain.admin.settingsProblemMessage
+import com.mamre.billing.domain.admin.MAX_DEVICE_CODE
+import com.mamre.billing.domain.admin.MAX_LOCK_MINUTES
+import com.mamre.billing.domain.admin.MAX_OWNER_NAME
+import com.mamre.billing.domain.admin.MIN_LOCK_MINUTES
+import com.mamre.billing.domain.admin.MIN_OWNER_NAME
 import com.mamre.billing.domain.model.CustomerIdentity
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.checkCustomerIdentity
@@ -425,7 +433,7 @@ class SaveBusinessSettings(
 ) {
     suspend operator fun invoke(new: BusinessSettings) {
         unitOfWork.run {
-            if (validateSettings(new).isNotEmpty()) refuse("The business needs a name")
+            validateSettings(new).firstOrNull()?.let { refuse(settingsProblemMessage(it)) }
             val old = settings.all()
             fun text(name: String?, address: String?, phone: String?, footer: String?) = "$name | $address | $phone | $footer"
             val before = text(old[SettingKeys.BUSINESS_NAME].orEmpty(), old[SettingKeys.ADDRESS].orEmpty(), old[SettingKeys.PHONE].orEmpty(), old[SettingKeys.FOOTER_TEXT].orEmpty())
@@ -434,6 +442,60 @@ class SaveBusinessSettings(
             settings.put(SettingKeys.PHONE, new.phone.trim())
             settings.put(SettingKeys.FOOTER_TEXT, new.footerText.trim())
             changeLog.add(clock.millis(), "Edit business settings", before, text(new.businessName, new.address, new.phone, new.footerText))
+        }
+    }
+}
+
+/** The Owner's name, printed after "Salesman:" on bills (Doc 1 A-29, P-12): 2 to 40 characters. */
+class SetOwnerName(
+    private val unitOfWork: UnitOfWork,
+    private val settings: SettingsRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(name: String) {
+        unitOfWork.run {
+            val clean = cleanOwnerName(name) ?: refuse("The owner name is $MIN_OWNER_NAME to $MAX_OWNER_NAME characters")
+            val old = settings.ownerName()
+            settings.put(SettingKeys.OWNER_NAME, clean)
+            changeLog.add(clock.millis(), "Owner name", old, clean)
+        }
+    }
+}
+
+/**
+ * The device code in new bill and receipt numbers (Doc 2 I-3). Only numbers made afterwards use it: the sequence goes on and
+ * numbers already made are never touched.
+ */
+class SetDeviceCode(
+    private val unitOfWork: UnitOfWork,
+    private val settings: SettingsRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(code: String) {
+        unitOfWork.run {
+            val clean = cleanDeviceCode(code) ?: refuse("The device code is 1 to $MAX_DEVICE_CODE capital letters or digits")
+            val old = settings.deviceCode()
+            settings.put(SettingKeys.DEVICE_CODE, clean)
+            changeLog.add(clock.millis(), "Device code", old, clean)
+        }
+    }
+}
+
+/** Minutes of inactivity before the app locks (Doc 2 s6): 1 to 30. */
+class SetLockMinutes(
+    private val unitOfWork: UnitOfWork,
+    private val settings: SettingsRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(minutes: Int) {
+        unitOfWork.run {
+            if (minutes < MIN_LOCK_MINUTES || minutes > MAX_LOCK_MINUTES) refuse("The lock time is $MIN_LOCK_MINUTES to $MAX_LOCK_MINUTES minutes")
+            val old = settings.lockMinutes()
+            settings.put(SettingKeys.LOCK_MINUTES, minutes.toString())
+            changeLog.add(clock.millis(), "Lock time", "$old minutes", "$minutes minutes")
         }
     }
 }

@@ -31,6 +31,9 @@ class SettingsRepository(private val settings: SettingDao) {
 
     suspend fun wastageBp(): Int = settings.get(SettingKeys.WASTAGE_BP)?.toIntOrNull() ?: error("the first-run seed has not run: no wastage")
 
+    /** Minutes of inactivity before the app locks (Doc 2 s6): 1 to 30, default 5; a missing or damaged value means 5. */
+    suspend fun lockMinutes(): Int = settings.get(SettingKeys.LOCK_MINUTES)?.toIntOrNull()?.takeIf { it in 1..30 } ?: 5
+
     suspend fun businessHeader(): BusinessHeader = businessHeaderOfSettings(all())
 
     suspend fun takeNextBillNumber(): String {

@@ -16,6 +16,7 @@ object Routes {
     /** The Dashboard: the first screen of the Admin area while analytics are shown (version 2). */
     const val ADMIN_HOME = "admin/home"
     const val ADMIN_SALES = "admin/sales"
+
     const val ADMIN_COSTING = "admin/more/costing"
 }
 
@@ -54,10 +55,3 @@ fun routeAllowed(area: Area, route: String?, features: Features): Boolean {
 }
 
 private fun inGraph(route: String, graph: String) = route == graph || route.startsWith("$graph/")
-
-/**
- * Where the app starts. Version 1 starts at the Sales Home with no screen in front of it (the PIN lock comes in the next
- * step). A build may install an entry gate that puts one screen in front (the debug build's login screen): then the app
- * starts at the gate's route, and the gate decides when the Sales Home is reached.
- */
-fun appStartDestination(gateRoute: String?): String = gateRoute ?: Routes.SALES_GRAPH

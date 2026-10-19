@@ -66,7 +66,15 @@ fun NavGraphBuilder.adminGraph(navController: NavController, features: Features,
                 onOpenCustomer = { navController.navigate(AdminRoutes.customerDetail(it)) },
             )
         }
-        composable(AdminRoutes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.SETTINGS) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onExport = { navController.navigate(AdminRoutes.EXPORT) },
+                onChangePin = { navController.navigate(AdminRoutes.CHANGE_PIN) },
+            )
+        }
+        composable(AdminRoutes.CHANGE_PIN) { ChangePinScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.EXPORT) { ExportScreen(onBack = { navController.popBackStack() }) }
     }
 }
 

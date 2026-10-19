@@ -4,6 +4,7 @@ import com.mamre.billing.data.demo.DemoCustomerIds
 import com.mamre.billing.data.demo.DemoWorld
 import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.data.local.World
+import com.mamre.billing.domain.security.AppLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -44,7 +45,7 @@ class HomeViewModelTest {
         w.db.close()
     }
 
-    private fun home() = HomeViewModel(w.sales, w.settings, w.clock)
+    private fun home() = HomeViewModel(w.sales, w.settings, w.clock, AppLock(w.clock))
 
     @Test fun homeShowsTheBusinessOwnerAndDeviceFromSettings() = runBlocking {
         val state = withTimeout(10_000) { home().state.first { it.deviceCode.isNotEmpty() } }

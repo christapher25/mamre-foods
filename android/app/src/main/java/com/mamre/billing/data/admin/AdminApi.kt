@@ -64,7 +64,7 @@ interface AdminApi {
     suspend fun priceMatrix(): PriceMatrix
     suspend fun setDefaultPrice(productId: String, typeId: String, priceCents: Long, from: LocalDate)
 
-    /** The "Salesman can edit price" flag of a customer type (change set C3). Change-logged; salesmen get it at their next sync. */
+    /** The "Salesman can edit price" flag of a customer type (change set C3). Change-logged. */
     suspend fun setWorkerCanEditPrice(typeId: String, allowed: Boolean)
 
     /** Every override row of a customer, with history. */
@@ -95,7 +95,7 @@ interface AdminApi {
     /** Production damage is add only and counts as material usage (B7). */
     suspend fun addProductionDamage(productId: String, date: LocalDate, chapathis: Int, note: String): ProductionDamage
 
-    /** Standard packet size (chapathis) of a product. Synced to workers; custom packet prices follow it. */
+    /** Standard packet size (chapathis) of a product. Custom packet prices follow it. */
     suspend fun setStandardPacketSize(productId: String, chapathis: Int)
 
     /** Chapathis made from 1 kg of wheat. Usage and cost per chapathi follow it. */
@@ -116,4 +116,16 @@ interface AdminApi {
 
     suspend fun settings(): BusinessSettings
     suspend fun saveSettings(settings: BusinessSettings)
+
+    /** The Owner's name printed after "Salesman:" (2 to 40 characters); empty until it is set. */
+    suspend fun ownerName(): String
+    suspend fun setOwnerName(name: String)
+
+    /** The device code in new bill numbers (1 to 8 capital letters or digits). */
+    suspend fun deviceCode(): String
+    suspend fun setDeviceCode(code: String)
+
+    /** Minutes without a touch before the app locks (1 to 30). */
+    suspend fun lockMinutes(): Int
+    suspend fun setLockMinutes(minutes: Int)
 }

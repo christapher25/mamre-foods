@@ -36,7 +36,7 @@ data class AdminProduct(
     val id: String,
     val code: String,
     val name: String,
-    /** Chapathis in a standard packet (12). Synced to workers; the Admin edits it on the Costing screen. */
+    /** Chapathis in a standard packet (12). The Admin edits it on the Costing screen. */
     val unitsPerPacket: Int,
     /** Chapathis made from 1 kg of wheat (32). Admin only: recipe quantities are per 1 kg of wheat. */
     val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,

@@ -52,6 +52,9 @@ import com.mamre.billing.domain.usecase.SetOverridePrice
 import com.mamre.billing.domain.usecase.SetRecipeQuantity
 import com.mamre.billing.domain.usecase.SetSalesmanCanEditPrice
 import com.mamre.billing.domain.usecase.SetStandardPacketSize
+import com.mamre.billing.domain.usecase.SetDeviceCode
+import com.mamre.billing.domain.usecase.SetLockMinutes
+import com.mamre.billing.domain.usecase.SetOwnerName
 import com.mamre.billing.domain.usecase.SetWastage
 import com.mamre.billing.domain.usecase.SetYieldPerKg
 import com.mamre.billing.domain.usecase.VoidBill
@@ -95,6 +98,9 @@ class LocalAdminApi(
     private val setStandardPacketSizeUseCase: SetStandardPacketSize,
     private val setYieldPerKgUseCase: SetYieldPerKg,
     private val saveBusinessSettings: SaveBusinessSettings,
+    private val setOwnerNameUseCase: SetOwnerName,
+    private val setDeviceCodeUseCase: SetDeviceCode,
+    private val setLockMinutesUseCase: SetLockMinutes,
     private val clock: Clock = Clock.systemDefaultZone(),
 ) : AdminApi {
     private val _revision = MutableStateFlow(0L)
@@ -147,6 +153,9 @@ class LocalAdminApi(
                 setStandardPacketSizeUseCase = SetStandardPacketSize(u, stock, log, clock),
                 setYieldPerKgUseCase = SetYieldPerKg(u, stock, log, clock),
                 saveBusinessSettings = SaveBusinessSettings(u, settings, log, clock),
+                setOwnerNameUseCase = SetOwnerName(u, settings, log, clock),
+                setDeviceCodeUseCase = SetDeviceCode(u, settings, log, clock),
+                setLockMinutesUseCase = SetLockMinutes(u, settings, log, clock),
                 clock = clock,
             )
         }
@@ -307,6 +316,18 @@ class LocalAdminApi(
     override suspend fun settings(): BusinessSettings = snapshot().settings
 
     override suspend fun saveSettings(settings: BusinessSettings) = changed { saveBusinessSettings(settings) }
+
+    override suspend fun ownerName(): String = settingsRepo.ownerName()
+
+    override suspend fun setOwnerName(name: String) = changed { setOwnerNameUseCase(name) }
+
+    override suspend fun deviceCode(): String = settingsRepo.deviceCode()
+
+    override suspend fun setDeviceCode(code: String) = changed { setDeviceCodeUseCase(code) }
+
+    override suspend fun lockMinutes(): Int = settingsRepo.lockMinutes()
+
+    override suspend fun setLockMinutes(minutes: Int) = changed { setLockMinutesUseCase(minutes) }
 
     private suspend fun owner(): String = settingsRepo.ownerName().ifEmpty { BooksRepository.OWNER_LABEL }
 }

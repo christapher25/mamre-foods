@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The export share (Doc 2 s5.3) may hand out files from cacheDir/exports and from nowhere else. -->
+<paths>
+    <cache-path
+        name="exports"
+        path="exports/" />
+</paths>
