@@ -22,6 +22,7 @@ import com.mamre.billing.domain.usecase.ClearOverridePrice
 import com.mamre.billing.domain.usecase.EditCustomer
 import com.mamre.billing.domain.usecase.MakeBill
 import com.mamre.billing.domain.usecase.PaymentDraft
+import com.mamre.billing.domain.usecase.RecordExport
 import com.mamre.billing.domain.usecase.RecordPayment
 import com.mamre.billing.domain.usecase.RecordReturn
 import com.mamre.billing.domain.usecase.ReturnDraft
@@ -134,6 +135,7 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
     val setPacketSize = SetStandardPacketSize(unitOfWork, stock, changeLog, clock)
     val setYield = SetYieldPerKg(unitOfWork, stock, changeLog, clock)
     val saveSettings = SaveBusinessSettings(unitOfWork, settings, changeLog, clock)
+    val recordExport = RecordExport(unitOfWork, settings, clock)
 
     val today: LocalDate get() = LocalDate.now(clock)
 
