@@ -105,7 +105,7 @@ class LockedFrameTest {
                 gate = {},
                 pin = { Text("PIN") },
                 content = {
-                    ClearedWithComposition {
+                    RetainedContent {
                         val store = LocalViewModelStoreOwner.current!!.viewModelStore
                         val factory = object : ViewModelProvider.Factory {
                             @Suppress("UNCHECKED_CAST")

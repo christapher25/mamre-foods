@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -98,6 +99,9 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
 /** Draws exactly ONE of the three: a branch, not a layer, so the two that are not shown are not composed. */
 @Composable
 fun AppFrame(screen: AppScreen, gate: @Composable () -> Unit, pin: @Composable () -> Unit, content: @Composable () -> Unit) {
+    val contentStore: ContentStore = viewModel()
+    // Not showing the content (locked, or the gate closed): the view models of the content stop and their drafts are gone.
+    if (screen != AppScreen.CONTENT) SideEffect { contentStore.clear() }
     when (screen) {
         AppScreen.GATE -> gate()
         AppScreen.PIN -> pin()
@@ -113,12 +117,12 @@ private fun GateHost(gate: EntryGate) {
 }
 
 /**
- * The Sales and Admin areas with their navigation. It owns a ViewModelStore that is CLEARED when this leaves the composition (the
- * app locked, or the gate closed), so the screens' view models stop with it and a later unlock starts them afresh.
+ * The Sales and Admin areas with their navigation. Their view models live in the activity's [ContentStore]: they survive a
+ * rotation, are cleared when the app locks or the gate closes, and a later unlock starts them afresh.
  */
 @Composable
 fun AppContent(area: Area, features: Features, onOpenAdmin: () -> Unit, onOpenSales: () -> Unit) {
-    ClearedWithComposition {
+    RetainedContent {
         val navController = rememberNavController()
         val backStackEntry by navController.currentBackStackEntryAsState()
         val route = backStackEntry?.destination?.route
@@ -151,14 +155,29 @@ fun AppContent(area: Area, features: Features, onOpenAdmin: () -> Unit, onOpenSa
 }
 
 /**
- * Gives [content] a ViewModelStore of its own (the navigation host keeps every screen's view model in the store it finds) and
- * CLEARS it when [content] leaves the composition, which stops those view models.
+ * The ViewModelStore of the Sales and Admin content. It lives in a view model of the ACTIVITY, so it survives the activity being
+ * recreated (rotation, font scale, dark mode, language) and a bill, payment or return in progress is not lost. It is cleared only
+ * when the app locks or the gate closes ([AppFrame]) and when the activity is finished for good; the process dying takes it too.
+ */
+class ContentStore : ViewModel() {
+    private val store = ViewModelStore()
+    val owner: ViewModelStoreOwner = object : ViewModelStoreOwner { override val viewModelStore: ViewModelStore get() = store }
+
+    /** Stops every view model of the content; the store can be used again for the next unlock. */
+    fun clear() = store.clear()
+
+    override fun onCleared() = store.clear()
+}
+
+/**
+ * Gives [content] the activity's retained [ContentStore] (the navigation host keeps every screen's view model in the store it
+ * finds). Leaving the composition does NOT clear it, because that also happens when the activity is recreated; [AppFrame] clears
+ * it when the app locks.
  */
 @Composable
-fun ClearedWithComposition(content: @Composable () -> Unit) {
-    val storeOwner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
-    DisposableEffect(storeOwner) { onDispose { storeOwner.viewModelStore.clear() } }
-    CompositionLocalProvider(LocalViewModelStoreOwner provides storeOwner) { content() }
+fun RetainedContent(content: @Composable () -> Unit) {
+    val contentStore: ContentStore = viewModel()
+    CompositionLocalProvider(LocalViewModelStoreOwner provides contentStore.owner) { content() }
 }
 
 /** Clears the back stack and opens [target]. */
