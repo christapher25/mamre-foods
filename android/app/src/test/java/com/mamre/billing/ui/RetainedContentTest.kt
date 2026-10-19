@@ -111,30 +111,23 @@ class RetainedContentTest {
         controller.get().finish()
     }
 
-    @Test fun afterTheAppLocksTheStoreIsClearedAndTheDraftIsGone() {
+    @Test fun afterTheAppLocksTheStoreIsClearedAndTheDraftIsGoneAfterTheUnlock() {
         val controller = Robolectric.buildActivity(Host::class.java).setup()
         settle()
         val before = draftOf(controller.get())
         before.lines += "2 x Paneer 250 g"
-        show(controller.get(), AppScreen.PIN) // the idle lock fires
+        // The app locks (here while the screen is being recreated, the case most likely to keep a draft by mistake).
+        show(controller.get(), AppScreen.PIN)
+        controller.recreate()
         settle()
         assertTrue("the lock cleared the view model", before.cleared)
-        show(controller.get(), AppScreen.CONTENT) // the right PIN
+        // The right PIN: a fresh content with an empty draft.
+        show(controller.get(), AppScreen.CONTENT)
+        controller.recreate()
         settle()
         val after = draftOf(controller.get())
         assertNotSame(before, after)
         assertTrue("an empty draft after the unlock", after.lines.isEmpty())
-        controller.get().finish()
-    }
-
-    @Test fun lockingWhileTheActivityIsRecreatedStillDropsTheDraft() {
-        val controller = Robolectric.buildActivity(Host::class.java).setup()
-        settle()
-        val before = draftOf(controller.get())
-        show(controller.get(), AppScreen.PIN)
-        controller.recreate()
-        settle()
-        assertTrue("the draft did not outlive the lock", before.cleared)
         controller.get().finish()
     }
 
