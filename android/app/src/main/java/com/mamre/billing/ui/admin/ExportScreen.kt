@@ -24,11 +24,14 @@ import com.mamre.billing.data.export.EXPORT_WARNING
 import com.mamre.billing.data.export.ExportShare
 import com.mamre.billing.data.export.ExportState
 import com.mamre.billing.data.export.ExportViewModel
+import com.mamre.billing.domain.export.lastExportLabel
 import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.PrimaryButton
 import com.mamre.billing.ui.theme.Spacing
+import java.time.ZoneId
+import java.util.Locale
 
 // Admin > Settings > Export (Doc 2 s5.3, s6; Doc 1 A-27): writes the files to the cache folder and opens the Android share sheet.
 // The Owner is told first that the files are plain text with customer data.
@@ -37,22 +40,37 @@ import com.mamre.billing.ui.theme.Spacing
 fun ExportScreen(onBack: () -> Unit, viewModel: ExportViewModel = hiltViewModel()) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lastExportAt by viewModel.lastExportAt.collectAsStateWithLifecycle()
     var shareProblem by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(state) {
         val ready = state as? ExportState.Ready ?: return@LaunchedEffect
+        // The files and the manifest are written; the export is recorded only when the share sheet is really launched.
         try {
             context.startActivity(Intent.createChooser(ExportShare.intent(context, ready.files), "Share the export"))
             shareProblem = null
+            viewModel.shareLaunched()
         } catch (e: ActivityNotFoundException) {
             shareProblem = "No app on this phone can receive the files."
+            viewModel.shareNotLaunched()
         }
-        viewModel.shared()
     }
-    ExportContent(state = state, shareProblem = shareProblem, onBack = onBack, onExport = { viewModel.export() })
+    ExportContent(
+        state = state,
+        shareProblem = shareProblem,
+        onBack = onBack,
+        onExport = { viewModel.export() },
+        lastExport = lastExportLabel(lastExportAt, Locale.getDefault(), ZoneId.systemDefault()),
+    )
 }
 
 @Composable
-fun ExportContent(state: ExportState, shareProblem: String?, onBack: () -> Unit, onExport: () -> Unit) {
+fun ExportContent(
+    state: ExportState,
+    shareProblem: String?,
+    onBack: () -> Unit,
+    onExport: () -> Unit,
+    lastExport: String = lastExportLabel(null, Locale.getDefault(), ZoneId.systemDefault()),
+) {
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Export", onBack = onBack, actions = { DataLabelChip() })
         Column(
@@ -69,6 +87,7 @@ fun ExportContent(state: ExportState, shareProblem: String?, onBack: () -> Unit,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Text(lastExport, style = MaterialTheme.typography.titleMedium)
             (state as? ExportState.Failed)?.let { Text(it.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             shareProblem?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             PrimaryButton(

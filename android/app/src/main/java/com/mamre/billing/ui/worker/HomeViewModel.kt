@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.domain.export.ExportDue
+import com.mamre.billing.domain.export.exportDue
+import com.mamre.billing.domain.export.parseLastExport
 import com.mamre.billing.domain.security.AppLock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
@@ -21,11 +24,13 @@ data class HomeState(
     val deviceCode: String = "",
     /** A count only. The Sales area never shows bill totals here (Doc 2 s10, Doc 1 s2). */
     val invoicesToday: Int = 0,
+    /** Why an export is due now (Doc 1 s11.1), or null: then the Home shows no reminder card. Not money. */
+    val exportDue: ExportDue? = null,
 )
 
 /**
  * W1 Home. The business name, the Owner's name and the device code come from Settings; the only number is how many bills
- * were made today (Doc 2 s10: counts only, never totals).
+ * were made today (Doc 2 s10: counts only, never totals). [HomeState.exportDue] says whether to show the quiet export reminder.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -41,6 +46,7 @@ class HomeViewModel @Inject constructor(
             ownerName = s[SettingKeys.OWNER_NAME].orEmpty(),
             deviceCode = s[SettingKeys.DEVICE_CODE].orEmpty(),
             invoicesToday = sold.invoices.count { it.issuedAt.toLocalDate() == today },
+            exportDue = exportDue(parseLastExport(s[SettingKeys.LAST_EXPORT_AT]), hasBills = sold.invoices.isNotEmpty(), clock = clock),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())
 

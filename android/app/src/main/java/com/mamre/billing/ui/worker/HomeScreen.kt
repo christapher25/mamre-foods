@@ -30,9 +30,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mamre.billing.domain.export.ExportDue
+import com.mamre.billing.domain.export.exportReminderText
 import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
+import com.mamre.billing.ui.components.SecondaryButton
 import com.mamre.billing.ui.theme.Spacing
 
 /** One Home tile (Doc 2 s10, W1). */
@@ -48,6 +51,7 @@ enum class HomeTile(val title: String) {
 fun HomeScreen(
     onTile: (HomeTile) -> Unit,
     onAdminArea: () -> Unit,
+    onOpenExport: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -76,6 +80,7 @@ fun HomeScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = Spacing.xs),
             )
+            state.exportDue?.let { ExportReminderCard(it, onOpenExport) }
             // Each row is as tall as its taller tile, so all four tiles are the same size.
             Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 GridTile("Record payment", Icons.Default.Payments, Modifier.weight(1f).fillMaxHeight()) {
@@ -92,6 +97,18 @@ fun HomeScreen(
                 GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
             }
         }
+    }
+}
+
+/**
+ * The quiet export reminder (Doc 1 s11.1, A-26): no popup, nothing blocked. Version 1 has no automatic backup, so the Export is the
+ * Owner's only protection. "Open Export" is the one-tap switch to the Admin area, straight to the Export screen.
+ */
+@Composable
+private fun ExportReminderCard(due: ExportDue, onOpenExport: () -> Unit) {
+    AppCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        Text(exportReminderText(due), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SecondaryButton("Open Export", onClick = onOpenExport, modifier = Modifier.padding(top = Spacing.sm))
     }
 }
 

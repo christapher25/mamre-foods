@@ -126,13 +126,13 @@ class ExportShareTest {
 
     @Test fun theViewModelWritesTheRealDatabaseToTheCacheAndOffersTheFilesToShare() = runBlocking {
         val w = World(TestDatabase.inMemory()).also { it.seed() }
-        val vm = ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache))
+        val vm = ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache), w.recordExport, w.settings)
         assertTrue(vm.ui.value is ExportState.Idle)
         vm.export().join()
         val ready = vm.ui.value as ExportState.Ready
         assertEquals(ExportTables.fileNames + ExportTables.MANIFEST, ready.files.map { it.name })
         assertTrue(ready.files.all { it.parentFile == File(cache, ExportWriter.DIR) && it.length() > 0 })
-        vm.shared()
+        vm.shareLaunched().join()
         assertTrue(vm.ui.value is ExportState.Idle)
         w.db.close()
     }
@@ -140,7 +140,7 @@ class ExportShareTest {
     @Test fun aFailedExportShowsAMessageAndSharesNothing() = runBlocking {
         val w = World(TestDatabase.inMemory()).also { it.seed() }
         w.db.close() // reading a closed database fails
-        val vm = ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache))
+        val vm = ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache), w.recordExport, w.settings)
         vm.export().join()
         val failed = vm.ui.value as ExportState.Failed
         assertTrue(failed.message.isNotBlank())

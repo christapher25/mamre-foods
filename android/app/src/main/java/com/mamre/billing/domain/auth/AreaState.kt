@@ -12,7 +12,14 @@ class AreaState @Inject constructor() {
     private val _area = MutableStateFlow(Area.SALES)
     val area: StateFlow<Area> = _area.asStateFlow()
 
-    fun open(area: Area) {
+    private var openingRoute: String? = null
+
+    /** Switches area. [then] is a route of that area to open first (the Export card on the Sales Home); a plain switch has none. */
+    fun open(area: Area, then: String? = null) {
+        openingRoute = then.takeIf { area == Area.ADMIN }
         _area.value = area
     }
+
+    /** The route to open after the last switch, once; the next call returns null. */
+    fun takeOpeningRoute(): String? = openingRoute.also { openingRoute = null }
 }

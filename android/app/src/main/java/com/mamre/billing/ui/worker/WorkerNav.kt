@@ -10,7 +10,7 @@ import com.mamre.billing.domain.auth.Routes
 import com.mamre.billing.ui.graphViewModel
 
 /** The Sales area (Doc 2 s10): Home, a bill, a payment, a return, today's bills and the receipt. */
-fun NavGraphBuilder.workerGraph(navController: NavController, onOpenAdmin: () -> Unit) {
+fun NavGraphBuilder.workerGraph(navController: NavController, onOpenAdmin: () -> Unit, onOpenExport: () -> Unit = {}) {
     navigation(route = Routes.SALES_GRAPH, startDestination = WorkerRoutes.HOME) {
         composable(WorkerRoutes.HOME) {
             HomeScreen(onTile = { tile ->
@@ -22,7 +22,7 @@ fun NavGraphBuilder.workerGraph(navController: NavController, onOpenAdmin: () ->
                         HomeTile.TODAYS_INVOICES -> WorkerRoutes.TODAY
                     },
                 )
-            }, onAdminArea = onOpenAdmin)
+            }, onAdminArea = onOpenAdmin, onOpenExport = onOpenExport)
         }
         composable(WorkerRoutes.TODAY) {
             TodayScreen(

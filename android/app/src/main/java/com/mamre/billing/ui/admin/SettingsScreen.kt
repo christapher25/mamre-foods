@@ -22,11 +22,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mamre.billing.data.admin.AdminApi
 import com.mamre.billing.data.admin.AdminRuleException
+import com.mamre.billing.data.export.LastExportViewModel
 import com.mamre.billing.domain.admin.BusinessSettings
 import com.mamre.billing.domain.admin.SettingsProblem
 import com.mamre.billing.domain.admin.formatWastage
 import com.mamre.billing.domain.admin.settingsProblemMessage
 import com.mamre.billing.domain.admin.validateSettings
+import com.mamre.billing.domain.export.lastExportLabel
 import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.EntryGate
@@ -40,6 +42,8 @@ import com.mamre.billing.ui.components.SecondaryButton
 import com.mamre.billing.ui.components.SectionHeader
 import com.mamre.billing.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.ZoneId
+import java.util.Locale
 import java.util.Optional
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -133,8 +137,15 @@ class SettingsActions(
 )
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, onChangePin: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onExport: () -> Unit,
+    onChangePin: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel(),
+    lastExportViewModel: LastExportViewModel = hiltViewModel(),
+) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val lastExportAt by lastExportViewModel.lastExportAt.collectAsStateWithLifecycle()
     SettingsContent(
         ui = ui,
         onBack = onBack,
@@ -149,6 +160,7 @@ fun SettingsScreen(onBack: () -> Unit, onExport: () -> Unit, onChangePin: () -> 
             changePin = onChangePin,
             lockNow = viewModel::lockNow,
         ),
+        lastExport = lastExportLabel(lastExportAt, Locale.getDefault(), ZoneId.systemDefault()),
     )
 }
 
@@ -168,7 +180,12 @@ private fun Hint(text: String) = Text(text, style = MaterialTheme.typography.bod
 private val NAME_PROBLEMS = setOf(SettingsProblem.NAME_REQUIRED, SettingsProblem.NAME_TOO_LONG)
 
 @Composable
-fun SettingsContent(ui: SettingsUi, onBack: () -> Unit, actions: SettingsActions) {
+fun SettingsContent(
+    ui: SettingsUi,
+    onBack: () -> Unit,
+    actions: SettingsActions,
+    lastExport: String = lastExportLabel(null, Locale.getDefault(), ZoneId.systemDefault()),
+) {
     var confirmLogout by remember { mutableStateOf(false) }
     var editWastage by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
@@ -245,6 +262,7 @@ fun SettingsContent(ui: SettingsUi, onBack: () -> Unit, actions: SettingsActions
 
             SectionHeader("Export")
             Hint("Make plain text files of all your data and share them, for example with your accountant.")
+            Text(lastExport, style = MaterialTheme.typography.titleMedium)
             SecondaryButton("Export data", onClick = actions.export)
 
             if (ui.canLogOut) SecondaryButton("Log out", onClick = { confirmLogout = true })
