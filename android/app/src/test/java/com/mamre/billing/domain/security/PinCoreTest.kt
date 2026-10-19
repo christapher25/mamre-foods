@@ -69,6 +69,31 @@ class PinCoreTest {
         assertEquals(PinLockState(), PinLockout.afterCorrect())
     }
 
+    // A reboot whose new monotonic reading is NOT smaller than the old one: only the boot identity says it was a reboot.
+    // Written 10 minutes of delay at the start of boot "b1"; the new boot "b2" is 400 s old, so 400_000 >= 0 and a check of
+    // the monotonic reading alone would call it the same boot.
+    private val tenMinutes = 600_000L
+    private val writtenAtBootStart = PinLockState(failCount = 9, lockedUntilMs = 1_000_000 + tenMinutes, delayMs = tenMinutes, monoAtMs = 0, bootId = "b1")
+
+    private fun afterReboot(wallMs: Long) = PinLockout.remainingMs(writtenAtBootStart, PinTime(wallMs = wallMs, monoMs = 400_000, bootId = "b2"))
+
+    @Test fun aRebootWithAMonotonicReadingNotBelowTheOldOneIsRecognisedByTheBootIdentityAndTheWallClockIsOnlyASecondOpinion() {
+        val sameBootRule = tenMinutes - 400_000L // what the monotonic reading alone would say: 200 s
+        // The phone was off for a short while: the wall clock says 500 s are left, and that counts (a second opinion that can lengthen).
+        assertEquals(500_000L, afterReboot(wallMs = 1_100_000))
+        // The wall clock moved forward by a day or back by a day: it never makes the delay SHORTER than counting again from the reboot.
+        assertEquals(sameBootRule, afterReboot(wallMs = 1_000_000 + 86_400_000))
+        assertEquals(tenMinutes, afterReboot(wallMs = 1_000_000 - 86_400_000)) // back: capped at the delay itself
+        for (wall in listOf(0L, 1_000_000L, 1_100_000L, 1_000_000L + 86_400_000, 1_000_000L - 86_400_000)) {
+            assertTrue("wall $wall", afterReboot(wall) >= sameBootRule)
+        }
+    }
+
+    @Test fun theSameBootWithTheSameReadingIsStillDecidedByTheMonotonicClockAlone() {
+        val sameBoot = PinTime(wallMs = 1_000_000 + 86_400_000, monoMs = 400_000, bootId = "b1")
+        assertEquals(200_000L, PinLockout.remainingMs(writtenAtBootStart, sameBoot)) // the wall clock moved forward: no effect
+    }
+
     // ---------------------------------------------------------------- the lock after inactivity (a fixed clock)
 
     private class TestClock : MonotonicClock {
