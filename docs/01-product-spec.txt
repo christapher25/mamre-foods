@@ -2,8 +2,8 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 1 OF 3
 # Product Specification
 What the Mamre Foods billing and accounting system must do
 
-Version: 1.2 (local-first, 4 October 2026)
-Date: 4 October 2026
+Version: 1.2.1 (local-first, 19 October 2026)
+Date: 19 October 2026
 Owner / approver: Christapher (builder). Business owner and Admin user: his father.
 Status: Approved. Amended on 4 October 2026 for the local-first version 1 (see the change log at the end). Any change needs owner approval and a new version number.
 Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent Operating Guide and Build Plan.
@@ -324,7 +324,7 @@ Expense entries are add-only. A mistake is corrected by a reversing entry with a
 
 Version 1 has no dashboards, charts or profit reports. The Admin area shows lists with search and filters: Sales (month, customer, status, Price changed), Customers with their month summary, Balances with ageing (current, 30+ days, 60+ days), Returns and damage, and Purchases and other expenses.
 
-Export to files (Admin area): one CSV file per table (customers, customer types, products, prices, bills, bill items, payments, returns, materials, purchases, expenses, production damage, settings without the PIN, change log) plus a manifest with the data version, export time and row counts. UTF-8, header row, UUIDs, money in cents. The Owner shares the files with the phone's share menu or saves them to a folder. There is no import in version 1; version 2 imports these files.
+Export to files (Admin area): one CSV file per table (18 files: customers, customer types, products, prices, price overrides, bills, bill items, payments, returns, materials, recipe items, opening stock, purchases, expense categories, expenses, production damage, settings without the PIN, change log) plus a manifest with the data version, export time and row counts. UTF-8, header row, UUIDs, money in cents. The Owner shares the files with the phone's share menu (mail, Drive, a cable). The files are plain text with customer data. There is no import in version 1; version 2 imports these files.
 
 ### 11.2 Version 2: reports (parked)
 
@@ -375,7 +375,7 @@ Each assumption stands until the owner changes it. An agent must not silently ch
 | A-22 | Packing is counted once per packet, for sold and replacement packets. |
 | A-23 | A walk-in follows the Retail price list and the Retail price-edit setting. |
 | A-24 | Version 1 is local-first: one handheld, no server, no network, all data on the device. |
-| A-25 | One Owner is both salesman and admin. The PIN opens the app; the Sales and Admin areas are kept apart by navigation, not by a second login. |
+| A-25 | One Owner is both salesman and admin. The PIN opens the app; the Sales and Admin areas are kept apart by navigation, not by a second login. The Owner can lock the app at once with a Lock now button. In the release app the screen is hidden from screenshots and from the recent-apps preview, so bills and balances are not shown there. |
 | A-26 | No automatic backups in version 1 (owner decision): data is entered by hand for the first two months and can be re-entered. Uninstalling the app deletes all its data. |
 | A-27 | Export to files is the only way data leaves the device. |
 | A-28 | Dashboards, the Costing screen and profit reports are version 2. Version 1 stores their inputs. |
@@ -446,6 +446,7 @@ Mismatches to fix before a server is connected: the business header setting name
 
 | Version | Changes |
 |---|---|
+| 1.2.1 (19 Oct 2026) | Export is 18 files and goes through the share menu only (no folder picker). Lock now button; release screens are hidden from screenshots and the recent-apps preview (A-25). No change to bills, prices or balances. |
 | 1.2 (4 Oct 2026) | Version 1 is local-first: one handheld, one Owner who is both salesman and admin, a PIN, no server, no automatic backups, export to files. The dashboard, the Costing screen and the laptop move to version 2. New bill layout (modelled on the parent company's bill), salesman name from Settings, customer name plus location, corporate account switch. |
 | 1.1 (3 Oct 2026) | Catering type, worker price editing by customer-type switch, standard packet 12 and custom packets, materials-based costing, reversing entries. |
 | 1.0 (1 Oct 2026) | First baseline. |

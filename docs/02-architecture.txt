@@ -2,10 +2,10 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 2 OF 3
 # Technical Architecture and Data Model
 How the system is built: stack, data, API, sync, printing, security and testing
 
-Version: 1.2 (local-first, 4 October 2026)
-Date: 4 October 2026
+Version: 1.2.1 (local-first, 19 October 2026)
+Date: 19 October 2026
 Implements: Doc 1: Product Specification. This document may never change business behaviour.
-Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
+Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first), and on 19 October 2026 (version 1.2.1: s5.3 export, s6 lock and screen privacy). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
 Companion documents: Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
@@ -147,9 +147,11 @@ A release app starts with reference data only: the four customer types with thei
 
 ### 5.3 Export to files
 
-- Admin area, Export: writes one CSV per table plus manifest.txt (data version, export time, row counts): customers, customer_types, products, prices, invoices, invoice_items, payments, returns, materials, purchases, expenses, production_damage, settings (PIN excluded), change_log.
+- Admin area, Export: writes 18 CSV files plus manifest.txt (data version, export time, row counts): customers, customer_types, products, prices, price_overrides, invoices, invoice_items, payments, returns, materials, recipe_items, opening_stock, purchases, expense_categories, expenses, production_damage, settings, change_log.
+- The settings file leaves out every key that starts with pin_ (the PIN hash, the salt and the wrong-PIN counters).
 - UTF-8, header row, UUIDs, money in cents, quantities in milli-units, times in ISO 8601.
-- The Owner shares the files with the Android share sheet or saves them to a folder he picks.
+- Delivery is the Android share sheet only (ACTION_SEND_MULTIPLE through a FileProvider on cache/exports; no storage permission). Old export files are deleted before new ones are written. There is no folder picker in version 1.
+- The Export screen warns that the files are plain text with customer data.
 - There is no import in version 1. Version 2 imports these files.
 
 ==============================================================================
@@ -157,10 +159,16 @@ A release app starts with reference data only: the four customer types with thei
 ==============================================================================
 
 - At first run the Owner chooses a PIN of 4 to 6 digits. It is stored only as a salted PBKDF2 hash. The plain PIN is never stored or logged.
-- The app locks after the number of minutes in Settings (default 5) and whenever it has been in the background longer than that. Five wrong PINs in a row add a growing delay.
+- The app locks after the number of minutes in Settings (default 5, range 1 to 30) and whenever it has been in the background longer than that. A cold start is always locked. Unlocked state is never saved.
+- Wrong PINs: the first 4 in a row are free; the 5th starts a 30 second delay, and each further wrong PIN doubles it up to 15 minutes. During a delay every PIN is refused and does not count. The counter and the delay are saved in the settings table, so closing the app does not reset them.
+- The lock and the delay use the phone's monotonic clock plus the boot count, not the wall clock, so changing the phone's date or time does not shorten a delay or skip the inactivity lock. After a reboot the delay is never shorter than what was still owed.
+- If a PIN hash or salt row exists but is damaged, the app stays locked (it never shows the set-up screen). The PIN screen is drawn instead of the app content while locked; the content is not built behind it.
+- Rotating the phone keeps a bill in progress. Locking clears it.
+- Lock now: a button on the Sales home and in Settings locks the app at once.
+- Screen privacy: the release app sets FLAG_SECURE on its window, so screenshots and the recent-apps preview do not show bills or balances. The debug build does not, so screenshots can be taken for review.
 - The Owner can change the PIN while unlocked. There is no PIN recovery in version 1. A forgotten PIN means clearing the app's data, which deletes everything (Doc 1 A-26). The Owner should choose a PIN he will remember.
 - The Sales and Admin areas are separate navigation graphs with a route guard. Cost and profit data is not shown anywhere in version 1.
-- The release app requests no INTERNET permission, so no data can leave the phone except through an export the Owner starts. Export files are plain text with customer data: share them only with people you trust.
+- The release app requests no INTERNET permission and no storage permission, and the build fails if the merged release manifest has any extra screen or any exported component beyond the three allow-listed library entries. No data can leave the phone except through an export the Owner starts. Export files are plain text with customer data: share them only with people you trust.
 - The database is not encrypted beyond Android's own device encryption. Set a screen lock on the phone.
 - Android backups of the app are turned off, so nothing is copied to the cloud behind the Owner's back.
 

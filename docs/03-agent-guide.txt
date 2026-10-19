@@ -2,8 +2,8 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 3 OF 3
 # Agent Operating Guide and Build Plan
 Roles, git workflow, rules, drift control and ready-to-paste prompts for working with multiple Claude Code agents
 
-Version: 1.2 (local-first, 4 October 2026)
-Date: 4 October 2026
+Version: 1.2.1 (local-first, 19 October 2026)
+Date: 19 October 2026
 Audience: Every Claude Code agent on this project, and the owner who supervises them.
 Companion documents: Doc 1: Product Specification (what).  Doc 2: Technical Architecture and Data Model (how).
 Status: Process rules, amended 4 October 2026 to match Doc 1 version 1.2 (local-first) (rule N4 changed, phases updated). They change only with owner approval.
@@ -82,10 +82,10 @@ A phase starts only when the previous gate has passed and its work is merged int
 | L0 Demo app | Worker and Admin screens, bills, costing screens, on fake data (debug only) | Done and merged. |
 | L1 Real local database | Promote the demo logic into the main source set on Room: reference data seed, repositories, use cases in transactions, no update or delete on protected tables, exported schemas and tested migrations | Every screen runs on the real database; the release app starts empty; migration tests pass. |
 | L2 PIN lock and Settings | First-run PIN, lock after inactivity, owner name, business header, device code, wastage, lock time | Bills print the header from Settings; PIN tests pass. |
-| L3 Export | CSV files and manifest from the Admin area, shared with the share sheet | Every table exported; row counts match. |
+| L3 Export | 18 CSV files and a manifest from the Admin area, shared with the share sheet (no folder picker) | Every table exported; row counts match; no pin_ setting is exported. |
 | L4 Version 1 cut | Hide the Dashboard and Costing screens behind a flag; remove the INTERNET permission; remove the network client from release | Release package check passes. |
 | L5 Printing | ReceiptPrinter on the handheld's library (needs the model number, P-1) | Golden bills print correctly on the device. |
-| L6 Signed release | Signing key, version code, install guide | A signed APK installs over a previous one and keeps the data. |
+| L6 Signed release | Signing key, version code, install guide; freeze schema version 1 (from then on every change is a tested migration); remove the legacy lock-state branch (the code that reads wrong-PIN data written by older builds) | A signed APK installs over a previous one and keeps the data. Schema 1 is frozen and the legacy branch is gone. |
 | L7 Trial | The Owner enters real data by hand for 1 to 2 months | Owner signs off. |
 | V2 (parked) | Server, sync, laptop, dashboard, Costing screen, backups, import of the export | Planned after the trial. |
 
