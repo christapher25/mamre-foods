@@ -1,3 +1,5 @@
+import com.mamre.build.ReleaseManifestRules
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -57,6 +59,8 @@ android {
         // The exported Room schemas are assets of the DEBUG build only (the unit tests read the debug variant's merged
         // assets), so the migration helper can open every version. The release APK does not carry them.
         getByName("debug").assets.directories.add("$projectDir/schemas")
+        // The release manifest rule (buildSrc) is plain Kotlin: the unit tests compile the same file the Gradle task runs.
+        getByName("test").kotlin.directories.add("$projectDir/../buildSrc/src/main/kotlin")
     }
 }
 
@@ -120,30 +124,7 @@ val verifyReleaseComponents = tasks.register("verifyReleaseComponents") {
     inputs.file(merged)
     val allowed = releaseManifestAllowedExported
     doLast {
-        val androidNs = "http://schemas.android.com/apk/res/android"
-        val factory = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
-        val app = factory.newDocumentBuilder().parse(merged.get().asFile).getElementsByTagName("application").item(0) as org.w3c.dom.Element
-        fun children(tag: String) = (0 until app.getElementsByTagName(tag).length).map { app.getElementsByTagName(tag).item(it) as org.w3c.dom.Element }
-        fun org.w3c.dom.Element.nameAttr() = getAttributeNS(androidNs, "name")
-        fun org.w3c.dom.Element.isLauncher() = (0 until getElementsByTagName("intent-filter").length).any { i ->
-            val f = getElementsByTagName("intent-filter").item(i) as org.w3c.dom.Element
-            fun has(tag: String, v: String) = (0 until f.getElementsByTagName(tag).length).any { (f.getElementsByTagName(tag).item(it) as org.w3c.dom.Element).nameAttr() == v }
-            has("action", "android.intent.action.MAIN") && has("category", "android.intent.category.LAUNCHER")
-        }
-        fun org.w3c.dom.Element.isExported() = when (getAttributeNS(androidNs, "exported")) {
-            "true" -> true
-            "false" -> false
-            else -> getElementsByTagName("intent-filter").length > 0
-        }
-        val problems = mutableListOf<String>()
-        for (tag in listOf("activity", "activity-alias")) {
-            children(tag).filterNot { it.isLauncher() }.forEach { problems += "$tag ${it.nameAttr()} is not the launcher" }
-        }
-        val launchers = children("activity").count { it.isLauncher() } + children("activity-alias").count { it.isLauncher() }
-        if (launchers != 1) problems += "expected exactly one launcher activity, found $launchers"
-        for (tag in listOf("provider", "service", "receiver")) {
-            children(tag).filter { it.isExported() && it.nameAttr() !in allowed }.forEach { problems += "exported $tag ${it.nameAttr()} is not on the allowlist" }
-        }
+        val problems = ReleaseManifestRules.problems(merged.get().asFile.readText(), allowed)
         check(problems.isEmpty()) { "the merged release manifest opens doors it should not: $problems" }
     }
 }
