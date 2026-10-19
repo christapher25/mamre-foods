@@ -31,6 +31,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.mamre.billing.domain.usecase.ChangePin
 import com.mamre.billing.domain.usecase.PinStatus
+import com.mamre.billing.domain.usecase.RecordExport
 import com.mamre.billing.domain.usecase.SetPin
 import com.mamre.billing.domain.usecase.VerifyPin
 import dagger.hilt.components.SingletonComponent
@@ -112,6 +113,11 @@ object AppModule {
     @Provides
     fun recordReturn(u: UnitOfWork, sales: SalesRepository, customers: CustomerRepository, prices: PriceRepository, clock: Clock) =
         RecordReturn(u, sales, customers, prices, clock)
+
+    // ------------------------------------------------------------------ the export (Doc 1 s11.1, Doc 2 s5.3)
+
+    @Provides
+    fun recordExport(u: UnitOfWork, settings: SettingsRepository, clock: Clock) = RecordExport(u, settings, clock)
 
     // ------------------------------------------------------------------ the PIN (Doc 2 s6)
 

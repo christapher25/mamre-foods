@@ -333,6 +333,9 @@ object SettingKeys {
     const val PIN_LOCK_BOOT = "pin_lock_boot"
     const val NEXT_BILL_SEQ = "next_bill_seq"
     const val NEXT_RECEIPT_SEQ = "next_receipt_seq"
+
+    /** When the last export was prepared (epoch ms, UTC); a system record written by RecordExport, exported like any non-pin_ setting. */
+    const val LAST_EXPORT_AT = "last_export_at"
 }
 
 /** Stored text of the small closed sets. */

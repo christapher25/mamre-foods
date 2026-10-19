@@ -27,6 +27,7 @@ import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.startDestinationFor
 import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.admin.AdminBottomBar
+import com.mamre.billing.ui.admin.AdminRoutes
 import com.mamre.billing.ui.admin.adminGraph
 import com.mamre.billing.ui.admin.adminTabs
 import com.mamre.billing.ui.admin.showsBottomBar
@@ -60,6 +61,11 @@ class AppViewModel @Inject constructor(
     val locked: StateFlow<Boolean> = appLock.locked
 
     fun openArea(area: Area) = areaState.open(area)
+
+    /** The Sales Home's export card: the one-tap switch to the Admin area, opening the Export screen first (no second login). */
+    fun openExport() = areaState.open(Area.ADMIN, then = AdminRoutes.EXPORT)
+
+    fun takeOpeningRoute(): String? = areaState.takeOpeningRoute()
 }
 
 /**
@@ -91,6 +97,8 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
                 features = appViewModel.features,
                 onOpenAdmin = { appViewModel.openArea(Area.ADMIN) },
                 onOpenSales = { appViewModel.openArea(Area.SALES) },
+                onOpenExport = appViewModel::openExport,
+                openingRoute = appViewModel::takeOpeningRoute,
             )
         },
     )
@@ -121,7 +129,14 @@ private fun GateHost(gate: EntryGate) {
  * rotation, are cleared when the app locks or the gate closes, and a later unlock starts them afresh.
  */
 @Composable
-fun AppContent(area: Area, features: Features, onOpenAdmin: () -> Unit, onOpenSales: () -> Unit) {
+fun AppContent(
+    area: Area,
+    features: Features,
+    onOpenAdmin: () -> Unit,
+    onOpenSales: () -> Unit,
+    onOpenExport: () -> Unit = {},
+    openingRoute: () -> String? = { null },
+) {
     RetainedContent {
         val navController = rememberNavController()
         val backStackEntry by navController.currentBackStackEntryAsState()
@@ -131,6 +146,8 @@ fun AppContent(area: Area, features: Features, onOpenAdmin: () -> Unit, onOpenSa
         // Switching area and every move afterwards: the one policy (navTarget) decides.
         LaunchedEffect(area) {
             navTarget(area, features, navController.currentDestination?.route)?.let { navController.goTo(it) }
+            // A switch that came with a first screen (the Sales Home's export card) opens it on top of the Admin start.
+            if (area == Area.ADMIN) openingRoute()?.let { navController.navigate(it) }
             navController.currentBackStackEntryFlow.collect { entry ->
                 navTarget(area, features, entry.destination.route)?.let { navController.goTo(it) }
             }
@@ -138,7 +155,7 @@ fun AppContent(area: Area, features: Features, onOpenAdmin: () -> Unit, onOpenSa
 
         Column(Modifier.fillMaxSize()) {
             NavHost(navController, startDestination = start, modifier = Modifier.weight(1f)) {
-                workerGraph(navController, onOpenAdmin = onOpenAdmin)
+                workerGraph(navController, onOpenAdmin = onOpenAdmin, onOpenExport = onOpenExport)
                 adminGraph(navController, features, onOpenSales = onOpenSales)
             }
             if (area == Area.ADMIN && showsBottomBar(route)) {

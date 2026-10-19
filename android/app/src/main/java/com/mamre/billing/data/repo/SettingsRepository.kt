@@ -3,10 +3,14 @@ package com.mamre.billing.data.repo
 import com.mamre.billing.data.local.SettingDao
 import com.mamre.billing.data.local.SettingEntity
 import com.mamre.billing.data.local.SettingKeys
+import com.mamre.billing.domain.export.parseLastExport
 import com.mamre.billing.domain.model.BusinessHeader
 import com.mamre.billing.domain.worker.invoiceNumber
 import com.mamre.billing.domain.worker.receiptNumber
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 /**
@@ -23,6 +27,10 @@ class SettingsRepository(private val settings: SettingDao) {
     suspend fun all(): Map<String, String> = settings.getAll().associate { it.key to it.value }
 
     fun observeAll(): Flow<Map<String, String>> = settings.observeAll().map { rows -> rows.associate { it.key to it.value } }
+
+    /** When the last export was prepared (epoch ms), or null when never or the stored value is damaged. */
+    fun observeLastExportAt(): Flow<Long?> =
+        flow { emitAll(observeAll().map { parseLastExport(it[SettingKeys.LAST_EXPORT_AT]) }) }.distinctUntilChanged()
 
     suspend fun deviceCode(): String = settings.get(SettingKeys.DEVICE_CODE) ?: error("the first-run seed has not run: no device code")
 

@@ -155,6 +155,19 @@ class ExportCoreTest {
         assertFalse(bundle.files.any { it.text.contains("s3cret") || it.text.contains("pin_future_secret") })
     }
 
+    @Test fun lastExportAtIsExportedLikeAnyOtherNonPinSetting() = runBlocking {
+        val w = fullWorld()
+        SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
+        w.clock.set("2026-10-19T15:10:00Z")
+        w.recordExport()
+        val bundle = ExportBuilder(w.db, w.clock).build()
+        assertEquals(18 + 1, bundle.files.size) // still the 18 CSV files plus the manifest
+        assertEquals(tableFiles.map { "$it.csv" } + "manifest.txt", bundle.files.map { it.name })
+        val row = bundle.rows("settings").single { it["key"] == SettingKeys.LAST_EXPORT_AT }
+        assertEquals(java.time.Instant.parse("2026-10-19T15:10:00Z").toEpochMilli().toString(), row["value"])
+        assertTrue(bundle.rows("settings").none { it.getValue("key").startsWith("pin_") })
+    }
+
     @Test fun aCustomerNameWithQuotesAndCommasRoundTripsAndIsQuotedPerRfc4180() = runBlocking {
         val w = fullWorld()
         val bundle = ExportBuilder(w.db, w.clock).build()
