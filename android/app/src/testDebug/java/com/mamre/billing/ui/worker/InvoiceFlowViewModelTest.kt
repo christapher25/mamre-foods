@@ -6,12 +6,15 @@ import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.worker.InvoiceRecord
 import com.mamre.billing.domain.worker.PacketKey
+import com.mamre.billing.domain.worker.PaymentCheck
 import java.time.Clock
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -64,13 +67,24 @@ class InvoiceFlowViewModelTest {
         withTimeout(10_000) { ui.first { it.customerChosen && it.products.isNotEmpty() } }
     }
 
-    private suspend fun InvoiceFlowViewModel.confirmAndWait(): InvoiceRecord? {
+    /**
+     * `ui` is derived from Room flows that emit on Room's own threads, so it can lag behind the last action. confirm() reads
+     * `ui.value` and returns without a word when the payment does not check out yet, so first wait for the state that
+     * can be confirmed, then wait for the outcome itself. The timeout is only a guard against a hang.
+     */
+    private suspend fun InvoiceFlowViewModel.confirmAndWait(): InvoiceRecord? = withTimeout(10_000) {
+        ui.first { it.canConfirm }
         val done = CompletableDeferred<InvoiceRecord?>()
         confirm { done.complete(it) }
-        return withTimeout(10_000) {
-            // A refusal never calls back; the error state says so.
-            while (!done.isCompleted && error.value == null) kotlinx.coroutines.delay(10)
-            if (done.isCompleted) done.await() else null
+        // A refusal never calls back; the error state says so.
+        val refused = async { error.first { it != null }; null }
+        try {
+            select<InvoiceRecord?> {
+                done.onAwait { it }
+                refused.onAwait { it }
+            }
+        } finally {
+            refused.cancel()
         }
     }
 
@@ -115,8 +129,10 @@ class InvoiceFlowViewModelTest {
         vm.selectWalkIn()
         withTimeout(10_000) { vm.ui.first { it.customerChosen && it.products.isNotEmpty() } }
         vm.setQuantity(PacketKey(ReferenceIds.PRODUCT_FRESH, 12), 2)
+        // preparePayment() copies the total from `ui.value`, so the total must be there before it is called.
+        vm.ui.first { it.lines.isNotEmpty() }
         vm.preparePayment()
-        val ui = vm.ui.first { it.lines.isNotEmpty() }
+        val ui = vm.ui.first { it.check is PaymentCheck.Ok }
         assertFalse(ui.isCorporate)
         assertEquals("Walk-in", ui.customerLabel)
         assertEquals("", vm.confirmAndWait()!!.customerLocation)
