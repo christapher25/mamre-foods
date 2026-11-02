@@ -1,3 +1,5 @@
+import java.util.Properties
+import com.mamre.build.ReleaseConfig
 import com.mamre.build.ReleaseManifestRules
 
 plugins {
@@ -6,6 +8,11 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
+
+// C1 (Doc 4 F1): version from android/version.properties; the release is signed only when android/keystore.properties exists.
+val releaseVersion = ReleaseConfig.parseVersion(rootProject.file("version.properties").readText())
+val keystoreFile = rootProject.file("keystore.properties")
+val releaseKeystore = ReleaseConfig.parseKeystore(if (keystoreFile.exists()) keystoreFile.readText() else null)
 
 android {
     namespace = "com.mamre.billing"
@@ -17,8 +24,8 @@ android {
         applicationId = "com.mamre.billing"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = releaseVersion.code
+        versionName = releaseVersion.name
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -31,8 +38,19 @@ android {
         buildConfigField("boolean", "SECURE_WINDOW", "false")
     }
 
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("mamreRelease") {
+                storeFile = file(releaseKeystore.storeFile)
+                storePassword = releaseKeystore.storePassword
+                keyAlias = releaseKeystore.keyAlias
+                keyPassword = releaseKeystore.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("mamreRelease")
             buildConfigField("boolean", "SHOW_ANALYTICS", "false")
             buildConfigField("boolean", "SECURE_WINDOW", "true")
             optimization {
@@ -124,7 +142,8 @@ val verifyReleaseComponents = tasks.register("verifyReleaseComponents") {
     inputs.file(merged)
     val allowed = releaseManifestAllowedExported
     doLast {
-        val problems = ReleaseManifestRules.problems(merged.get().asFile.readText(), allowed)
+        val text = merged.get().asFile.readText()
+        val problems = ReleaseManifestRules.problems(text, allowed) + ReleaseManifestRules.backupProblems(text)
         check(problems.isEmpty()) { "the merged release manifest opens doors it should not: $problems" }
     }
 }
@@ -146,4 +165,34 @@ afterEvaluate {
     verifyReleaseComponents.configure { dependsOn("processReleaseMainManifest") }
     verifyReleaseFlags.configure { dependsOn("generateReleaseBuildConfig") }
     tasks.named("assembleRelease") { dependsOn(verifyReleaseManifest, verifyReleaseComponents, verifyReleaseFlags) }
+}
+
+tasks.register("printVersion") {
+    val v = releaseVersion
+    doLast { println("versionCode=${v.code} versionName=${v.name}") }
+}
+
+// C1: when the owner's key is present, the release APK must be signed, and not with the debug key. Without keystore.properties (CI)
+// the release stays unsigned and this check does not run. Only certificate subjects are read; no password is ever printed.
+if (releaseKeystore != null) {
+    val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+        val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
+        val sdk = providers.environmentVariable("ANDROID_HOME").orElse(providers.environmentVariable("ANDROID_SDK_ROOT"))
+            .orElse(providers.provider { Properties().also { p -> rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { r -> p.load(r) } }.getProperty("sdk.dir") ?: "" })
+        doLast {
+            val file = apk.get().asFile
+            val certs = if (!file.exists()) emptyList() else {
+                val tools = File(sdk.get(), "build-tools").listFiles()?.filter { it.isDirectory }?.sortedBy { it.name }?.lastOrNull() ?: error("no build-tools under ${sdk.get()}")
+                val signer = File(tools, if (System.getProperty("os.name").startsWith("Windows")) "apksigner.bat" else "apksigner")
+                val proc = ProcessBuilder(signer.absolutePath, "verify", "--print-certs", file.absolutePath).redirectErrorStream(true).start()
+                val out = proc.inputStream.bufferedReader().readText()
+                check(proc.waitFor() == 0) { "apksigner could not verify ${file.name}: $out" }
+                Regex("""Signer #\d+ certificate DN: (.*)""").findAll(out).map { it.groupValues[1].trim() }.toList()
+            }
+            val problems = ReleaseConfig.signingProblems(certs)
+            check(problems.isEmpty()) { "release signing check failed: $problems" }
+            println("release APK signed by: $certs")
+        }
+    }
+    tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(verifyReleaseSigning) }
 }
