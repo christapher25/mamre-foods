@@ -27,6 +27,7 @@ import com.mamre.billing.print.AndroidPrintDriver
 import com.mamre.billing.print.BluetoothEscPosDriver
 import com.mamre.billing.print.BluetoothPermissionGate
 import com.mamre.billing.print.PrinterChain
+import com.mamre.billing.print.SunmiServiceDriver
 import com.mamre.billing.print.SettingsPrinterMethodStore
 import com.mamre.billing.print.ReceiptPrinter
 import dagger.Module
@@ -144,10 +145,10 @@ object AppModule {
     fun adminApi(db: MamreDatabase, clock: Clock): AdminApi = LocalAdminApi.create(db, clock)
 
     @Provides @Singleton
-    fun bluetoothPermissionGate(@ApplicationContext context: Context) = BluetoothPermissionGate(context)
+    fun bluetoothPermissionGate(@ApplicationContext context: Context) = BluetoothPermissionGate.forContext(context)
 
     /** The real chain in every build (Doc 4 s5): Bluetooth ESC/POS, then the Android print dialog. */
     @Provides @Singleton
     fun receiptPrinter(@ApplicationContext context: Context, gate: BluetoothPermissionGate, settings: SettingsRepository): ReceiptPrinter =
-        PrinterChain(listOf(BluetoothEscPosDriver(context, gate), AndroidPrintDriver(context)), SettingsPrinterMethodStore(settings))
+        PrinterChain(listOf(SunmiServiceDriver(context), BluetoothEscPosDriver(context, gate), AndroidPrintDriver(context)), SettingsPrinterMethodStore(settings))
 }

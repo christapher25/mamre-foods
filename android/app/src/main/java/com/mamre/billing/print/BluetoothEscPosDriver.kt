@@ -20,14 +20,19 @@ const val BLUETOOTH_RATIONALE = "Mamre needs permission to reach the built-in pr
  * [requester]; it shows [BLUETOOTH_RATIONALE] first and then the system prompt. With no requester, or a "no", the answer is
  * false and the chain moves to the next driver.
  */
-class BluetoothPermissionGate(private val context: Context) {
+class BluetoothPermissionGate(private val granted: () -> Boolean) {
     @Volatile var requester: (suspend (rationale: String) -> Boolean)? = null
 
-    fun isGranted(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+    fun isGranted(): Boolean = granted()
 
     suspend fun ensure(): Boolean = isGranted() || (requester?.invoke(BLUETOOTH_RATIONALE) == true && isGranted())
+
+    companion object {
+        fun forContext(context: Context) = BluetoothPermissionGate {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        }
+    }
 }
 
 /** A1 item 2b: ESC/POS to the built-in printer over an already-paired Bluetooth serial link. */
