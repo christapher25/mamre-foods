@@ -81,14 +81,30 @@ class PinViewModelTest {
         assertFalse(PinStatus(w.settings).isSet())
     }
 
-    @Test fun chosenTwiceTheSamePinIsSavedAndTheAppIsUnlocked() = runBlocking {
+    @Test fun chosenTwiceTheSamePinIsSavedThenTheBusinessScreenComesBeforeTheAppOpens() = runBlocking {
         val v = vm()
         v.ready(PinMode.SETUP)
         v.onPin("482913"); v.onConfirm("482913")
         v.submit()
-        withTimeout(10_000) { lock.locked.first { !it } }
+        v.ready(PinMode.BUSINESS) // Doc 1 s2.1 FR-2: Set up your business, straight after the first PIN
         assertTrue(PinStatus(w.settings).isSet())
+        assertTrue("the app stays locked until the business screen is done", lock.locked.value)
+        assertEquals("", v.ui.value.pin)
+        v.businessDone()
+        withTimeout(10_000) { lock.locked.first { !it } }
         assertFalse(lock.locked.value)
+    }
+
+    @Test fun onALaterStartTheBusinessScreenIsNeverShown() = runBlocking {
+        SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("1234", "1234")
+        val v = vm()
+        v.ready(PinMode.ENTRY)
+        v.onPin("1234")
+        v.submit()
+        withTimeout(10_000) { lock.locked.first { !it } }
+        assertEquals(PinMode.ENTRY, v.ui.value.mode)
+        v.businessDone() // does nothing outside the first run
+        assertEquals(PinMode.ENTRY, v.ui.value.mode)
     }
 
     @Test fun onALaterStartTheScreenAsksForThePinAndTheRightOneUnlocks() = runBlocking {
