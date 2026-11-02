@@ -16,3 +16,8 @@ local.properties
 
 /screenshots/
 /buildSrc/build
+
+# Release signing (C1): the key and its passwords never go into git.
+keystore.properties
+*.jks
+*.keystore
