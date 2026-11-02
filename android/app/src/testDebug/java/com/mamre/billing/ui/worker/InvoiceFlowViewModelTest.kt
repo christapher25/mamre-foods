@@ -174,7 +174,7 @@ class InvoiceFlowViewModelTest {
         vm.ui.first { it.lines.isNotEmpty() }
         // The shop assistant "bypasses the screen": the price of the current price list changes under the open bill.
         w.admin.setDefaultPrice(ReferenceIds.PRODUCT_CHAPATHI, ReferenceIds.TYPE_RESTAURANT, 999, w.today)
-        // The customer has an override for Chapathi, so the default does not matter; change the override instead.
+        // An override now beats the default, so the bill's list price is out of date.
         w.admin.setOverride(s.spiceGardenId, ReferenceIds.PRODUCT_CHAPATHI, 111, w.today, "new price")
         val before = w.db.invoiceDao().count()
         assertEquals(null, vm.confirmAndWait()) // refused: the list price changed since the bill was built
