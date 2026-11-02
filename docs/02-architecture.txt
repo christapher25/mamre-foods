@@ -152,6 +152,7 @@ A release app starts with reference data only: the four customer types with thei
 - UTF-8, header row, UUIDs, money in cents, quantities in milli-units, times in ISO 8601.
 - Delivery is the Android share sheet only (ACTION_SEND_MULTIPLE through a FileProvider on cache/exports; no storage permission). Old export files are deleted before new ones are written. There is no folder picker in version 1.
 - The Export screen warns that the files are plain text with customer data.
+- The settings row last_export_at (epoch milliseconds, UTC) is written by the RecordExport use case in one transaction when the files and the manifest are written and the share sheet is launched, with no change log entry. It is exported in settings.csv like any setting that does not start with pin_. The 7 day reminder is a pure function of last_export_at, the bill count and the Clock; the 7 days are a constant, not a setting.
 - There is no import in version 1. Version 2 imports these files.
 
 ==============================================================================

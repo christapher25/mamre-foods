@@ -326,6 +326,8 @@ Version 1 has no dashboards, charts or profit reports. The Admin area shows list
 
 Export to files (Admin area): one CSV file per table (18 files: customers, customer types, products, prices, price overrides, bills, bill items, payments, returns, materials, recipe items, opening stock, purchases, expense categories, expenses, production damage, settings without the PIN, change log) plus a manifest with the data version, export time and row counts. UTF-8, header row, UUIDs, money in cents. The Owner shares the files with the phone's share menu (mail, Drive, a cable). The files are plain text with customer data. There is no import in version 1; version 2 imports these files.
 
+The app records when an export was last prepared (when the files are written and the share sheet is opened; it cannot know whether the Owner finished sharing) and shows it on the Export screen and in Settings as Last export prepared. When at least one bill exists and the last export is missing, older than 7 days, or dated in the future, the Sales Home shows a quiet card with a button that opens the Export screen. There is no popup and nothing is blocked.
+
 ### 11.2 Version 2: reports (parked)
 
 1. Sales summary: packets, chapathis and revenue by product and by customer type; invoiced total, credits, net sales.
