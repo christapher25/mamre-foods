@@ -27,4 +27,12 @@ class PrintFailureKeepsBillTest {
         assertEquals(1, mock.printed.size)
         assertEquals(1, failing.attempts)
     }
+
+    @Test fun theFailureTextIsExactlyThePromisedWords() {
+        // AT-11: the screen shows PRINTER_NOT_READY on a failure; the words are fixed.
+        assertEquals("Printer not ready. The bill is saved. Tap Reprint.", PRINTER_NOT_READY)
+        val screen = java.io.File("src/main/java/com/mamre/billing/ui/worker/ReceiptScreen.kt")
+            .takeIf { it.exists() } ?: java.io.File("app/src/main/java/com/mamre/billing/ui/worker/ReceiptScreen.kt")
+        assertTrue(screen.readText().contains("PRINTER_NOT_READY"))
+    }
 }

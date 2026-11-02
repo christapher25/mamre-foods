@@ -19,7 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.print.RECEIPT_WIDTH
-import com.mamre.billing.print.SENT_TO_MOCK_PRINTER
+import com.mamre.billing.print.PRINTER_NOT_READY
+import com.mamre.billing.print.SENT_TO_PRINTER
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.PrimaryButton
@@ -76,14 +77,13 @@ fun ReceiptContent(
             }
             when (status) {
                 PrintStatus.Sent -> Text(
-                    SENT_TO_MOCK_PRINTER,
+                    SENT_TO_PRINTER,
                     style = MaterialTheme.typography.titleSmall,
                     color = MamreTheme.extra.success,
                 )
                 is PrintStatus.Failed -> AppCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                    Text("Could not print", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
                     Text(
-                        "${status.reason}. Nothing is lost: the record is saved. Tap Retry.",
+                        PRINTER_NOT_READY,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
@@ -94,7 +94,7 @@ fun ReceiptContent(
         StickyBottomBar {
             val failed = status is PrintStatus.Failed
             PrimaryButton(
-                if (failed) "Retry" else printLabel,
+                if (failed) "Reprint" else printLabel,
                 onClick = onPrint,
                 enabled = status != PrintStatus.Printing,
             )

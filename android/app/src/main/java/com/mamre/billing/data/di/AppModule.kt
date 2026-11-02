@@ -23,7 +23,11 @@ import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.usecase.MakeBill
 import com.mamre.billing.domain.usecase.RecordPayment
 import com.mamre.billing.domain.usecase.RecordReturn
-import com.mamre.billing.print.MockPrinter
+import com.mamre.billing.print.AndroidPrintDriver
+import com.mamre.billing.print.BluetoothEscPosDriver
+import com.mamre.billing.print.BluetoothPermissionGate
+import com.mamre.billing.print.PrinterChain
+import com.mamre.billing.print.SettingsPrinterMethodStore
 import com.mamre.billing.print.ReceiptPrinter
 import dagger.Module
 import dagger.Provides
@@ -139,7 +143,11 @@ object AppModule {
     @Provides @Singleton
     fun adminApi(db: MamreDatabase, clock: Clock): AdminApi = LocalAdminApi.create(db, clock)
 
-    /** MockPrinter until the handheld's printer library arrives (Doc 2 s7, P-1). */
     @Provides @Singleton
-    fun receiptPrinter(): ReceiptPrinter = MockPrinter()
+    fun bluetoothPermissionGate(@ApplicationContext context: Context) = BluetoothPermissionGate(context)
+
+    /** The real chain in every build (Doc 4 s5): Bluetooth ESC/POS, then the Android print dialog. */
+    @Provides @Singleton
+    fun receiptPrinter(@ApplicationContext context: Context, gate: BluetoothPermissionGate, settings: SettingsRepository): ReceiptPrinter =
+        PrinterChain(listOf(BluetoothEscPosDriver(context, gate), AndroidPrintDriver(context)), SettingsPrinterMethodStore(settings))
 }
