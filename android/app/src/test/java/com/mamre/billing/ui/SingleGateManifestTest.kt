@@ -42,6 +42,17 @@ class SingleGateManifestTest {
         assertTrue("the cache exports folder and nothing else", Regex("""<cache-path\s+name="exports"\s+path="exports/"\s*/>""").containsMatchIn(paths))
     }
 
+    /** Doc 1 A-26: no cloud or device backup of the business data. allowBackup is false and the two rule files include nothing. */
+    @Test fun backupIsOffAndTheBackupRulesIncludeNothing() {
+        val m = read("src/main/AndroidManifest.xml")
+        assertTrue("allowBackup must be false", m.contains("android:allowBackup=\"false\""))
+        assertFalse("allowBackup must never be true", m.contains("android:allowBackup=\"true\""))
+        for (rules in listOf("src/main/res/xml/data_extraction_rules.xml", "src/main/res/xml/backup_rules.xml")) {
+            val text = read(rules).replace(Regex("(?s)<!--.*?-->"), "")
+            assertFalse("$rules includes something", text.contains("<include"))
+        }
+    }
+
     @Test fun theMainManifestAsksForNoPermissionAtAll() {
         val m = read("src/main/AndroidManifest.xml")
         assertFalse("a permission is declared", m.contains("<uses-permission"))

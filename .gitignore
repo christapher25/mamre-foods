@@ -9,3 +9,6 @@ local.properties
 *.jks
 *.keystore
 .claude/settings.local.json
+
+# Release signing (C1)
+keystore.properties
