@@ -1,0 +1,165 @@
+MAMRE FOODS BILLING SYSTEM - DOCUMENT 4
+# Finish Plan and Parallel Team
+How version 1 gets finished fast with several Claude Code agents working at the same time
+
+Version: 1.0 (2 November 2026)
+Owner: Christapher. Approved by the owner on 2 November 2026.
+Status: For finishing version 1, this document replaces Doc 3 sections 3, 4, 5.3 and 6 wherever they conflict. Doc 1 still decides behaviour and Doc 2 still decides technology. Doc 3 section 7 (hard rules) still applies in full.
+
+==============================================================================
+## 1. The goal: what "finished" means
+==============================================================================
+
+The owner's requirement (2 November 2026): the finished product is "download and print". Nobody debugs or configures anything.
+
+Version 1 is finished when all of these are true:
+
+| # | Finished when |
+|---|---|
+| F1 | A signed APK is available at one download link. On the handheld, the Owner opens the link, allows the install once, and opens the app. |
+| F2 | First run: choose a PIN, then one Set up your business screen (name, owner name, address, phone, footer). A Finish setup card on the Sales Home lists anything still missing (a price for each product and customer type) and opens the right screen. |
+| F3 | The first bill prints with no printer setup. The app finds the built-in printer by itself and remembers it. At most it asks once for the Android "nearby devices" (Bluetooth) permission, with a plain sentence saying why. |
+| F4 | If printing fails, the bill is still saved, and the message says "Printer not ready. The bill is saved. Tap Reprint." (AT-11). |
+| F5 | A newer APK installs over the old one and keeps every bill, payment and setting (same signing key, higher version code, tested migrations). |
+| F6 | All acceptance tests in Doc 3 s10.2 pass. The release proofs pass: no INTERNET, no storage permission, no demo code. |
+| F7 | A one-page install guide with pictures exists for the father, and a one-page "how to update" note. |
+
+Not in version 1, unchanged: server, sync, laptop, dashboards, Costing screen, backups, separate salesman logins (Doc 1 s1).
+
+==============================================================================
+## 2. Where we are (2 November 2026)
+==============================================================================
+
+Done and merged into main:
+- L0 demo, L1 real Room database (schema version 1, not yet frozen), L2 PIN lock and Settings, L3 Export (18 files, share sheet), L4 version 1 cut (no INTERNET, Dashboard and Costing hidden).
+- Hardening: wrong-PIN delay on the monotonic clock, fail-closed PIN data, locked content frame, rotation keeps the draft bill, FLAG_SECURE in release, Lock now, release manifest component check, release unzip proof.
+- Docs v1.2.1 (PR #10).
+
+Built but its state on GitHub must be checked first (task T0):
+- PR for feat/android-last-export (Last export date and 7-day reminder). Reviewed APPROVED. CI failed once on InvoiceFlowViewModelTest > aWalkInHasNoLocationAndIsNotCorporate (a coroutine timeout on the Linux runner; the test is older than this branch). It may or may not have been merged since 20 October.
+- A brief for fix/android-flaky-and-test-gaps was written; it may not have been started.
+
+Not done:
+- L5 printing on the real handheld (model label F1S; no printer documentation; other apps on it print with no setup).
+- First-run setup flow (F2), new in this plan.
+- L6 signed release: signing key, version code, upgrade test, freeze schema version 1, remove the legacy lock-state branch, install guide.
+- Docs lag: Doc 2 s7.1 and Doc 1 s5.3 still describe the old bill; header setting keys, customer fields and the last-export amendment are not in the docs (docs/QUESTIONS.md, 4 and 19 October).
+- L7 trial with real data (prices, ingredient prices, sorbate quantity are entered by the father in the app, not in code).
+
+==============================================================================
+## 3. The team
+==============================================================================
+
+Six Claude Code sessions, each in its own folder and its own terminal tab. They talk only through files in the team folder C:\dev\mamre-team. The owner does not relay messages.
+
+| Role | Folder | Model | Does | Never |
+|---|---|---|---|---|
+| LEAD | C:\dev\mamre (main checkout) | Opus | Writes task briefs, keeps the board, answers questions from the docs, edits docs on docs/* branches, merges approved PRs, writes the owner's to-do list | Writes Android code, runs Gradle |
+| DEV-A | C:\dev\mamre-devA | Sonnet | Lane A: printing | Edits outside its brief |
+| DEV-B | C:\dev\mamre-devB | Sonnet | Lane B: app features and fixes | Edits outside its brief |
+| DEV-C | C:\dev\mamre-devC | Sonnet | Lane C: release engineering (signing, version, upgrade test, schema freeze, install guide) | Edits outside its brief |
+| TESTER | C:\dev\mamre-test | Sonnet | Full gate, mutation proofs, release unzip proof, flakiness runs, emulator screenshots, upgrade test on the emulator | Fixes code |
+| VERIFIER | C:\dev\mamre-verify | Opus | Checks every PR against its brief and Doc 1/Doc 2, keeps TRACE.md (requirement to test map), finds gaps | Edits tracked files, runs Gradle |
+
+A dev may switch a session to Opus (/model opus) if a task fails review twice.
+
+### 3.1 Team folder
+
+| Path | Written by | Holds |
+|---|---|---|
+| BOARD.md | LEAD only | One row per task: ID, lane, title, depends on, status, branch, PR, head SHA |
+| STATE.md | LEAD only | Where we are, in one paragraph, and the next three steps |
+| OWNER.md | LEAD only | Only what the owner must do himself, as numbered steps with exact commands |
+| TRACE.md | VERIFIER only | Every Doc 1 rule and AT-n mapped to code and tests, with status |
+| tasks\<ID>.md | LEAD only | The brief for a task, plus "Round N fixes" after a review |
+| reports\<ID>-dev.md, -test.md, -verify.md | the role named | Plans, evidence, verdicts |
+| reports\NOTE-<ROLE>-<time>.md | anyone | A question, a blocker or a found gap, for LEAD |
+| locks\ | slot.ps1 | Build slots |
+| out\<ID>\ | anyone | Screenshots, APKs, scan output |
+| roles\ | setup | The standing instructions of each role |
+
+### 3.2 Task status flow
+
+todo -> assigned -> doing -> review -> (changes -> review)* -> approved -> merged.  BLOCKED-OWNER when only the owner can unblock it.
+
+A review applies only to the head SHA it names. A new push needs a new test and verify report.
+
+LEAD merges a PR only when all of these hold: CI green on the head SHA; TESTER APPROVED on that SHA; VERIFIER APPROVED on that SHA; the branch is up to date with main; nothing for that task is waiting in OWNER.md. Docs-only PRs need VERIFIER only.
+
+### 3.3 Builds on a 16 GB laptop
+
+- At most two Gradle runs at once across the whole team, enforced by two lock files (C:\dev\mamre-team\bin\slot.ps1). The emulator counts as one run.
+- Devs run targeted tests (--tests) and assembleDebug only. TESTER and CI run the full gate.
+- Close Android Studio and PyCharm while the team runs. Run the tabs in Windows Terminal.
+- Gradle memory is capped in the user's gradle.properties by the setup script.
+
+### 3.4 Usage limits
+
+Six sessions use the plan's limits about six times faster than one. Idle cycles end in one line. TESTER and VERIFIER check every 20 minutes, devs every 10, LEAD every 15. If a limit is hit, the session continues by itself when the limit resets; nothing is lost because all state is in files.
+
+==============================================================================
+## 4. The work, in lanes and waves
+==============================================================================
+
+| ID | Lane | Task | Depends on |
+|---|---|---|---|
+| T0 | LEAD | State audit: PRs, CI, branches, worktrees, open questions. Fill BOARD.md and STATE.md | none |
+| V1 | VERIFIER | TRACE.md from main, and a ranked gap list | none |
+| B1 | DEV-B | Fix the flaky InvoiceFlowViewModelTest at its root cause, and the two test gaps from the last-export review | T0 |
+| A1 | DEV-A | Printer auto-detect: driver chain, ESC/POS bytes for the golden bills, Printer check screen, Bluetooth permission flow. No device needed | T0 |
+| C1 | DEV-C | Release signing from a local file, version scheme, keystore script, minSdk report | T0 |
+| L1 | LEAD | Docs catch-up (receipt layout, header keys, customer fields, last export, printer auto-detect, setup flow, Doc 3 points to Doc 4) | T0 |
+| B2 | DEV-B | First-run Set up your business screen and the Finish setup card (F2) | B1, L1 |
+| A2 | OWNER | On the handheld: install the test APK, open Printer check, tap Print test page, send one photo of the screen and one of the paper | A1 merged |
+| A3 | DEV-A | Finish printing for the real device result; golden bills printed on paper | A2 |
+| C2 | DEV-C | Upgrade test (install over keeps data) and the install and update guides | C1 |
+| O1 | OWNER | Run the keystore script once; keep the key file in two safe places | C1 merged |
+| C3 | DEV-C | Freeze schema version 1 (hash test) and remove the legacy lock-state branch. The last code change before RC1 | A3, B2, C2 merged |
+| RC1 | LEAD + TESTER | Release candidate: signed APK, full proof, upgrade test, upload to the download link | C3, O1 |
+| O2 | OWNER | Install RC1 on the handheld; the father sets PIN, business details and prices; first real bill printed | RC1 |
+| L7 | OWNER | Trial for 1 to 2 months. Bugs go to OWNER.md via LEAD | O2 |
+
+Wave 1 (parallel, no device): T0, V1, then B1, A1, C1, L1.
+Wave 2: B2, C2, and A2 as soon as A1 is merged.
+Wave 3: A3, then C3, then RC1.
+
+Gaps that VERIFIER finds become new B or C tasks, written by LEAD.
+
+==============================================================================
+## 5. Printing without configuration (design for A1 and A3)
+==============================================================================
+
+The owner has seen other apps print on this handheld with no setup, so the printer is built in and exposed by software already on the device. Handhelds like this expose it in one of three ways. The app tries them in this order, uses the first that works, and remembers it in the setting printer_method:
+
+1. A vendor print service on the device, found by package name (for example the Sunmi woyou service, bound through its public AIDL interface; no library added). More vendors are added in A3 once the device report names the package.
+2. A built-in Bluetooth printer that is already paired (names such as InnerPrinter or Printer), sent ESC/POS bytes over the standard serial profile. Needs BLUETOOTH_CONNECT on Android 12 and later: asked once, at the first print, with one plain sentence.
+3. The Android print framework (a system print service), with the bill rendered as a 58 mm page. This shows Android's print dialog, so it is the last resort.
+
+If none works, the bill is saved and the F4 message is shown. There is no printer settings screen to fill in. Admin > Settings > Printer check shows what the phone has (maker, model, Android version, paired devices, print services, matching packages), prints a test page, and can share that report. It exists for support, not for setup.
+
+Release manifest changes allowed by this plan: BLUETOOTH_CONNECT, BLUETOOTH (maxSdkVersion 30), and a <queries> block for the known printer packages. INTERNET and storage permissions stay forbidden. A vendor SDK may be added in A3 only if its merged manifest adds no INTERNET permission and LEAD records it in DECISIONS.md.
+
+==============================================================================
+## 6. Risks (honest)
+==============================================================================
+
+| # | Risk | Effect | What we do |
+|---|---|---|---|
+| R1 | The printer is reachable only through a vendor SDK that is not public | No printing until the supplier sends it | A2's report names the package and maker; LEAD searches for the SDK; if none, OWNER.md asks the supplier with a ready-made message |
+| R2 | The F1S runs an Android version below the app's minSdk | The app will not install | C1 reports minSdk now; A2 reports the device version; DEV-C lowers minSdk if needed |
+| R3 | 16 GB RAM with several builds | Builds killed, agents stall | Two build slots, targeted tests for devs, IDEs closed |
+| R4 | Plan usage limits with six sessions | Work pauses until reset | Idle cycles are one line; slower loops for reviewers |
+| R5 | LEAD merges without the owner reading the code | A mistake reaches main | CI plus two independent reviews per SHA plus mutation proofs; money rules have golden tests; the owner reads STATE.md |
+| R6 | The signing key is lost | Updates impossible without uninstalling, which deletes all data | O1: the key file is kept in two places; never in the repo |
+| R7 | The handheld is not with the owner | A2 and O2 wait | Steps in OWNER.md are written so the father can do them |
+
+Rough time, if the printer is type 1, 2 or 3 above: about 3 to 5 working days of agent time, mostly waiting on reviews and on the one device step. If R1 happens, printing waits for the supplier.
+
+==============================================================================
+## 7. Rules that change from Doc 3
+==============================================================================
+
+- Several agents work at once (Doc 3 s4 "one agent at a time" is replaced).
+- Devs push their own feature branches and open PRs with gh. Only LEAD merges. Nobody pushes to main or force-pushes another's branch.
+- LEAD may edit Doc 1, Doc 2, Doc 3, Doc 4 and CLAUDE.md on docs/* branches to record decisions already taken in this plan or in DECISIONS.md. A new business rule (money, prices, what is printed, what the father sees) goes to OWNER.md first.
+- The owner is not the reviewer any more. TESTER and VERIFIER are. The owner approves only what is in OWNER.md.
