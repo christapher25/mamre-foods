@@ -12,6 +12,23 @@ import org.w3c.dom.Element
 object ReleaseManifestRules {
     private const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
 
+    /**
+     * Doc 1 A-26: the merged release manifest must say android:allowBackup="false" (missing counts as true, the Android default).
+     * Backup rule files that include something are caught by SingleGateManifestTest on our own rule files.
+     */
+    fun backupProblems(manifestXml: String): List<String> {
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = true
+            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        }
+        val app = factory.newDocumentBuilder().parse(manifestXml.byteInputStream()).getElementsByTagName("application").item(0) as Element
+        return when (val v = app.getAttributeNS(ANDROID_NS, "allowBackup")) {
+            "false" -> emptyList()
+            "" -> listOf("android:allowBackup is missing, so backup is on")
+            else -> listOf("android:allowBackup=\"$v\" must be \"false\"")
+        }
+    }
+
     /** One line per door that should not be open; empty when the manifest is as it should be. */
     fun problems(manifestXml: String, allowed: Set<String>): List<String> {
         val factory = DocumentBuilderFactory.newInstance().apply {

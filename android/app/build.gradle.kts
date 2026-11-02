@@ -142,7 +142,8 @@ val verifyReleaseComponents = tasks.register("verifyReleaseComponents") {
     inputs.file(merged)
     val allowed = releaseManifestAllowedExported
     doLast {
-        val problems = ReleaseManifestRules.problems(merged.get().asFile.readText(), allowed)
+        val text = merged.get().asFile.readText()
+        val problems = ReleaseManifestRules.problems(text, allowed) + ReleaseManifestRules.backupProblems(text)
         check(problems.isEmpty()) { "the merged release manifest opens doors it should not: $problems" }
     }
 }

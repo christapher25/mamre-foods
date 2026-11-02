@@ -55,4 +55,33 @@ class ReleaseConfigTest {
         assertTrue(ReleaseConfig.signingProblems(certs = listOf("CN=Android Debug,O=Android,C=US")).isNotEmpty())
         assertTrue(ReleaseConfig.signingProblems(certs = listOf("CN=Mamre Foods")).isEmpty())
     }
+
+    private fun repoFile(path: String) = File(androidDir(), path).readText()
+
+    /** The exact line make-keystore.ps1 writes for a Windows path (forward slashes), read back by parseKeystore. */
+    @Test fun theLineTheKeystoreScriptWritesReadsBackAsTheRealPath() {
+        val k = ReleaseConfig.parseKeystore("storeFile=C:/Users/chris/mamre-keys/mamre-release.jks\nstorePassword=abc12345\nkeyAlias=mamre\nkeyPassword=abc12345\n")!!
+        assertEquals("C:/Users/chris/mamre-keys/mamre-release.jks", k.storeFile)
+    }
+
+    /** Raw backslashes would be read as escapes by java.util.Properties (C:Userschris...), so the script must convert them and refuse risky passwords. */
+    @Test fun theKeystoreScriptConvertsBackslashesAndRefusesRiskyPasswords() {
+        val script = File(androidDir(), "../tools/release/make-keystore.ps1").readText()
+        val bs = 92.toChar()
+        assertTrue("path must use forward slashes", script.contains("\$jks.Replace('$bs', '/')"))
+        assertTrue("backslash passwords refused", script.contains("\$p1.Contains('$bs')"))
+        assertTrue("leading or trailing space refused", script.contains("\$p1 -ne \$p1.Trim()"))
+        val rawBackslashLine = "storeFile=C:" + 92.toChar() + "Users" + 92.toChar() + "chris" + 92.toChar() + "k.jks\nstorePassword=a\nkeyAlias=m\nkeyPassword=a\n"
+        assertEquals("what a raw backslash path turns into", "C:Userschrisk.jks", ReleaseConfig.parseKeystore(rawBackslashLine)!!.storeFile)
+    }
+
+    /** The release signingConfig is set only under the keystore-present guard; without keystore.properties the release stays unsigned. */
+    @Test fun theReleaseSigningConfigIsSetOnlyWhenKeystorePropertiesExists() {
+        val gradle = repoFile("app/build.gradle.kts")
+        val setLines = gradle.lines().filter { it.contains("signingConfig = signingConfigs") }
+        assertEquals(1, setLines.size)
+        assertTrue(setLines.single(), setLines.single().trimStart().startsWith("if (releaseKeystore != null)"))
+        assertTrue(gradle.contains("val releaseKeystore = ReleaseConfig.parseKeystore(if (keystoreFile.exists()) keystoreFile.readText() else null)"))
+        assertTrue(gradle.contains("if (releaseKeystore != null) {\n            create(\"mamreRelease\")") || gradle.replace("\r\n", "\n").contains("if (releaseKeystore != null) {\n            create(\"mamreRelease\")"))
+    }
 }

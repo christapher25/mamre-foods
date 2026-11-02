@@ -18,6 +18,7 @@ $p1 = Read-Plain 'Choose a password for the key (at least 8 characters)'
 $p2 = Read-Plain 'Type the same password again'
 if ($p1 -ne $p2) { throw 'The two passwords differ. Nothing was created.' }
 if ($p1.Length -lt 8) { throw 'The password is shorter than 8 characters. Nothing was created.' }
+if ($p1.Contains('\') -or $p1 -ne $p1.Trim()) { throw 'The password must not contain a backslash and must not start or end with a space (the build settings file cannot hold them safely). Nothing was created.' }
 
 New-Item -ItemType Directory -Force $keyDir | Out-Null
 # 30 years = 10950 days. The password is passed through the environment, never on the command line or to the screen.
@@ -28,7 +29,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "keytool failed with exit code $LASTEXITCODE" }
 } finally { Remove-Item Env:\MAMRE_KS_PASS -ErrorAction SilentlyContinue }
 
-$esc = $jks.Replace('\', '\')
+$esc = $jks.Replace('\', '/')   # java.util.Properties reads a backslash as an escape
 @("storeFile=$esc", "storePassword=$p1", "keyAlias=mamre", "keyPassword=$p1") | Set-Content -Path $props -Encoding ASCII
 
 Write-Host ''

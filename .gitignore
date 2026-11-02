@@ -12,4 +12,3 @@ local.properties
 
 # Release signing (C1)
 keystore.properties
-*.keystore
