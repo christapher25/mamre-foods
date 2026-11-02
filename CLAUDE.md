@@ -1,7 +1,7 @@
 # Mamre Foods billing system - rules for every agent
 
-Read docs/01-product-spec.txt, docs/02-architecture.txt and
-docs/03-agent-guide.txt. Doc 1 wins on behaviour, Doc 2 on technology.
+Read docs/01-product-spec.txt, docs/02-architecture.txt,
+docs/04-team-plan.txt and docs/03-agent-guide.txt. Doc 1 wins on behaviour, Doc 2 on technology.
 Version 1 is a local-first Android app: one Owner, one phone, no server.
 
 ## Always
@@ -23,7 +23,16 @@ Version 1 is a local-first Android app: one Owner, one phone, no server.
 - Use a destructive Room migration. Write a business detail in code.
 - Ship demo code (fake API, demo logins, seeds) in a release build.
 - Commit secrets or the signing key. Add dependencies silently.
-- Weaken tests. Push to main. Edit another agent's folders.
+- Weaken tests. Push to main. Edit files outside your task's allowed paths.
+
+## Team mode (docs/04-team-plan.txt)
+- Several sessions work at once, each in its own folder. Your role is
+  named in your first prompt; follow C:\dev\mamre-team\roles\<role>.md.
+- Talk only through files in C:\dev\mamre-team (board, tasks, reports).
+- Devs push their own branch and open a PR with gh. Only LEAD merges.
+  Nobody pushes main.
+- Before any Gradle run or the emulator, take a build slot:
+  C:\dev\mamre-team\bin\slot.ps1 acquire <ROLE>, and release it after.
 
 ## If unsure
 Stop. Write the question in docs/QUESTIONS.md. Do not guess.
