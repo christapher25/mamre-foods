@@ -4,7 +4,7 @@
 # Builds two release APKs with a THROWAWAY key made by make-keystore.ps1 (versionCode N and N+1), then drives the real UI with
 # adb (uiautomator). It restores android\version.properties and removes the throwaway key and keystore.properties at the end.
 param([string]$Serial, [switch]$SkipBuild)
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'   # native tools print warnings on stderr; every call below checks its exit code
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $android = Join-Path $root 'android'
 $versionFile = Join-Path $android 'version.properties'
