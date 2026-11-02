@@ -5,7 +5,7 @@ What the Mamre Foods billing and accounting system must do
 Version: 1.3 (local-first, 2 November 2026)
 Date: 2 November 2026
 Owner / approver: Christapher (builder). Business owner and Admin user: his father.
-Status: Approved. Amended on 4 October 2026 for the local-first version 1 (see the change log at the end). Any change needs owner approval and a new version number.
+Status: Approved. Amended on 4 October 2026 for the local-first version 1, and on 2 November 2026 (v1.3) (see the change log at the end). Any change needs owner approval and a new version number.
 Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
@@ -71,8 +71,8 @@ In version 1 there is one user, the Owner, who is both the salesman and the admi
 ### 2.1 First run (rule FR)
 
 1. FR-1. On the very first start the Owner chooses a PIN (4 to 6 digits, entered twice).
-2. FR-2. Straight after the PIN, one screen Set up your business asks for: business name, owner name (printed as Salesman), address lines, phone and bill footer. Any field may be left empty and filled in later; each empty field is listed on the Finish setup card (FR-3), and a missing address or phone prints the placeholder of section 5.3. The values are saved to Settings in one transaction and can be changed later in Admin > Settings.
-3. FR-3. While anything needed for billing is missing, the Sales Home shows a Finish setup card. It lists each missing item (a business detail from FR-2, or a product with no price for a customer type) and each item opens the screen that fixes it. The card disappears when nothing is missing. It never blocks making a bill; a missing price counts as zero (CLAUDE.md).
+2. FR-2. Straight after the PIN, one screen Set up your business asks for: business name, owner name (printed as Salesman), address (up to 4 lines), phone and bill footer, with the same limits as Admin > Settings. The business name is required and comes pre-filled; an owner name, when given, is 2 to 40 characters; address, phone and footer may be left empty (a missing address or phone prints the placeholder of section 5.3). Save and continue saves through the existing Settings use cases; Skip for now saves nothing. Everything can be changed later in Admin > Settings.
+3. FR-3. While anything needed for billing is missing, the Sales Home shows a Finish setup card. It lists Business details while the owner name, address or phone is empty, and Prices while any product has no default price for a customer type (with the count missing); each item opens the screen that fixes it. The card disappears when nothing is missing and blocks nothing. A product with no price still cannot be sold: the bill screen shows 'No price set - contact admin' (s4.2). Other products can be billed.
 4. FR-4. No demo data, sample customers or sample prices exist in a release build.
 
 ==============================================================================
@@ -143,8 +143,8 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code is a setting
 - Lines in this order: Bill No, Date, Time, Salesman (the owner's name from Settings), Customer (the name, then the location on the next line, indented). The customer type is never printed.
 - Item table with columns Item Desc, Qty, Price, Amt. Each item is its name in capitals with the chapathis per packet (for example MAMRE CHAPATHI 12NOS), then a line with packets, price per packet and amount, right-aligned. No dollar sign anywhere on a bill; the total line reads TOTAL (USD).
 - Payment block: a PAID line for money taken now (with the method) and a CREDIT line for the unpaid part.
-- Numbers: bills are MAM-<device code>-<4-digit sequence>, payment receipts RCP-<device code>-<4-digit sequence>; each has its own counter in Settings and a number is never reused.
-- A walk-in bill shows only TOTAL and PAID (a walk-in pays in full; no balance).
+- Numbers: bills are MAM-<device code>-<sequence>, where the sequence has at least 4 digits (0042) and keeps growing past 9999, payment receipts RCP-<device code>-<sequence>; each has its own counter in Settings and a number is never reused.
+- A walk-in bill's payment block has only TOTAL (USD) and PAID (method): no CREDIT, Balance after or THIS MONTH (a walk-in pays in full).
 - Normal customers: Balance after, and for credit customers a THIS MONTH summary (brought forward, invoiced, credits, each payment with date, amount and method, total due).
 - Corporate accounts: no balance of any kind (no Balance after, THIS MONTH, Brought forward or TOTAL DUE). The bill ends with 'Received by' and 'Sign and stamp' so the store can sign and stamp it.
 - Footer text from Settings. A reprint adds DUPLICATE COPY. A voided bill shows VOID and keeps its number.
