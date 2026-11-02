@@ -193,5 +193,5 @@ if (releaseKeystore != null) {
             println("release APK signed by: $certs")
         }
     }
-    afterEvaluate { tasks.named("assembleRelease") { finalizedBy(verifyReleaseSigning) } }
+    tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(verifyReleaseSigning) }
 }
