@@ -29,7 +29,7 @@ fun NavGraphBuilder.workerGraph(navController: NavController, onOpenAdmin: () ->
                 onBack = { navController.popBackStack() },
                 // Reprint: the bill opens marked DUPLICATE COPY (Doc 1 s5.4).
                 onOpen = {
-                    navController.navigate(WorkerRoutes.receipt(WorkerRoutes.KIND_INVOICE, it.id, duplicate = true))
+                    navController.navigate(WorkerRoutes.duplicateReceipt(it.id))
                 },
             )
         }

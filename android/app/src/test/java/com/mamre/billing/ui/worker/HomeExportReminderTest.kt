@@ -5,6 +5,7 @@ import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.export.ExportDue
 import com.mamre.billing.domain.security.AppLock
+import com.mamre.billing.domain.worker.InvoiceStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -63,7 +64,16 @@ class HomeExportReminderTest {
         assertEquals(ExportDue.Never, vm.stateWhere { it.exportDue != null }.exportDue)
     }
 
-    @Test fun theCardDisappearsAsSoonAsRecordExportRuns() = runBlocking {
+    @Test fun aVoidedBillStillCountsAsABillSoTheCardShowsWhenOnlyVoidBillsExist() = runBlocking {
+        w.price(ReferenceIds.TYPE_RESTAURANT, 250, 280)
+        val customer = w.customer("Spice Garden")
+        val bill = w.makeBill(w.draft(customer.id, listOf(w.line(unit = 250))))
+        w.voidBill(bill.id, "wrong customer")
+        assertEquals(listOf(InvoiceStatus.VOID), w.sales.state().invoices.map { it.status }) // the only bill there is, and it is void
+        assertEquals(ExportDue.Never, home().stateWhere { it.deviceCode.isNotEmpty() }.exportDue)
+    }
+
+    @Test fun theCardDisappearsAsSoonAsRecordExportRuns()= runBlocking {
         makeOneBill()
         val vm = home()
         vm.stateWhere { it.exportDue == ExportDue.Never }

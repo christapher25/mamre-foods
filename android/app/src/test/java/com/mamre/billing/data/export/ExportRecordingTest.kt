@@ -81,11 +81,26 @@ class ExportRecordingTest {
     }
 
     @Test fun aFailedReadRecordsNothing() = runBlocking {
-        w.db.close()
-        val vm = vm()
+        // The read fails (a closed database), but the database that RecordExport would write to stays open and usable, so only the
+        // rule keeps the setting empty. It is a file database, closed and opened again, to see what was really stored.
+        val name = "failed-read-" + System.nanoTime()
+        val live = World(TestDatabase.file(name), w.clock).also { it.seed() }
+        val unreadable = TestDatabase.inMemory().also { it.close() }
+        val vm = ExportViewModel(ExportBuilder(unreadable, w.clock), ExportWriter(cache), live.recordExport, live.settings)
         vm.export().join()
         assertTrue(vm.ui.value is ExportState.Failed)
-        Unit
+        vm.shareLaunched().join() // the screen never calls it after a failure; even if it did, only Ready may record
+        live.db.close()
+
+        val reopened = World(TestDatabase.file(name), w.clock)
+        try {
+            assertNull("last_export_at is still missing", reopened.settings.get(SettingKeys.LAST_EXPORT_AT))
+            reopened.recordExport() // control: the reopened database is the one RecordExport writes to, so a record would show
+            assertEquals(Instant.parse("2026-10-19T15:10:00Z").toEpochMilli(), parseLastExport(reopened.settings.get(SettingKeys.LAST_EXPORT_AT)))
+        } finally {
+            reopened.db.close()
+            TestDatabase.delete(name)
+        }
     }
 
     @Test fun callingShareLaunchedWithoutReadyFilesRecordsNothing() = runBlocking {
