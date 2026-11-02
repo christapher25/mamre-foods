@@ -13,8 +13,9 @@ You install the new version OVER the old one and everything stays.
 BEFORE YOU UPDATE (as a precaution)
 -----------------------------------
 1. Open the app and enter your PIN.
-2. Open Settings, then Export. (If the Home screen shows a card that says
-   "Open Export", you can tap that instead.)
+2. On the Home screen tap "Admin area", then "More", then "Settings", then
+   "Export data". (If the Home screen shows a card that says "Open Export",
+   you can tap that instead.)
 3. Tap "Export and share". Send the files to your own email or Google Drive,
    or save them to a USB stick.
    The screen shows "Last export prepared" with today's date when it worked.
