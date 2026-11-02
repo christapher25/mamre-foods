@@ -2,11 +2,14 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 3 OF 3
 # Agent Operating Guide and Build Plan
 Roles, git workflow, rules, drift control and ready-to-paste prompts for working with multiple Claude Code agents
 
-Version: 1.2.1 (local-first, 19 October 2026)
-Date: 19 October 2026
+Version: 1.3 (local-first, 2 November 2026)
+Date: 2 November 2026
 Audience: Every Claude Code agent on this project, and the owner who supervises them.
 Companion documents: Doc 1: Product Specification (what).  Doc 2: Technical Architecture and Data Model (how).
 Status: Process rules, amended 4 October 2026 to match Doc 1 version 1.2 (local-first) (rule N4 changed, phases updated). They change only with owner approval.
+
+>> [FINISHING VERSION 1]
+> For finishing version 1, Doc 4 (docs/04-team-plan.txt) replaces sections 3, 4, 5.3 and 6 where they conflict. Section 7 (hard rules) still applies in full.
 
 >> [HOW TO USE THIS DOCUMENT]
 > Give an agent this document, Doc 1 and Doc 2 at the start of a session. If an agent starts drifting, paste the Drift Reset prompt from section 9.2. If an agent cannot open a PDF, paste the relevant text or ask for the Markdown copy.
@@ -374,3 +377,9 @@ Stop. Write the question in docs/QUESTIONS.md. Do not guess.
 - Android tests:  cd android && ./gradlew test
 - Release build:  cd android && ./gradlew assembleRelease
 ```
+
+## Change Log
+
+| Version | Changes |
+|---|---|
+| 1.3 (2 Nov 2026) | Note at the top: Doc 4 replaces sections 3, 4, 5.3 and 6 where they conflict while version 1 is finished. |
