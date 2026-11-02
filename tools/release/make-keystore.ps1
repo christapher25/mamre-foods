@@ -4,7 +4,15 @@
 param([string]$KeyDir, [string]$TestPassword)
 $ErrorActionPreference = 'Stop'
 $keytool = 'C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe'
-$keyDir = if ($KeyDir) { $KeyDir } else { Join-Path $env:USERPROFILE 'mamre-keys' }
+$ownerKeyDir = Join-Path $env:USERPROFILE 'mamre-keys'
+if ($TestPassword) {
+    # A test password may only ever make a key outside the Owner's key folder.
+    if (-not $KeyDir) { throw '-TestPassword needs -KeyDir. Nothing was created.' }
+    $full = [IO.Path]::GetFullPath($KeyDir).TrimEnd([char]92)
+    $own = [IO.Path]::GetFullPath($ownerKeyDir).TrimEnd([char]92)
+    if ($full -eq $own -or $full.StartsWith($own + [char]92, [StringComparison]::OrdinalIgnoreCase)) { throw '-TestPassword may not be used with the Owner key folder. Nothing was created.' }
+}
+$keyDir = if ($KeyDir) { $KeyDir } else { $ownerKeyDir }
 $jks = Join-Path $keyDir 'mamre-release.jks'
 $props = Join-Path $PSScriptRoot '..\..\android\keystore.properties'
 

@@ -70,6 +70,9 @@ class ReleaseConfigTest {
         val bs = 92.toChar()
         assertTrue("path must use forward slashes", script.contains("\$jks.Replace('$bs', '/')"))
         assertTrue("backslash passwords refused", script.contains("\$p1.Contains('$bs')"))
+        assertTrue("-TestPassword needs -KeyDir", script.contains("'-TestPassword needs -KeyDir."))
+        assertTrue("-TestPassword refused for the Owner key folder", script.contains("'-TestPassword may not be used with the Owner key folder."))
+        assertTrue("an existing keystore.properties is never overwritten", script.contains("if (Test-Path \$props) { throw"))
         assertTrue("non-ASCII password refused (Set-Content -Encoding ASCII would turn it into ?)", script.contains("\$p1 -cmatch '[^ -~]'"))
         assertTrue("leading or trailing space refused",script.contains("\$p1 -ne \$p1.Trim()"))
         val rawBackslashLine = "storeFile=C:" + 92.toChar() + "Users" + 92.toChar() + "chris" + 92.toChar() + "k.jks\nstorePassword=a\nkeyAlias=m\nkeyPassword=a\n"

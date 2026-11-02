@@ -1,0 +1,53 @@
+MAMRE FOODS - HOW TO UPDATE THE APP
+====================================
+
+Read this whole page before you start. It takes about five minutes.
+
+THE ONE RULE
+------------
+NEVER UNINSTALL THE APP.
+If you uninstall it, ALL your bills, customers, prices and payments are deleted
+from the phone and cannot be brought back. An update does not need an uninstall.
+You install the new version OVER the old one and everything stays.
+
+BEFORE YOU UPDATE (as a precaution)
+-----------------------------------
+1. Open the app and enter your PIN.
+2. Open Settings, then Export. (If the Home screen shows a card that says
+   "Open Export", you can tap that instead.)
+3. Tap "Export and share". Send the files to your own email or Google Drive,
+   or save them to a USB stick.
+   The screen shows "Last export prepared" with today's date when it worked.
+This is only a safety copy. The update itself keeps your data.
+
+THE UPDATE
+----------
+1. Open the new link that you were sent, on the phone that has Mamre Foods.
+   [screenshot: out\C2\guide-update-01.png]
+2. Download the file. When the phone says it can download, tap OK / Download.
+3. Open the downloaded file.
+   If the phone asks "Allow from this source?", turn it on once. You did this
+   when you first installed the app.
+4. The phone shows the app name "Mamre Foods" and a button "Update"
+   (on some phones it says "Install"; it is the same thing).
+   Tap "Update".
+   [screenshot: out\C2\guide-update-02.png]
+   Do NOT tap "Uninstall" or "Delete" on any screen.
+5. When it says the app is installed, tap "Open".
+6. The app asks for your PIN ("PIN" and the button "Open"). Enter the PIN
+   you always use. It must NOT ask you to choose a new PIN. Your customers,
+   prices and bills are all still there.
+   [screenshot: out\C2\guide-update-03.png]
+
+IF SOMETHING LOOKS WRONG
+------------------------
+- The phone says "App not installed" or "Newer version already installed":
+  you are trying to put an older version over a newer one. Do nothing,
+  keep the app you have, and ask for the newest link.
+- The app asks you to choose a NEW PIN, or your data is missing: STOP.
+  Do not uninstall, do not clear data, do not install again.
+  Call for help and keep the safety copy from "Before you update".
+- You cannot find the file you downloaded: open your phone's "Downloads"
+  folder or "Files" app and look for the newest "mamre" file.
+
+REMEMBER: update = install over the old app. Never uninstall.
