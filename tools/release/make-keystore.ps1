@@ -1,7 +1,10 @@
 # C1: creates the Mamre release signing key ONCE. Run: powershell -ExecutionPolicy Bypass -File tools\release\make-keystore.ps1
+# C2: -KeyDir and -TestPassword exist only so tools\release\upgrade-test.ps1 can make a THROWAWAY key without prompting.
+# The Owner runs it with no parameters (key in %USERPROFILE%\mamre-keys, password typed twice, nothing echoed).
+param([string]$KeyDir, [string]$TestPassword)
 $ErrorActionPreference = 'Stop'
 $keytool = 'C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe'
-$keyDir = Join-Path $env:USERPROFILE 'mamre-keys'
+$keyDir = if ($KeyDir) { $KeyDir } else { Join-Path $env:USERPROFILE 'mamre-keys' }
 $jks = Join-Path $keyDir 'mamre-release.jks'
 $props = Join-Path $PSScriptRoot '..\..\android\keystore.properties'
 
@@ -14,10 +17,13 @@ function Read-Plain($prompt) {
     $b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($s)
     try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($b) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($b) }
 }
-$p1 = Read-Plain 'Choose a password for the key (at least 8 characters)'
-$p2 = Read-Plain 'Type the same password again'
+if ($TestPassword) { $p1 = $TestPassword; $p2 = $TestPassword } else {
+    $p1 = Read-Plain 'Choose a password for the key (at least 8 characters)'
+    $p2 = Read-Plain 'Type the same password again'
+}
 if ($p1 -ne $p2) { throw 'The two passwords differ. Nothing was created.' }
 if ($p1.Length -lt 8) { throw 'The password is shorter than 8 characters. Nothing was created.' }
+if ($p1 -cmatch '[^ -~]') { throw 'The password may only use plain letters, digits and the usual keyboard symbols (no accents or other special characters). Nothing was created.' }
 if ($p1.Contains('\') -or $p1 -ne $p1.Trim()) { throw 'The password must not contain a backslash and must not start or end with a space (the build settings file cannot hold them safely). Nothing was created.' }
 
 New-Item -ItemType Directory -Force $keyDir | Out-Null
