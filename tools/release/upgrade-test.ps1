@@ -3,7 +3,7 @@
 # Needs: one emulator or phone visible to adb, and NO android\keystore.properties (the Owner's real key is never touched).
 # Builds two release APKs with a THROWAWAY key made by make-keystore.ps1 (versionCode N and N+1), then drives the real UI with
 # adb (uiautomator). It restores android\version.properties and removes the throwaway key and keystore.properties at the end.
-param([string]$Serial, [switch]$SkipBuild)
+param([string]$Serial, [switch]$SkipBuild, [switch]$BuildOnly)   # -BuildOnly then -SkipBuild lets Gradle and the emulator run one after the other (low memory)
 $ErrorActionPreference = 'Continue'   # native tools print warnings on stderr; every call below checks its exit code
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $android = Join-Path $root 'android'
@@ -74,7 +74,6 @@ try {
         foreach ($b in @(@{ Code = $code; Name = 'upgradetest-A'; Apk = $apkA }, @{ Code = $code + 1; Name = 'upgradetest-B'; Apk = $apkB })) {
             Set-Content $versionFile -Value "versionCode=$($b.Code)`nversionName=$($b.Name)" -Encoding ASCII
             & (Join-Path $PSScriptRoot 'build-release.ps1') | Out-Null
-            Copy-Item (Join-Path 'C:\dev\mamre-team\out\release' "mamre-$($b.Name).apk") $b.Apk -Force
         }
     }
 } finally {
@@ -84,6 +83,7 @@ try {
 }
 
 # --- the test --------------------------------------------------------------------------------------------------------------
+if ($BuildOnly) { Write-Host "Built: $apkA and $apkB"; exit 0 }
 Adb get-state | Out-Null
 Adb uninstall $pkg 2>$null | Out-Null
 $out = Adb install $apkA
