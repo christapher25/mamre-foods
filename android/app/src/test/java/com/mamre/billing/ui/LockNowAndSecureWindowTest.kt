@@ -61,7 +61,7 @@ class LockNowAndSecureWindowTest {
             override fun <V : ViewModel> create(modelClass: Class<V>): V = create() as V
         })[T::class.java]
 
-    private fun home() = made { HomeViewModel(w.sales, w.settings, w.clock, lock) }
+    private fun home() = made { HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, lock) }
 
     private fun settingsVm() = made { SettingsViewModel(w.admin, Optional.empty(), lock) }
 

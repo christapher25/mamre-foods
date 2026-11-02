@@ -45,7 +45,7 @@ class HomeViewModelTest {
         w.db.close()
     }
 
-    private fun home() = HomeViewModel(w.sales, w.settings, w.clock, AppLock(w.clock))
+    private fun home() = HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock))
 
     @Test fun homeShowsTheBusinessOwnerAndDeviceFromSettings() = runBlocking {
         val state = withTimeout(10_000) { home().state.first { it.deviceCode.isNotEmpty() } }

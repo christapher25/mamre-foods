@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.domain.export.ExportDue
 import com.mamre.billing.domain.export.exportReminderText
@@ -36,6 +38,8 @@ import com.mamre.billing.ui.DataLabelChip
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.SecondaryButton
+import com.mamre.billing.ui.admin.AdminRoutes
+import com.mamre.billing.domain.setup.SetupGaps
 import com.mamre.billing.ui.theme.Spacing
 
 /** One Home tile (Doc 2 s10, W1). */
@@ -52,10 +56,13 @@ fun HomeScreen(
     onTile: (HomeTile) -> Unit,
     onAdminArea: () -> Unit,
     onOpenExport: () -> Unit = {},
+    onOpenSetup: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val onLockNow = viewModel::lockNow
+    // A product added in Admin has no flow to the Home: ask again whenever the Home is back in front.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshSetup() }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
             // The business name is a Settings value, never a string in the code (Doc 1 A-31).
@@ -80,6 +87,7 @@ fun HomeScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = Spacing.xs),
             )
+            if (state.setup.any) FinishSetupCard(state.setup, onOpenSetup)
             state.exportDue?.let { ExportReminderCard(it, onOpenExport) }
             // Each row is as tall as its taller tile, so all four tiles are the same size.
             Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
@@ -178,5 +186,22 @@ private fun GridTile(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * The Finish setup card (Doc 1 s2.1 FR-3): shown while anything needed for billing is missing; each line opens the Admin screen that
+ * fixes it. It blocks nothing and carries no money. A missing price is a count, never an amount.
+ */
+@Composable
+private fun FinishSetupCard(gaps: SetupGaps, onOpen: (String) -> Unit) {
+    AppCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        Text("Finish setup", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (gaps.businessDetails) {
+            SecondaryButton("Business details", onClick = { onOpen(AdminRoutes.SETTINGS) }, modifier = Modifier.padding(top = Spacing.sm))
+        }
+        if (gaps.missingPrices > 0) {
+            SecondaryButton("Prices: ${gaps.missingPrices} missing", onClick = { onOpen(AdminRoutes.PRICES) }, modifier = Modifier.padding(top = Spacing.sm))
+        }
     }
 }
