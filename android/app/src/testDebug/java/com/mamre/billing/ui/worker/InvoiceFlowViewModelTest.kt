@@ -1,7 +1,9 @@
 package com.mamre.billing.ui.worker
 
 import com.mamre.billing.data.local.ReferenceIds
+import com.mamre.billing.data.local.SlowQueries
 import com.mamre.billing.data.local.SmallWorld
+import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.worker.InvoiceRecord
 import com.mamre.billing.domain.worker.PacketKey
@@ -124,8 +126,21 @@ class InvoiceFlowViewModelTest {
         assertEquals("Irving", invoice.customerLocation)
     }
 
-    @Test fun aWalkInHasNoLocationAndIsNotCorporate() = runBlocking {
-        val vm = newFlow().ready()
+    @Test fun aWalkInHasNoLocationAndIsNotCorporate() = runBlocking { walkInBill(newFlow().ready()) }
+
+    /**
+     * The same walk-in on a database whose every query is 300 ms late, which is what a slow CI runner does to the Room flows.
+     * `ui` is derived from those flows, so `ui.value` lags the last action; the test has to wait for the state it needs.
+     */
+    @Test fun aWalkInOnASlowDatabaseStillMakesTheBill() = runBlocking {
+        val slow = SlowQueries()
+        w.db.close()
+        s = SmallWorld.open(TestDatabase.inMemory(slow))
+        slow.delayMs = 300
+        walkInBill(newFlow().ready())
+    }
+
+    private suspend fun walkInBill(vm: InvoiceFlowViewModel) {
         vm.selectWalkIn()
         withTimeout(10_000) { vm.ui.first { it.customerChosen && it.products.isNotEmpty() } }
         vm.setQuantity(PacketKey(ReferenceIds.PRODUCT_FRESH, 12), 2)
