@@ -5,7 +5,7 @@ How the system is built: stack, data, API, sync, printing, security and testing
 Version: 1.3 (local-first, 2 November 2026)
 Date: 2 November 2026
 Implements: Doc 1: Product Specification. This document may never change business behaviour.
-Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first), and on 19 October 2026 (version 1.2.1: s5.3 export, s6 lock and screen privacy). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md, and on 2 November 2026 (version 1.3: s4.2 settings keys, s5.3 last export, s7 printing).
+Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first), on 19 October 2026 (version 1.2.1: s5.3 export, s6 lock and screen privacy) and on 2 November 2026 (version 1.3: s4.2 settings keys, s5.3 last export, s7 printing). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
 Companion documents: Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
