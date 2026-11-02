@@ -162,7 +162,7 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code is a setting
 ### 6.2 Partial payments and allocation
 
 - A customer may pay any amount. Several part-payments in a month are normal.
-- Each payment is applied to the oldest unpaid invoice first, spilling into the next as needed. Allocation rows are stored. The server performs allocation when records sync.
+- Each payment is applied to the oldest unpaid invoice first, spilling into the next as needed. In version 1 the allocation is computed from the stored bills and payments each time it is shown, so a voided bill frees its payment for the next oldest bill. Version 2 stores allocation rows and the server performs allocation when records sync.
 - An overpayment becomes credit on account (negative balance), shown as such (A-4).
 
 ### 6.3 Balance
