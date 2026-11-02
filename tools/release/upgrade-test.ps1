@@ -89,13 +89,81 @@ Adb uninstall $pkg 2>$null | Out-Null
 $out = Adb install $apkA
 Check 'install version N' ($out -match 'Success') ($out -join ' ')
 
-# TODO(next cycle, on the emulator): UI steps - set a PIN, save business details, add one customer, one price, make one bill.
-# They fill $before (bill number, customer name, price text) which is compared after the update.
+# --- UI steps (C2). Labels come from the app source (Compose text). UNVERIFIED until run on the emulator; a step that cannot find
+# its label throws, and the phase is reported as one FAIL line with the reason, never a silent pass.
+$testPin = '2468'
+function Launch-App { Adb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1 | Out-Null; Start-Sleep -Seconds 3 }
+function Unlock-With-Pin { Launch-App; Type-Into 'PIN' $testPin; Tap-Text 'Open' }
+function Go-Admin([string]$leaf) { Tap-Text 'Admin area'; Tap-Text 'More'; Tap-Text $leaf }
+function Screen-Texts { (Get-Screen | Where-Object { $_.Text } | ForEach-Object { $_.Text }) }
+
+$before = @{}
+try {
+    Launch-App
+    Check 'fresh install asks to choose a PIN (setup screen)' (Has-Text 'Save PIN')
+    Type-Into 'New PIN' $testPin
+    Type-Into 'New PIN again' $testPin
+    Tap-Text 'Save PIN'
+    Check 'PIN saved, Home is shown' (Has-Text 'New invoice')
+
+    Go-Admin 'Settings'
+    Type-Into 'Owner name' 'Test Owner'; Tap-Text 'Save owner name'
+    Type-Into 'Business name' 'Upgrade Test Foods'; Tap-Text 'Save business details'
+    Adb shell input keyevent KEYCODE_BACK | Out-Null
+
+    Tap-Text 'Customers'
+    Tap-Text 'Add customer'
+    Type-Into 'Name' 'Upgrade Customer'
+    Tap-Text 'Save customer'
+    $before.Customer = 'Upgrade Customer'
+    Check 'customer saved' (Has-Text 'Upgrade Customer')
+
+    # One default price on the first reference product (they ship in every build). The first row of Prices is used.
+    Tap-Text 'Prices'
+    Tap-Text 'Set new price'
+    Type-Into 'Price' '77'
+    Tap-Text 'Save price'
+    $before.Price = '77'
+
+    # One bill: New invoice > the customer > a quantity > Continue > Payment (Full) > Continue > Confirm invoice > confirm.
+    Tap-Text 'Home'
+    Tap-Text 'New invoice'
+    Tap-Text $before.Customer
+    Tap-Text 'Continue'
+    Tap-Text 'Full'; Tap-Text 'Continue'
+    Tap-Text 'Confirm invoice'; Tap-Text 'Confirm invoice'
+    Start-Sleep -Seconds 2
+    $before.Receipt = Screen-Texts
+    Shot 'upgrade-before'
+    Check 'a bill was made (receipt shown)' ($before.Receipt.Count -gt 0) (($before.Receipt | Select-Object -First 6) -join ' | ')
+} catch { Check 'create data through the UI' $false $_.Exception.Message }
 
 $out = Adb install -r $apkB
 Check 'install N+1 over N (adb install -r)' ($out -match 'Success') ($out -join ' ')
 
-# TODO: after the update - PIN screen asks for the existing PIN (not setup); customer, price and bill are there; bill number unchanged.
+try {
+    Adb shell am force-stop $pkg | Out-Null
+    Launch-App
+    Check 'after the update the app asks for the existing PIN (not setup)' ((Has-Text 'Open') -and -not (Has-Text 'Save PIN'))
+    Type-Into 'PIN' $testPin; Tap-Text 'Open'
+    Check 'after the update the PIN is accepted and Home is shown' (Has-Text 'New invoice')
+    Go-Admin 'Settings'
+    Check 'business name survived' (Has-Text 'Upgrade Test Foods')
+    Adb shell input keyevent KEYCODE_BACK | Out-Null
+    Tap-Text 'Customers'
+    Check 'customer survived' (Has-Text $before.Customer)
+    Adb shell input keyevent KEYCODE_BACK | Out-Null
+    Tap-Text 'Prices'
+    Check 'price survived' (Has-Text $before.Price)
+    Tap-Text 'Home'
+    Tap-Text "Today's invoices"
+    $after = Screen-Texts
+    Shot 'upgrade-after'
+    $codes = @($before.Receipt | Where-Object { $_ -match '\d{3,}' })
+    $missing = @($codes | Where-Object { $c = $_; -not ($after | Where-Object { $_ -like "*$c*" }) })
+    Check 'the bill is listed again under Today''s invoices' ($after.Count -gt 0)
+    Check 'the bill number is unchanged' ($codes.Count -gt 0 -and $missing.Count -eq 0) ("receipt codes: " + ($codes -join ', ') + "; missing: " + ($missing -join ', '))
+} catch { Check 'check the data after the update' $false $_.Exception.Message }
 
 $out = (Adb install -r $apkA) -join ' '
 Check 'installing N over N+1 is refused (downgrade)' ($out -match 'INSTALL_FAILED_VERSION_DOWNGRADE') $out
