@@ -2,8 +2,8 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 1 OF 3
 # Product Specification
 What the Mamre Foods billing and accounting system must do
 
-Version: 1.2.1 (local-first, 19 October 2026)
-Date: 19 October 2026
+Version: 1.3 (local-first, 2 November 2026)
+Date: 2 November 2026
 Owner / approver: Christapher (builder). Business owner and Admin user: his father.
 Status: Approved. Amended on 4 October 2026 for the local-first version 1 (see the change log at the end). Any change needs owner approval and a new version number.
 Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent Operating Guide and Build Plan.
@@ -67,6 +67,13 @@ In version 1 there is one user, the Owner, who is both the salesman and the admi
 | Cost, profit, dashboards | Never shown | Hidden in version 1 (A-28), shown in version 2 |
 | Settings: owner name, business details, PIN | No | Yes |
 | Export to files | No | Yes |
+
+### 2.1 First run (rule FR)
+
+1. FR-1. On the very first start the Owner chooses a PIN (4 to 6 digits, entered twice).
+2. FR-2. Straight after the PIN, one screen Set up your business asks for: business name, owner name (printed as Salesman), address lines, phone and bill footer. Any field may be left empty and filled in later; each empty field is listed on the Finish setup card (FR-3), and a missing address or phone prints the placeholder of section 5.3. The values are saved to Settings in one transaction and can be changed later in Admin > Settings.
+3. FR-3. While anything needed for billing is missing, the Sales Home shows a Finish setup card. It lists each missing item (a business detail from FR-2, or a product with no price for a customer type) and each item opens the screen that fixes it. The card disappears when nothing is missing. It never blocks making a bill; a missing price counts as zero (CLAUDE.md).
+4. FR-4. No demo data, sample customers or sample prices exist in a release build.
 
 ==============================================================================
 ## 3. Products
@@ -136,10 +143,12 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code is a setting
 - Lines in this order: Bill No, Date, Time, Salesman (the owner's name from Settings), Customer (the name, then the location on the next line, indented). The customer type is never printed.
 - Item table with columns Item Desc, Qty, Price, Amt. Each item is its name in capitals with the chapathis per packet (for example MAMRE CHAPATHI 12NOS), then a line with packets, price per packet and amount, right-aligned. No dollar sign anywhere on a bill; the total line reads TOTAL (USD).
 - Payment block: a PAID line for money taken now (with the method) and a CREDIT line for the unpaid part.
+- Numbers: bills are MAM-<device code>-<4-digit sequence>, payment receipts RCP-<device code>-<4-digit sequence>; each has its own counter in Settings and a number is never reused.
+- A walk-in bill shows only TOTAL and PAID (a walk-in pays in full; no balance).
 - Normal customers: Balance after, and for credit customers a THIS MONTH summary (brought forward, invoiced, credits, each payment with date, amount and method, total due).
 - Corporate accounts: no balance of any kind (no Balance after, THIS MONTH, Brought forward or TOTAL DUE). The bill ends with 'Received by' and 'Sign and stamp' so the store can sign and stamp it.
 - Footer text from Settings. A reprint adds DUPLICATE COPY. A voided bill shows VOID and keeps its number.
-- Payment receipts (a payment with no new bill) use the same header and plain numbers.
+- Payment receipts (a payment with no new bill) use the same header and plain numbers. Lines: Receipt (number), Date, Time, Salesman, Customer with location, then Payment received (method) with the amount, Balance after (not for a corporate account), and the note if one was given.
 - Item codes, a logo and Arabic text are not printed in version 1: they need the printer's own library and real product codes.
 
 ### 5.4 Rules
@@ -448,6 +457,7 @@ Mismatches to fix before a server is connected: the business header setting name
 
 | Version | Changes |
 |---|---|
+| 1.3 (2 Nov 2026) | First run (2.1, FR-1 to FR-4). Bill numbers, walk-in bill and payment receipt lines (5.3). Version 1 computes allocation instead of storing rows (6.2). Last export date and 7-day reminder card (11.1). No change to prices or money rules. |
 | 1.2.1 (19 Oct 2026) | Export is 18 files and goes through the share menu only (no folder picker). Lock now button; release screens are hidden from screenshots and the recent-apps preview (A-25). No change to bills, prices or balances. |
 | 1.2 (4 Oct 2026) | Version 1 is local-first: one handheld, one Owner who is both salesman and admin, a PIN, no server, no automatic backups, export to files. The dashboard, the Costing screen and the laptop move to version 2. New bill layout (modelled on the parent company's bill), salesman name from Settings, customer name plus location, corporate account switch. |
 | 1.1 (3 Oct 2026) | Catering type, worker price editing by customer-type switch, standard packet 12 and custom packets, materials-based costing, reversing entries. |

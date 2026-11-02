@@ -2,8 +2,8 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 2 OF 3
 # Technical Architecture and Data Model
 How the system is built: stack, data, API, sync, printing, security and testing
 
-Version: 1.2.1 (local-first, 19 October 2026)
-Date: 19 October 2026
+Version: 1.3 (local-first, 2 November 2026)
+Date: 2 November 2026
 Implements: Doc 1: Product Specification. This document may never change business behaviour.
 Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first), and on 19 October 2026 (version 1.2.1: s5.3 export, s6 lock and screen privacy). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
 Companion documents: Doc 3: Agent Operating Guide and Build Plan.
@@ -99,7 +99,7 @@ mamre/
 | Customer | id, name, location, type_id, phone, address, payment_mode (cash or credit), is_corporate, opening_balance_cents, notes, is_active | Unique on name plus location (ignoring case and spaces). Walk-in is not a row. |
 | PriceDefault | id, product_id, customer_type_id, unit_price_cents (per standard packet), effective_from | History kept. A newer row needs a later date. |
 | PriceOverride | id, customer_id, product_id, unit_price_cents, effective_from, note, is_active | Beats PriceDefault. |
-| Setting | key, value | owner_name, device_code, business_name, address lines, phone, footer_text, wastage_bp, lock_minutes, pin_hash, pin_salt, next_bill_seq, next_receipt_seq. |
+| Setting | key, value | owner_name, device_code, business_name, address (lines separated by a newline), phone, footer_text, wastage_bp, lock_minutes, pin_hash, pin_salt and the pin_ delay keys, next_bill_seq, next_receipt_seq, last_export_at, printer_method (the printer driver that last worked, Doc 4 s5). |
 | Billing Invoice | id, number (unique), customer_id (null for walk-in), customer_name, customer_location, is_corporate, salesman_name, issued_at, total_cents, status (active or void), void_reason, voided_at | Immutable except active to void. |
 | InvoiceItem | id, invoice_id, product_id, product_name, qty_packets, chapathis_per_packet, unit_price_cents (charged, per packet), list_price_cents, price_overridden, line_total_cents | Price is a snapshot. line_total = qty_packets x unit_price. |
 | Payment | id, receipt_number, customer_id (null for walk-in), invoice_id (optional), amount_cents, method (cash, zelle, check, card, other), paid_at, note | Append-only. |
@@ -177,9 +177,11 @@ A release app starts with reference data only: the four customer types with thei
 ## 7. Printing Design
 ==============================================================================
 
-- Interface ReceiptPrinter { suspend fun print(doc): PrintResult } with MockPrinter (an on-screen preview, used until P-1 is solved) and the handheld's own library once the model is known.
+- Printing needs no setup (Doc 4 s5). A PrinterChain tries, in order: a vendor print service found by package name (the Sunmi woyou service through its public AIDL; more vendors in A3), a built-in Bluetooth printer that is already paired (ESC/POS over the serial profile), and the Android print framework (a 58 mm page; it shows the system dialog, so it is last). The first driver that works is saved in the setting printer_method and tried first next time; if it fails the chain runs once more. MockPrinter exists only in debug and test code.
+- Admin > Settings > Printer check shows the phone, paired devices, print services, matching packages and each driver's availability, prints a test page and shares the report as text. It is for support, not setup.
+- Permissions for printing: BLUETOOTH_CONNECT (asked at the first print that needs it, with the sentence "Mamre needs permission to reach the built-in printer."), BLUETOOTH with maxSdkVersion 30, and a <queries> block for known printer packages. The release build fails if INTERNET, a storage permission or QUERY_ALL_PACKAGES appears.
 - The bill layout is a pure function: bill data in, a list of text lines out, 32 characters wide for a 58 mm printer (verify on the real device). It is tested with golden files.
-- Order of operations: save the bill, then print. A print failure shows Retry and Reprint and never loses the bill.
+- Order of operations: save the bill, then print. If every driver fails the screen says exactly "Printer not ready. The bill is saved. Tap Reprint." and the bill is never lost (Doc 4 F4, AT-11).
 - The header comes from Settings. No business detail is written in the code (Doc 1 A-31).
 
 ### 7.1 Reference layout: a corporate credit bill
@@ -364,3 +366,11 @@ Nothing in this section is built into version 1. It stays in the repository so v
 - Dashboards and reports: the monthly dashboard, profit analytics, the Costing screen, PDF and Excel export.
 - People and safety: separate salesman logins, server backups, import of the version 1 export, month lock.
 - Deployment: a small hosted server with daily backups and a tested restore.
+
+==============================================================================
+## Change Log
+==============================================================================
+
+| Version | Changes |
+|---|---|
+| 1.3 (2 Nov 2026) | Settings keys as built, plus last_export_at and printer_method (4.2). last_export_at bullet (5.3). Printing by auto-detect chain, Printer check, printing permissions, exact failure message (7, Doc 4 s5). |
