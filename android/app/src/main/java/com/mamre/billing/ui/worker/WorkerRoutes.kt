@@ -35,4 +35,7 @@ object WorkerRoutes {
 
     fun receipt(kind: String, id: String, duplicate: Boolean = false) =
         "sales/receipt/$kind/$id?$ARG_DUPLICATE=$duplicate"
+
+    /** Reprint from Today's bills: the bill opens marked DUPLICATE COPY (Doc 1 s5.4). */
+    fun duplicateReceipt(invoiceId: String) = receipt(KIND_INVOICE, invoiceId, duplicate = true)
 }
