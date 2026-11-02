@@ -1,8 +1,7 @@
 package com.mamre.billing.ui.worker
 
-import com.mamre.billing.data.demo.DemoCustomerIds
-import com.mamre.billing.data.demo.DemoWorld
 import com.mamre.billing.data.local.ReferenceIds
+import com.mamre.billing.data.local.SmallWorld
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.worker.InvoiceRecord
 import com.mamre.billing.domain.worker.PacketKey
@@ -30,18 +29,19 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Changes D1, D2 and D4 through the real invoice flow on the real database: the Owner's name, the customer's
+ * Changes D1, D2 and D4 through the real invoice flow on the real database (a SmallWorld, so the waits do not depend on the machine): the Owner's name, the customer's
  * "Name - Location" and the corporate flag reach the confirm state and the saved invoice (a snapshot), and a normal
  * customer is unaffected. The view model calls the MakeBill use case.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class InvoiceFlowViewModelTest {
-    private lateinit var w: World
+    private lateinit var s: SmallWorld
+    private val w: World get() = s.w
 
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        w = runBlocking { DemoWorld.open() }
+        s = runBlocking { SmallWorld.open() }
     }
 
     @After fun tearDown() {
@@ -90,7 +90,7 @@ class InvoiceFlowViewModelTest {
 
     @Test fun aCorporateCustomerShowsNoBalanceStateAndTheInvoiceKeepsTheFlagTheNameAndTheLocation() = runBlocking {
         val vm = newFlow().ready()
-        vm.pick(DemoCustomerIds.FRESHMART_DOWNTOWN)
+        vm.pick(s.freshMartId)
         vm.setQuantity(PacketKey(ReferenceIds.PRODUCT_CHAPATHI, 12), 70)
         vm.noAmount()
         val ui = vm.ui.first { it.lines.isNotEmpty() }
@@ -98,7 +98,7 @@ class InvoiceFlowViewModelTest {
         assertEquals("FreshMart - Downtown", ui.customerLabel)
         assertEquals("FreshMart", ui.customerName)
         assertEquals(0L, ui.previousBalanceCents) // a corporate balance is never carried into the Sales area
-        val before = w.admin.customerBalance(DemoCustomerIds.FRESHMART_DOWNTOWN)
+        val before = w.admin.customerBalance(s.freshMartId)
         val invoice = vm.confirmAndWait()
         assertNotNull(invoice)
         invoice!!
@@ -107,17 +107,17 @@ class InvoiceFlowViewModelTest {
         assertEquals("Downtown", invoice.customerLocation)
         assertEquals("FreshMart - Downtown", invoice.customerDisplay)
         assertEquals(70 * 270L, invoice.totalCents) // the ledger still tracks what they owe
-        assertEquals(before + 70 * 270L, w.admin.customerBalance(DemoCustomerIds.FRESHMART_DOWNTOWN))
+        assertEquals(before + 70 * 270L, w.admin.customerBalance(s.freshMartId))
     }
 
     @Test fun aNormalCustomerIsNotCorporateAndKeepsItsBalanceState() = runBlocking {
         val vm = newFlow().ready()
-        vm.pick(DemoCustomerIds.SPICE_GARDEN)
+        vm.pick(s.spiceGardenId)
         vm.setQuantity(PacketKey(ReferenceIds.PRODUCT_CHAPATHI, 12), 10)
         vm.noAmount()
         val ui = vm.ui.first { it.lines.isNotEmpty() }
         assertFalse(ui.isCorporate)
-        assertEquals(w.admin.customerBalance(DemoCustomerIds.SPICE_GARDEN), ui.previousBalanceCents)
+        assertEquals(w.admin.customerBalance(s.spiceGardenId), ui.previousBalanceCents)
         assertEquals("Spice Garden - Irving", ui.customerLabel)
         val invoice = vm.confirmAndWait()!!
         assertFalse(invoice.isCorporate)
@@ -140,7 +140,7 @@ class InvoiceFlowViewModelTest {
 
     @Test fun confirmingTwiceStoresOneBillBecauseTheDraftIdIsMadeOnce() = runBlocking {
         val vm = newFlow().ready()
-        vm.pick(DemoCustomerIds.SPICE_GARDEN)
+        vm.pick(s.spiceGardenId)
         vm.setQuantity(PacketKey(ReferenceIds.PRODUCT_CHAPATHI, 12), 3)
         vm.noAmount()
         vm.ui.first { it.lines.isNotEmpty() }
@@ -153,14 +153,14 @@ class InvoiceFlowViewModelTest {
 
     @Test fun theUseCaseRefusalIsShownByTheViewModelAndNothingIsSaved() = runBlocking {
         val vm = newFlow().ready()
-        vm.pick(DemoCustomerIds.SPICE_GARDEN) // a Restaurant: its price cannot be changed
+        vm.pick(s.spiceGardenId) // a Restaurant: its price cannot be changed
         vm.setQuantity(PacketKey(ReferenceIds.PRODUCT_CHAPATHI, 12), 3)
         vm.noAmount()
         vm.ui.first { it.lines.isNotEmpty() }
         // The shop assistant "bypasses the screen": the price of the current price list changes under the open bill.
         w.admin.setDefaultPrice(ReferenceIds.PRODUCT_CHAPATHI, ReferenceIds.TYPE_RESTAURANT, 999, w.today)
         // The customer has an override for Chapathi, so the default does not matter; change the override instead.
-        w.admin.setOverride(DemoCustomerIds.SPICE_GARDEN, ReferenceIds.PRODUCT_CHAPATHI, 111, w.today, "new price")
+        w.admin.setOverride(s.spiceGardenId, ReferenceIds.PRODUCT_CHAPATHI, 111, w.today, "new price")
         val before = w.db.invoiceDao().count()
         assertEquals(null, vm.confirmAndWait()) // refused: the list price changed since the bill was built
         assertNotNull(vm.error.value)
