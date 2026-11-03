@@ -61,7 +61,7 @@ class HomeViewModel @Inject constructor(
             ownerName = s[SettingKeys.OWNER_NAME].orEmpty(),
             deviceCode = s[SettingKeys.DEVICE_CODE].orEmpty(),
             invoicesToday = sold.invoices.count { it.issuedAt.toLocalDate() == today },
-            setup = setupGaps(s, prices.products().filter { it.isActive }.map { it.id }, customers.types().map { it.id }, defaults.map { PriceKey(it.productId, it.customerTypeId) }),
+            setup = setupGaps(s, prices.products().filter { it.isActive }.map { it.id }, customers.types().map { it.id }, defaults.filter { !it.effectiveFrom.isAfter(today) }.map { PriceKey(it.productId, it.customerTypeId) }),
             exportDue = exportDue(parseLastExport(s[SettingKeys.LAST_EXPORT_AT]), hasBills = sold.invoices.isNotEmpty(), clock = clock),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeState())

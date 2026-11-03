@@ -6,6 +6,7 @@ import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.security.AppLock
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -87,5 +88,21 @@ class HomeSetupCardTest {
         val state = vm.stateWhere { it.setup.any }
         assertEquals(w.customers.types().size, state.setup.missingPrices)
         assertFalse(state.setup.businessDetails)
+    }
+
+    @Test fun aPriceThatStartsTomorrowIsStillMissingTodayAndCountsFromItsDate() = runBlocking {
+        // Doc 1 s2.1 FR-3, s4.3: a default price that starts in the future does not price today's bill ("No price set"), so it is still missing.
+        fillBusinessDetails()
+        val today = LocalDate.now(w.clock)
+        val tomorrow = today.plusDays(1)
+        for (type in w.customers.types()) {
+            if (type.id == ReferenceIds.TYPE_RESTAURANT) w.price(type.id, 250, 240, from = tomorrow) else w.price(type.id, 250, 240)
+        }
+        val vm = home()
+        val products = w.prices.products().size
+        assertEquals(products, vm.stateWhere { it.deviceCode.isNotEmpty() }.setup.missingPrices)
+        w.clock.set("${tomorrow}T12:00:00Z")
+        vm.refreshSetup()
+        assertFalse(vm.stateWhere { it.deviceCode.isNotEmpty() && !it.setup.any }.setup.any)
     }
 }
