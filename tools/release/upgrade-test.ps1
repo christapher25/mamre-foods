@@ -16,6 +16,10 @@ $pkg = 'com.mamre.billing'
 $results = [System.Collections.Generic.List[string]]::new()
 $failed = $false
 
+function Fail([string]$reason) { Write-Host "FAIL  upgrade-test: $reason"; exit 1 }
+# The emulator-only guard (Doc 1 A-26) is shared with smoke-start.ps1 and pinned by SmokeStartGuardTest.
+. (Join-Path $PSScriptRoot 'emulator-guard.ps1')
+
 function Check([string]$name, [bool]$ok, [string]$detail = '') {
     $line = $(if ($ok) { 'PASS' } else { 'FAIL' }) + "  $name" + $(if ($detail) { "  ($detail)" } else { '' })
     Write-Host $line
@@ -84,10 +88,11 @@ try {
 
 # --- the test --------------------------------------------------------------------------------------------------------------
 if ($BuildOnly) { Write-Host "Built: $apkA and $apkB"; exit 0 }
+Assert-Emulator
 Adb get-state | Out-Null
-Adb uninstall $pkg 2>$null | Out-Null
-$out = Adb install $apkA
-Check 'install version N' ($out -match 'Success') ($out -join ' ')
+# smoke-start.ps1 (same guard) installs A with its data cleared, starts it and passes only on the PIN setup screen.
+& (Join-Path $PSScriptRoot 'smoke-start.ps1') -Apk $apkA -Serial $Serial
+Check 'install version N and it starts (smoke-start.ps1)' ($LASTEXITCODE -eq 0)
 
 # --- UI steps (C2). Labels come from the app source (Compose text). UNVERIFIED until run on the emulator; a step that cannot find
 # its label throws, and the phase is reported as one FAIL line with the reason, never a silent pass.

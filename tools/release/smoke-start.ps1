@@ -10,22 +10,8 @@ $pkg = 'com.mamre.billing'
 function Adb { & $adb @(if ($Serial) { '-s', $Serial }) @args }
 function Fail([string]$reason) { Write-Host "FAIL  smoke-start: $reason"; exit 1 }
 
-# Doc 1 A-26: there is no backup, so uninstalling the app deletes every bill. This script uninstalls the app, so it runs ONLY on the
-# emulator: the serial must start with "emulator-" AND the device must report ro.kernel.qemu (or ro.boot.qemu) = 1. With more than one
-# device attached, -Serial is required. There is no switch to skip this check, on purpose.
-function Assert-Emulator {
-    $refusal = "Refused: this script only runs on the emulator. It would delete the app's data on a real phone."
-    if (-not $script:Serial) {
-        $devices = @((& $adb devices 2>&1) | Where-Object { $_ -match '^\S+\s+device\s*$' } | ForEach-Object { ($_ -split '\s+')[0] })
-        if ($devices.Count -gt 1) { Fail "$refusal (more than one device is attached: pass -Serial emulator-5554)" }
-        if ($devices.Count -eq 0) { Fail 'no emulator visible to adb' }
-        $script:Serial = $devices[0]
-    }
-    if ($script:Serial -notlike 'emulator-*') { Fail $refusal }
-    $qemu = ((& $adb -s $script:Serial shell getprop ro.kernel.qemu 2>&1) -join '').Trim()
-    if ($qemu -ne '1') { $qemu = ((& $adb -s $script:Serial shell getprop ro.boot.qemu 2>&1) -join '').Trim() }
-    if ($qemu -ne '1') { Fail $refusal }
-}
+# The emulator-only guard (Doc 1 A-26) lives in emulator-guard.ps1 and is pinned by SmokeStartGuardTest.
+. (Join-Path $PSScriptRoot 'emulator-guard.ps1')
 
 if (-not (Test-Path $Apk)) { Fail "APK not found: $Apk" }
 if (-not (Test-Path $adb)) { Fail "adb not found at $adb" }
