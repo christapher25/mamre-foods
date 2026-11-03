@@ -17,14 +17,13 @@ BEFORE YOU UPDATE (as a precaution)
    "Export data". (If the Home screen shows a card that says "Open Export",
    you can tap that instead.)
 3. Tap "Export and share". Send the files to your own email or Google Drive,
-   or save them to a USB stick.
+   or copy them to the laptop with the cable.
    The screen shows "Last export prepared" with today's date when it worked.
 This is only a safety copy. The update itself keeps your data.
 
 THE UPDATE
 ----------
 1. Open the new link that you were sent, on the phone that has Mamre Foods.
-   [screenshot: out\C2\guide-update-01.png]
 2. Download the file. When the phone says it can download, tap OK / Download.
 3. Open the downloaded file.
    If the phone asks "Allow from this source?", turn it on once. You did this
@@ -32,13 +31,11 @@ THE UPDATE
 4. The phone shows the app name "Mamre Foods" and a button "Update"
    (on some phones it says "Install"; it is the same thing).
    Tap "Update".
-   [screenshot: out\C2\guide-update-02.png]
    Do NOT tap "Uninstall" or "Delete" on any screen.
 5. When it says the app is installed, tap "Open".
-6. The app asks for your PIN ("PIN" and the button "Open"). Enter the PIN
+6. The app shows "Enter your PIN", a box named "PIN" and a button "Open". Enter the PIN
    you always use. It must NOT ask you to choose a new PIN. Your customers,
    prices and bills are all still there.
-   [screenshot: out\C2\guide-update-03.png]
 
 IF SOMETHING LOOKS WRONG
 ------------------------

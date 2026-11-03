@@ -135,6 +135,11 @@ try {
     Type-Into 'New PIN' $testPin
     Type-Into 'New PIN again' $testPin
     Tap-Text 'Save PIN'
+    # B2 (first-run setup) shows "Set up your business" right after the first PIN; this script fills the details in Settings itself,
+    # so it skips that screen when it is there. Before B2 the screen does not exist and the check just times out (4 s).
+    if (Has-Text 'Set up your business' 4) {
+        Tap-Text 'Skip for now'
+    }
     Check 'PIN saved, Home is shown' (Has-Text 'New invoice')
 
     Go-Settings

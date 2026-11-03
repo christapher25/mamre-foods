@@ -24,9 +24,9 @@ $certs | Write-Host
 $outDir = 'C:\dev\mamre-team\out\release'
 New-Item -ItemType Directory -Force $outDir | Out-Null
 $dest = Join-Path $outDir "mamre-$version.apk"
-Copy-Item $apk $dest -Force
+Copy-Item $apk $dest -Force -ErrorAction Stop
 Write-Host ''
 Write-Host "APK:                    $dest"
-Write-Host ("APK SHA-256:            " + (Get-FileHash $dest -Algorithm SHA256).Hash)
+Write-Host ("APK SHA-256:            " + (Get-FileHash $dest -Algorithm SHA256 -ErrorAction Stop).Hash)
 $certLine = $certs | Where-Object { $_ -match 'certificate SHA-256 digest' } | Select-Object -First 1
 Write-Host ("Signing certificate:    " + ($certLine -replace '.*digest:\s*', ''))
