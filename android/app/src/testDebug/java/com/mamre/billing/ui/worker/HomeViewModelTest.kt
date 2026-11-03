@@ -1,8 +1,7 @@
 package com.mamre.billing.ui.worker
 
-import com.mamre.billing.data.demo.DemoCustomerIds
-import com.mamre.billing.data.demo.DemoWorld
 import com.mamre.billing.data.local.ReferenceIds
+import com.mamre.billing.data.local.SmallWorld
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.security.AppLock
 import kotlinx.coroutines.Dispatchers
@@ -33,11 +32,12 @@ import org.robolectric.RobolectricTestRunner
 class HomeViewModelTest {
     @get:Rule val repeat = RepeatRule()
 
-    private lateinit var w: World
+    private lateinit var s: SmallWorld
+    private val w: World get() = s.w
 
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        w = runBlocking { DemoWorld.open() }
+        s = runBlocking { SmallWorld.open() }
     }
 
     @After fun tearDown() {
@@ -58,7 +58,7 @@ class HomeViewModelTest {
     @Test fun theCountOfTodaysBillsGoesUpWhenABillIsMade() = runBlocking {
         val vm = home()
         val before = withTimeout(10_000) { vm.state.first { it.deviceCode.isNotEmpty() } }.invoicesToday
-        w.makeBill(w.draft(DemoCustomerIds.SPICE_GARDEN, listOf(w.line(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", qty = 1, unit = 240))))
+        w.makeBill(w.draft(s.spiceGardenId, listOf(w.line(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", qty = 1, unit = 240))))
         val after = withTimeout(10_000) { vm.state.first { it.invoicesToday == before + 1 } }
         assertEquals(before + 1, after.invoicesToday)
     }

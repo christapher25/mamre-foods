@@ -58,23 +58,28 @@ class SalesStateFlowTest {
         val seen = java.util.Collections.synchronizedList(mutableListOf<SalesState>())
         val failure = CompletableDeferred<Throwable>()
         val firstState = CompletableDeferred<Unit>()
+        val bills = 8
+        val allBills = CompletableDeferred<Unit>()
         scope.launch(CoroutineExceptionHandler { _, e -> failure.complete(e) }) {
             w.sales.observeState().catch { failure.complete(it) }.collect {
                 seen += it
                 firstState.complete(Unit)
+                if (it.invoices.size >= bills) allBills.complete(Unit)
             }
         }
         withTimeout(10_000) { firstState.await() }
 
-        val bills = 8
         repeat(bills) { i ->
             w.makeBill(w.draft(c.id, listOf(w.line(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", qty = i + 1, unit = 280))))
         }
 
         // The last state must show every bill, and the flow must still be alive.
-        val deadline = System.currentTimeMillis() + 10_000
-        while (System.currentTimeMillis() < deadline && failure.isActive && (seen.lastOrNull()?.invoices?.size ?: 0) < bills) {
-            Thread.sleep(20)
+        // Wait on the flow itself (the collector completes allBills), not on the wall clock; the timeout only guards a hang.
+        withTimeout(10_000) {
+            kotlinx.coroutines.selects.select<Unit> {
+                allBills.onAwait { }
+                failure.onAwait { }
+            }
         }
         assertTrue("the flow ended with ${failure.takeIf { it.isCompleted }?.let { runCatching { it.getCompleted() }.getOrNull() }}", failure.isActive)
         assertEquals(bills, seen.last().invoices.size)

@@ -8,7 +8,9 @@ object TestDatabase {
     private val context: Context get() = RuntimeEnvironment.getApplication()
 
     /** A throw-away database in memory. */
-    fun inMemory(): MamreDatabase = MamreDatabase.builder(context, name = null).allowMainThreadQueries().build()
+    fun inMemory(slow: SlowQueries? = null): MamreDatabase =
+        MamreDatabase.builder(context, name = null).allowMainThreadQueries()
+            .apply { if (slow != null) setQueryExecutor(slow.executor) }.build()
 
     /**
      * A database in a file: close it and call this again with the same name to see what was really stored.
