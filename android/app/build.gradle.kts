@@ -55,7 +55,7 @@ android {
             buildConfigField("boolean", "SECURE_WINDOW", "true")
             optimization {
                 enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                packageScope = setOf("androidx.**", "kotlinx.**")
             }
         }
     }
