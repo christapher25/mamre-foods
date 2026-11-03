@@ -1,5 +1,5 @@
 # C1: builds the signed release APK, verifies it, copies it to the team out folder and prints the SHA-256 values.
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'   # native tools print warnings on stderr; every call below checks its exit code
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $android = Join-Path $root 'android'
 if (-not (Test-Path (Join-Path $android 'keystore.properties'))) { throw 'android\keystore.properties is missing. Run tools\release\make-keystore.ps1 first.' }
