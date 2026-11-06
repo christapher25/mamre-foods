@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.lock
 
+import com.mamre.billing.ui.ViewModelScopes
 import com.mamre.billing.data.local.MutableClock
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
@@ -39,13 +40,18 @@ class PinViewModelTest {
         lock = AppLock(w.clock)
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private fun vm() = PinViewModel(
+    private fun vm() = scopes.track(
+        PinViewModel(
         PinStatus(w.settings), SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock), VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock), lock, w.clock,
+        ),
     )
 
     private suspend fun PinViewModel.ready(mode: PinMode): PinUi = withTimeout(10_000) { ui.first { it.mode == mode } }

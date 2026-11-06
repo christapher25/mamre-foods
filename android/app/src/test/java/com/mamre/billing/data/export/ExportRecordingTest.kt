@@ -1,5 +1,6 @@
 package com.mamre.billing.data.export
 
+import com.mamre.billing.ui.ViewModelScopes
 import android.content.Context
 import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.TestDatabase
@@ -43,13 +44,16 @@ class ExportRecordingTest {
         w.clock.set("2026-10-19T15:10:00Z")
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         cache.deleteRecursively()
         w.db.close()
     }
 
-    private fun vm(writer: ExportWriter = ExportWriter(cache)) = ExportViewModel(ExportBuilder(w.db, w.clock), writer, w.recordExport, w.settings)
+    private fun vm(writer: ExportWriter = ExportWriter(cache)) = scopes.track(ExportViewModel(ExportBuilder(w.db, w.clock), writer, w.recordExport, w.settings))
 
     private suspend fun recorded() = parseLastExport(w.settings.get(SettingKeys.LAST_EXPORT_AT))
 
@@ -86,7 +90,7 @@ class ExportRecordingTest {
         val name = "failed-read-" + System.nanoTime()
         val live = World(TestDatabase.file(name), w.clock).also { it.seed() }
         val unreadable = TestDatabase.inMemory().also { it.close() }
-        val vm = ExportViewModel(ExportBuilder(unreadable, w.clock), ExportWriter(cache), live.recordExport, live.settings)
+        val vm = scopes.track(ExportViewModel(ExportBuilder(unreadable, w.clock), ExportWriter(cache), live.recordExport, live.settings))
         vm.export().join()
         assertTrue(vm.ui.value is ExportState.Failed)
         vm.shareLaunched().join() // the screen never calls it after a failure; even if it did, only Ready may record
