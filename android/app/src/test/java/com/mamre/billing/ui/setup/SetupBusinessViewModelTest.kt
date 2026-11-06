@@ -52,12 +52,11 @@ class SetupBusinessViewModelTest {
     @Test fun saveAndContinueWritesTheSettingsAndTheChangeLogThenCallsDone() = runBlocking {
         val vm = ready()
         val logBefore = w.changeLog.all().size
-        vm.edit(vm.ui.value.form.copy(ownerName = "Rajesh", address = "1 Main Road", phone = "9876543210", footer = "Thank you"))
+        vm.edit(vm.ui.value.form.copy(address = "1 Main Road", phone = "9876543210", footer = "Thank you"))
         val done = CompletableDeferred<Unit>()
         vm.saveAndContinue { done.complete(Unit) }
         withTimeout(10_000) { done.await() }
         val s = w.settings.all()
-        assertEquals("Rajesh", s[SettingKeys.OWNER_NAME])
         assertEquals("1 Main Road", s[SettingKeys.ADDRESS])
         assertEquals("9876543210", s[SettingKeys.PHONE])
         assertEquals("Thank you", s[SettingKeys.FOOTER_TEXT])
@@ -67,7 +66,7 @@ class SetupBusinessViewModelTest {
     @Test fun aRefusedFormSavesNothingAndStaysOnTheScreen() = runBlocking {
         val vm = ready()
         val before = w.settings.all()
-        vm.edit(vm.ui.value.form.copy(ownerName = "R", address = "1 Main Road"))
+        vm.edit(vm.ui.value.form.copy(businessName = "  ", address = "1 Main Road"))
         var called = false
         vm.saveAndContinue { called = true }
         assertFalse(called)

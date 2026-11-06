@@ -17,17 +17,11 @@ class PinInputTest {
         override fun bootId() = "b"
     }
 
-    @Test fun onlyDigitsAreKeptAndAtMostSix() {
-        assertEquals("124567", pinDigits("12a4-5 678"))
-        assertEquals("", pinDigits("abc"))
-        assertEquals("1234", pinDigits("1234"))
-        assertEquals("123456", pinDigits("1234567890"))
-    }
 
     @Test fun theWaitSentenceRoundsUpToWholeSeconds() {
-        assertEquals("Too many wrong PINs. Please wait 30 seconds.", waitMessage(30_000))
-        assertEquals("Too many wrong PINs. Please wait 1 seconds.", waitMessage(1))
-        assertEquals("Too many wrong PINs. Please wait 2 seconds.", waitMessage(1_001))
+        assertEquals("Too many wrong passwords. Please wait 30 seconds.", waitMessage(30_000))
+        assertEquals("Too many wrong passwords. Please wait 1 seconds.", waitMessage(1))
+        assertEquals("Too many wrong passwords. Please wait 2 seconds.", waitMessage(1_001))
     }
 
     @Test fun theCountdownReportsTheStartCountsDownOnTheMonotonicClockAndEndsAtZero() {

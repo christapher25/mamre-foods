@@ -6,9 +6,6 @@ import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.model.PaymentMode
-import com.mamre.billing.domain.usecase.ChangePin
-import com.mamre.billing.domain.usecase.SetPin
-import com.mamre.billing.domain.usecase.VerifyPin
 import com.mamre.billing.domain.worker.PaymentMethod
 import java.time.LocalDate
 import java.time.YearMonth
@@ -28,7 +25,7 @@ import org.robolectric.RobolectricTestRunner
 class ExportCoreTest {
     private val tableFiles = listOf(
         "customers", "customer_types", "products", "prices", "price_overrides", "invoices", "invoice_items", "payments", "returns",
-        "materials", "purchases", "expenses", "expense_categories", "production_damage", "opening_stock", "recipe_items", "settings", "change_log",
+        "materials", "purchases", "expenses", "expense_categories", "production_damage", "opening_stock", "recipe_items", "settings", "change_log", "users",
     )
 
     /** The table behind each file, for the independent row count. */
@@ -76,7 +73,6 @@ class ExportCoreTest {
     private suspend fun fullWorld(): World {
         val w = World(TestDatabase.inMemory())
         w.seed()
-        w.settings.put(SettingKeys.OWNER_NAME, "Pat Tester")
         w.price(ReferenceIds.TYPE_RESTAURANT, 250, 280)
         w.price(ReferenceIds.TYPE_RETAIL, 260, 290)
         val c = w.customer("Mario's \"Pizza\", Plano", "Irving", ReferenceIds.TYPE_RESTAURANT, PaymentMode.CREDIT, opening = 1_234)
@@ -102,7 +98,9 @@ class ExportCoreTest {
         assertEquals(tableFiles.map { "$it.csv" } + "manifest.txt", bundle.files.map { it.name })
         for (name in tableFiles) {
             val sqlName = sqlTable[name] ?: name
-            val columns = w.db.openHelper.readableDatabase.query("SELECT * FROM $sqlName LIMIT 0").use { it.columnNames.toList() }
+            // users.csv lists its columns on purpose (no hash, salt or lock fields, B8 item i); every other file is the whole table.
+            val select = if (name == "users") "id, username, display_name, role, active, created_at" else "*"
+            val columns = w.db.openHelper.readableDatabase.query("SELECT $select FROM $sqlName LIMIT 0").use { it.columnNames.toList() }
             assertEquals("header of $name", columns, bundle.csv(name).first())
         }
     }
@@ -122,31 +120,30 @@ class ExportCoreTest {
         assertTrue(count(w.db, "invoices") == 3 && count(w.db, "material_purchases") == 2)
     }
 
-    @Test fun thePinHashSaltAndLockoutKeysAreInNoFile() = runBlocking {
+    @Test fun theUsersFileHasNoPasswordHashSaltOrLockFieldsAndNoPasswordIsInAnyFile() = runBlocking {
         val w = fullWorld()
-        SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
-        val verify = VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock)
-        repeat(5) { verify("0000") } // five wrong PINs write pin_fail_count and pin_locked_until
-        val hash = w.settings.get(SettingKeys.PIN_HASH)!!
-        val salt = w.settings.get(SettingKeys.PIN_SALT)!!
-        assertEquals("5", w.settings.get(SettingKeys.PIN_FAIL_COUNT))
-        assertTrue(w.settings.get(SettingKeys.PIN_LOCKED_UNTIL)!!.isNotEmpty())
+        val users = com.mamre.billing.data.repo.UsersRepository(w.db.userDao())
+        com.mamre.billing.domain.usecase.AddSalesman(w.unitOfWork, users, w.changeLog, w.clock)("Ravi Nair", "ravi", "ravi-s3cret-pw", "ravi-s3cret-pw")
+        val login = com.mamre.billing.domain.usecase.Login(w.unitOfWork, users, w.settings, w.clock, w.clock)
+        repeat(5) { login("ravi", "wrong-guess-9") } // five wrong passwords write fail_count and the lock fields
+        val row = users.byUsername("ravi")!!
+        assertEquals(5, row.failCount)
         val bundle = ExportBuilder(w.db, w.clock).build()
+        assertEquals(listOf("id", "username", "display_name", "role", "active", "created_at"), bundle.csv("users").first())
+        assertEquals(count(w.db, "users"), bundle.csv("users").size - 1)
+        assertTrue(bundle.rows("users").any { it["username"] == "ravi" && it["role"] == "SALESMAN" && it["display_name"] == "Ravi Nair" })
         for (file in bundle.files) {
-            for (needle in listOf(hash, salt, "pin_hash", "pin_salt", "pin_fail_count", "pin_locked_until", "pin_lock_delay_ms", "pin_lock_mono_at", "pin_lock_boot", "pbkdf2")) {
+            for (needle in listOf(row.passwordHash, row.passwordSalt, "pbkdf2", "password_hash", "password_salt", "fail_count", "locked_until", "lock_boot", "ravi-s3cret-pw", "wrong-guess-9")) {
                 assertFalse("${file.name} contains $needle", file.text.contains(needle))
             }
         }
-        // The other settings are there: the owner name, and the manifest count leaves the four PIN rows out.
-        val keys = bundle.rows("settings").map { it["key"] }
-        assertTrue("owner_name" in keys && "device_code" in keys && "next_bill_seq" in keys)
-        // The seven PIN rows: hash, salt, fail count, locked until, and the delay, monotonic reading and boot of the delay.
-        val pinRows = w.settings.all().keys.filter { it.startsWith("pin_") }
-        assertEquals(7, pinRows.size)
-        assertEquals(count(w.db, "settings") - pinRows.size, keys.size)
-        // The change log says a PIN was set but never what it is.
-        assertTrue(bundle.rows("change_log").any { it["what"] == "PIN set" })
+        // No settings row is a secret, and none starts with pin_.
+        assertTrue(bundle.rows("settings").none { it.getValue("key").startsWith("pin_") })
+        assertTrue(w.settings.all().keys.none { it.startsWith("pin_") })
+        // The change log says a password was reset or changed, never what it is.
+        assertTrue(bundle.rows("change_log").any { it["what"] == "Salesman account added" })
     }
+
 
     @Test fun anyKeyStartingWithPinIsLeftOutSoANewSecretCannotLeakByAccident() = runBlocking {
         val w = fullWorld()
@@ -155,13 +152,12 @@ class ExportCoreTest {
         assertFalse(bundle.files.any { it.text.contains("s3cret") || it.text.contains("pin_future_secret") })
     }
 
-    @Test fun lastExportAtIsExportedLikeAnyOtherNonPinSetting() = runBlocking {
+    @Test fun lastExportAtIsExportedLikeAnyOtherSetting() = runBlocking {
         val w = fullWorld()
-        SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
         w.clock.set("2026-10-19T15:10:00Z")
         w.recordExport()
         val bundle = ExportBuilder(w.db, w.clock).build()
-        assertEquals(18 + 1, bundle.files.size) // still the 18 CSV files plus the manifest
+        assertEquals(19 + 1, bundle.files.size) // the 19 CSV files (users.csv is new, B8 item i) plus the manifest
         assertEquals(tableFiles.map { "$it.csv" } + "manifest.txt", bundle.files.map { it.name })
         val row = bundle.rows("settings").single { it["key"] == SettingKeys.LAST_EXPORT_AT }
         assertEquals(java.time.Instant.parse("2026-10-19T15:10:00Z").toEpochMilli().toString(), row["value"])
@@ -249,7 +245,7 @@ class ExportCoreTest {
         for (t in listOf(
             "payments", "return_records", "invoice_items", "invoices", "price_overrides", "price_defaults", "recipe_items", "production_damage",
             "material_purchases", "opening_stock", "expenses", "expense_categories", "materials", "customers", "products", "customer_types",
-            "change_log", "settings",
+            "change_log", "settings", "users",
         )) db.execSQL("DELETE FROM $t")
         val bundle = ExportBuilder(w.db, w.clock).build()
         assertEquals(tableFiles.map { "$it.csv" } + "manifest.txt", bundle.files.map { it.name })
@@ -270,26 +266,22 @@ class ExportCoreTest {
         assertEquals(before, tableFiles.sumOf { count(w.db, sqlTable[it] ?: it) })
     }
 
-    @Test fun aChangedPinIsAlsoNeverExported() = runBlocking {
+    @Test fun aChangedPasswordIsAlsoNeverExported() = runBlocking {
         val w = fullWorld()
-        // A PIN is digits only, so its digits can occur by chance inside a hex UUID or an amount: the test therefore never
-        // searches for the PIN's digits. It checks the four keys and the stored hash and salt (random, long, never a UUID).
-        SetPin(w.unitOfWork, w.settings, w.changeLog, w.clock)("4821", "4821")
-        ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock, w.clock)("4821", "9034", "9034")
-        val hash = w.settings.get(SettingKeys.PIN_HASH)!!
-        val salt = w.settings.get(SettingKeys.PIN_SALT)!!
-        assertTrue(hash.isNotEmpty() && salt.isNotEmpty())
+        // The test never searches for the password itself in numbers; it checks the stored hash and salt (random, long, never a UUID).
+        val users = com.mamre.billing.data.repo.UsersRepository(w.db.userDao())
+        com.mamre.billing.domain.usecase.AddSalesman(w.unitOfWork, users, w.changeLog, w.clock)("Ravi Nair", "ravi", "first-pw-482", "first-pw-482")
+        val id = users.byUsername("ravi")!!.id
+        com.mamre.billing.domain.usecase.ChangeOwnPassword(w.unitOfWork, users, w.changeLog, w.clock, w.clock)(id, "first-pw-482", "second-pw-903", "second-pw-903")
+        val row = users.get(id)!!
+        assertTrue(row.passwordHash.isNotEmpty() && row.passwordSalt.isNotEmpty())
         val bundle = ExportBuilder(w.db, w.clock).build()
-        val exportedKeys = bundle.rows("settings").map { it.getValue("key") }
-        for (key in listOf("pin_hash", "pin_salt", "pin_fail_count", "pin_locked_until")) {
-            assertFalse("$key is exported", key in exportedKeys)
-        }
-        assertTrue("the other settings are still exported", exportedKeys.isNotEmpty())
-        assertTrue(exportedKeys.none { it.startsWith("pin_") })
+        assertTrue(bundle.rows("settings").map { it.getValue("key") }.isNotEmpty())
         for (f in bundle.files) {
-            assertFalse("${f.name} holds the PIN hash", f.text.contains(hash))
-            assertFalse("${f.name} holds the PIN salt", f.text.contains(salt))
-            assertFalse("${f.name} holds a PIN hash prefix", f.text.contains("pbkdf2-sha256"))
+            assertFalse("${f.name} holds the password hash", f.text.contains(row.passwordHash))
+            assertFalse("${f.name} holds the password salt", f.text.contains(row.passwordSalt))
+            assertFalse("${f.name} holds a hash prefix", f.text.contains("pbkdf2-sha256"))
+            assertFalse("${f.name} holds a password", f.text.contains("first-pw-482") || f.text.contains("second-pw-903"))
         }
     }
 }

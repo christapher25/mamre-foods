@@ -1,4 +1,4 @@
-package com.mamre.billing.ui.lock
+package com.mamre.billing.ui.login
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,59 +25,63 @@ import com.mamre.billing.ui.components.PrimaryButton
 import com.mamre.billing.ui.setup.SetupBusinessScreen
 import com.mamre.billing.ui.theme.Spacing
 
-/** The PIN screen: the single gate in front of every other screen (Doc 2 s6). */
+/** The login screen: the single gate in front of every other screen (B8 c, d; Doc 2 s6). */
 @Composable
-fun PinScreen(viewModel: PinViewModel = hiltViewModel()) {
+fun LoginScreen(viewModel: LoginViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
-    if (ui.mode == PinMode.BUSINESS) {
+    if (ui.mode == LoginMode.BUSINESS) {
         SetupBusinessScreen(onDone = viewModel::businessDone)
         return
     }
-    PinContent(ui, viewModel::onPin, viewModel::onConfirm, viewModel::submit)
+    LoginContent(ui, viewModel::onDisplayName, viewModel::onUsername, viewModel::onPassword, viewModel::onConfirm, viewModel::submit)
 }
 
 @Composable
-fun PinContent(ui: PinUi, onPin: (String) -> Unit, onConfirm: (String) -> Unit, onSubmit: () -> Unit) {
-    if (ui.mode == PinMode.LOADING) {
+fun LoginContent(
+    ui: LoginUi,
+    onDisplayName: (String) -> Unit,
+    onUsername: (String) -> Unit,
+    onPassword: (String) -> Unit,
+    onConfirm: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
+    if (ui.mode == LoginMode.LOADING) {
         StartingScreen()
         return
     }
-    val setup = ui.mode == PinMode.SETUP
+    val create = ui.mode == LoginMode.CREATE_ADMIN
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.md),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MamreLogo(size = 72.dp)
-        Text(
-            if (setup) "Choose a PIN" else "Enter your PIN",
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        if (setup) {
-            Text("A PIN is 4 to 6 digits. Enter it twice.", style = MaterialTheme.typography.bodyLarge)
-            Text(SETUP_NO_RECOVERY_TEXT, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
-            Text(SETUP_WRITE_DOWN_TEXT, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+        Text(if (create) "Create the admin account" else "Log in", style = MaterialTheme.typography.headlineSmall)
+        if (create) {
+            Text("The admin sees everything. Choose a password of at least 6 characters and enter it twice.", style = MaterialTheme.typography.bodyLarge)
+            Text(CREATE_ADMIN_NO_RECOVERY_TEXT, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+            LabeledTextField(label = "Your name (printed on bills)", value = ui.displayName, onValueChange = onDisplayName, enabled = !ui.busy)
         }
-        val keys = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+        LabeledTextField(label = "Username", value = ui.username, onValueChange = onUsername, enabled = !ui.busy)
         LabeledTextField(
-            label = if (setup) "New PIN" else "PIN",
-            value = ui.pin,
-            onValueChange = onPin,
-            keyboardOptions = keys,
+            label = "Password",
+            value = ui.password,
+            onValueChange = onPassword,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             visualTransformation = PasswordVisualTransformation(),
             enabled = !ui.busy,
         )
-        if (setup) {
+        if (create) {
             LabeledTextField(
-                label = "New PIN again",
+                label = "Password again",
                 value = ui.confirm,
                 onValueChange = onConfirm,
-                keyboardOptions = keys,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 visualTransformation = PasswordVisualTransformation(),
                 enabled = !ui.busy,
             )
         }
         ui.message?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error) }
-        PrimaryButton(text = if (setup) "Save PIN" else "Open", onClick = onSubmit, enabled = ui.canSubmit)
+        PrimaryButton(text = if (create) "Create account" else "Log in", onClick = onSubmit, enabled = ui.canSubmit)
     }
 }

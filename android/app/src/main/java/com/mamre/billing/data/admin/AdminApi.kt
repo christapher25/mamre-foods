@@ -117,9 +117,6 @@ interface AdminApi {
     suspend fun settings(): BusinessSettings
     suspend fun saveSettings(settings: BusinessSettings)
 
-    /** The Owner's name printed after "Salesman:" (2 to 40 characters); empty until it is set. */
-    suspend fun ownerName(): String
-    suspend fun setOwnerName(name: String)
 
     /** The device code in new bill numbers (1 to 8 capital letters or digits). */
     suspend fun deviceCode(): String

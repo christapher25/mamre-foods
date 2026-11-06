@@ -12,23 +12,6 @@ data class PinLockState(
     val bootId: String = "",
 )
 
-/** What a PIN check answered. */
-sealed interface PinResult {
-    data object Ok : PinResult
-
-    /** No PIN has been chosen yet: NEITHER the hash nor the salt exists. */
-    data object NotSet : PinResult
-
-    /** A hash or a salt exists but the pair is unusable (a half missing, empty, malformed). Fails closed: nothing opens. */
-    data object Damaged : PinResult
-
-    /** Refused; [triesBeforeDelay] more wrong PINs are free before the delay starts. */
-    data class Wrong(val triesBeforeDelay: Int) : PinResult
-
-    /** Every PIN, even the right one, is refused for [remainingMs] more. */
-    data class Locked(val remainingMs: Long) : PinResult
-}
-
 /**
  * The wrong-PIN delay (Doc 2 s6, owner decision 2026-10-06): the first four wrong PINs cost nothing; the fifth in a row costs 30
  * seconds, each further wrong PIN doubles it, to a cap of 15 minutes. A correct PIN resets everything. Pure: tested with fixed times.

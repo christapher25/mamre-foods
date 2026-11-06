@@ -20,6 +20,14 @@ import com.mamre.billing.data.repo.StockRepository
 import com.mamre.billing.data.system.AndroidMonotonicClock
 import com.mamre.billing.domain.security.MonotonicClock
 import com.mamre.billing.domain.auth.Features
+import com.mamre.billing.data.repo.UsersRepository
+import com.mamre.billing.domain.usecase.AccountStatus
+import com.mamre.billing.domain.usecase.AddSalesman
+import com.mamre.billing.domain.usecase.ChangeOwnPassword
+import com.mamre.billing.domain.usecase.CreateAdmin
+import com.mamre.billing.domain.usecase.Login
+import com.mamre.billing.domain.usecase.ResetPassword
+import com.mamre.billing.domain.usecase.SetActive
 import com.mamre.billing.domain.usecase.MakeBill
 import com.mamre.billing.domain.usecase.RecordPayment
 import com.mamre.billing.domain.usecase.RecordReturn
@@ -34,11 +42,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
-import com.mamre.billing.domain.usecase.ChangePin
-import com.mamre.billing.domain.usecase.PinStatus
 import com.mamre.billing.domain.usecase.RecordExport
-import com.mamre.billing.domain.usecase.SetPin
-import com.mamre.billing.domain.usecase.VerifyPin
 import dagger.hilt.components.SingletonComponent
 import java.time.Clock
 import javax.inject.Singleton
@@ -124,20 +128,33 @@ object AppModule {
     @Provides
     fun recordExport(u: UnitOfWork, settings: SettingsRepository, clock: Clock) = RecordExport(u, settings, clock)
 
-    // ------------------------------------------------------------------ the PIN (Doc 2 s6)
+    // ------------------------------------------------------------------ accounts and login (B8)
+
+    @Provides @Singleton
+    fun usersRepository(db: MamreDatabase) = UsersRepository(db.userDao())
 
     @Provides
-    fun pinStatus(settings: SettingsRepository) = PinStatus(settings)
+    fun accountStatus(users: UsersRepository) = AccountStatus(users)
 
     @Provides
-    fun setPin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock) = SetPin(u, settings, changeLog, clock)
+    fun createAdmin(u: UnitOfWork, users: UsersRepository, changeLog: ChangeLogRepository, clock: Clock) = CreateAdmin(u, users, changeLog, clock)
 
     @Provides
-    fun changePin(u: UnitOfWork, settings: SettingsRepository, changeLog: ChangeLogRepository, clock: Clock, mono: MonotonicClock) =
-        ChangePin(u, settings, changeLog, clock, mono)
+    fun addSalesman(u: UnitOfWork, users: UsersRepository, changeLog: ChangeLogRepository, clock: Clock) = AddSalesman(u, users, changeLog, clock)
 
     @Provides
-    fun verifyPin(u: UnitOfWork, settings: SettingsRepository, clock: Clock, mono: MonotonicClock) = VerifyPin(u, settings, clock, mono)
+    fun login(u: UnitOfWork, users: UsersRepository, settings: SettingsRepository, clock: Clock, mono: MonotonicClock) =
+        Login(u, users, settings, clock, mono)
+
+    @Provides
+    fun resetPassword(u: UnitOfWork, users: UsersRepository, changeLog: ChangeLogRepository, clock: Clock) = ResetPassword(u, users, changeLog, clock)
+
+    @Provides
+    fun setActive(u: UnitOfWork, users: UsersRepository, changeLog: ChangeLogRepository, clock: Clock) = SetActive(u, users, changeLog, clock)
+
+    @Provides
+    fun changeOwnPassword(u: UnitOfWork, users: UsersRepository, changeLog: ChangeLogRepository, clock: Clock, mono: MonotonicClock) =
+        ChangeOwnPassword(u, users, changeLog, clock, mono)
 
     // ------------------------------------------------------------------ the Admin area
 

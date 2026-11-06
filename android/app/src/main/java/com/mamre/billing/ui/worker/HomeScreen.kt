@@ -35,6 +35,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.domain.export.ExportDue
 import com.mamre.billing.domain.export.exportReminderText
 import com.mamre.billing.ui.DataLabelChip
+import com.mamre.billing.ui.SessionViewModel
+import com.mamre.billing.domain.auth.Role
+import androidx.compose.foundation.layout.Spacer
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.SecondaryButton
@@ -58,9 +61,13 @@ fun HomeScreen(
     onOpenExport: () -> Unit = {},
     onOpenSetup: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
+    session: SessionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val onLockNow = viewModel::lockNow
+    val account by session.account.collectAsStateWithLifecycle()
+    // B8 e: a salesman sees the Sales area only: no Admin tile, no Export card, no Finish setup card (its items open Admin screens).
+    val isAdmin = account?.role == Role.ADMIN
+    val onLockNow = session::logOut
     // A product added in Admin has no flow to the Home: ask again whenever the Home is back in front.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshSetup() }
     Column(Modifier.fillMaxSize()) {
@@ -68,10 +75,10 @@ fun HomeScreen(
             // The business name is a Settings value, never a string in the code (Doc 1 A-31).
             title = state.businessName.ifBlank { "Billing" },
             showLogo = true,
-            subtitle = "${state.ownerName.ifBlank { "Owner" }} - device ${state.deviceCode}",
+            subtitle = "${account?.displayName.orEmpty().ifBlank { "Not logged in" }} - device ${state.deviceCode}",
             actions = {
                 DataLabelChip()
-                LockNowButton(onClick = onLockNow)
+                LogOutButton(onClick = onLockNow)
             },
         )
         Column(
@@ -87,8 +94,8 @@ fun HomeScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = Spacing.xs),
             )
-            if (state.setup.any) FinishSetupCard(state.setup, onOpenSetup)
-            state.exportDue?.let { ExportReminderCard(it, onOpenExport) }
+            if (isAdmin && state.setup.any) FinishSetupCard(state.setup, onOpenSetup)
+            if (isAdmin) state.exportDue?.let { ExportReminderCard(it, onOpenExport) }
             // Each row is as tall as its taller tile, so all four tiles are the same size.
             Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 GridTile("Record payment", Icons.Default.Payments, Modifier.weight(1f).fillMaxHeight()) {
@@ -102,7 +109,11 @@ fun HomeScreen(
                 GridTile("Today's invoices", Icons.Default.Today, Modifier.weight(1f).fillMaxHeight()) {
                     onTile(HomeTile.TODAYS_INVOICES)
                 }
-                GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
+                if (isAdmin) {
+                    GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
             }
         }
     }
@@ -121,13 +132,13 @@ private fun ExportReminderCard(due: ExportDue, onOpenExport: () -> Unit) {
 }
 
 /**
- * The top bar's "Lock now": locks the app at once. Only the lock icon, named "Lock now" for screen readers: a text label took the
+ * The top bar's Log out: locks the app at once and shows the login. Only the lock icon, named Log out for screen readers: a text label took the
  * title's width at font scale 1.3 and 360 dp and squeezed the business name into a column.
  */
 @Composable
-private fun LockNowButton(onClick: () -> Unit) {
+private fun LogOutButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {
-        Icon(Icons.Default.Lock, contentDescription = "Lock now")
+        Icon(Icons.Default.Lock, contentDescription = "Log out")
     }
 }
 

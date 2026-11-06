@@ -55,7 +55,7 @@ class InvoiceFlowViewModelTest {
         w.db.close()
     }
 
-    private fun newFlow() = scopes.track(InvoiceFlowViewModel(WorkerCatalog(w.customers, w.prices), w.sales, w.settings, w.makeBill, w.clock as Clock))
+    private fun newFlow() = scopes.track(InvoiceFlowViewModel(WorkerCatalog(w.customers, w.prices), w.sales, w.settings, w.makeBill, com.mamre.billing.domain.security.CurrentUser().also { it.set(w.actor) }, w.clock as Clock))
 
     private suspend fun InvoiceFlowViewModel.ready(): InvoiceFlowViewModel {
         withTimeout(10_000) { ui.first { !it.loading && it.deviceCode != null } }
@@ -109,7 +109,7 @@ class InvoiceFlowViewModelTest {
         assertNotNull(invoice)
         invoice!!
         assertTrue(invoice.isCorporate)
-        assertEquals("Rajesh", invoice.salesmanName) // the Owner's name from Settings, never the device code
+        assertEquals("Test Admin", invoice.salesmanName) // the logged-in account display name (B8 L3), never the device code
         assertEquals("Downtown", invoice.customerLocation)
         assertEquals("FreshMart - Downtown", invoice.customerDisplay)
         assertEquals(70 * 270L, invoice.totalCents) // the ledger still tracks what they owe
