@@ -124,4 +124,43 @@ class BooksLogicTest {
         assertEquals(2_000L, row.over30Cents)
         assertEquals(4_000L, row.currentCents)
     }
+
+    // --- B6: Doc 1 s6.2 (payments go to the oldest unpaid bill first and spill on; an overpayment is credit on account) and s5.4 (a void bill no longer counts) ---
+
+    @Test fun voidingTheBillAPaymentWasTakenWithFreesThatPaymentForTheNextBill() {
+        // Bill 1 (10.00) was paid 4.00 at billing, bill 2 (6.00) is unpaid. Bill 1 is then voided.
+        val s = books(
+            invoices = listOf(bill("1", 3, 1_000, void = true), bill("2", 10, 600)),
+            payments = listOf(payment("1", 3, 400)),
+        ).copy(paymentInvoiceIds = mapOf("1" to "1"))
+        assertEquals(200L, BooksLogic.balance(s, customerId)) // 6.00 - 4.00
+        val a = BooksLogic.allocate(s, customerId)
+        assertEquals(setOf("2"), a.dueByInvoice.keys) // the void bill is not allocated to
+        assertEquals(200L, a.dueByInvoice.getValue("2")) // the 4.00 now pays bill 2
+        assertEquals(0L, a.creditOnAccountCents)
+    }
+
+    private fun creditOf300() = listOf(bill("1", 1, 200)) to listOf(payment("1", 2, 500)) // a fully paid bill, 3.00 overpaid
+
+    @Test fun creditOnAccountIsAppliedToTheNextNewBill() {
+        val (invoices, payments) = creditOf300()
+        val before = books(invoices, payments)
+        assertEquals(-300L, BooksLogic.balance(before, customerId))
+        assertEquals(300L, BooksLogic.allocate(before, customerId).creditOnAccountCents)
+        // A new bill of 5.00, paid 0.00.
+        val after = books(invoices + bill("2", 20, 500), payments)
+        assertEquals(200L, BooksLogic.balance(after, customerId))
+        val a = BooksLogic.allocate(after, customerId)
+        assertEquals(200L, a.dueByInvoice.getValue("2")) // the 3.00 surplus is allocated to the new bill
+        assertEquals(0L, a.creditOnAccountCents)
+    }
+
+    @Test fun creditOnAccountLargerThanTheNewBillLeavesTheRestAsCredit() {
+        val (invoices, payments) = creditOf300()
+        val after = books(invoices + bill("2", 20, 200), payments) // a new bill of 2.00
+        assertEquals(-100L, BooksLogic.balance(after, customerId))
+        val a = BooksLogic.allocate(after, customerId)
+        assertEquals(0L, a.dueByInvoice.getValue("2"))
+        assertEquals(100L, a.creditOnAccountCents)
+    }
 }
