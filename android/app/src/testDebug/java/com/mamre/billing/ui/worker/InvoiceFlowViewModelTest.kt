@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.worker
 
+import com.mamre.billing.ui.ViewModelScopes
 import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.data.local.SlowQueries
 import com.mamre.billing.data.local.SmallWorld
@@ -46,12 +47,15 @@ class InvoiceFlowViewModelTest {
         s = runBlocking { SmallWorld.open() }
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private fun newFlow() = InvoiceFlowViewModel(WorkerCatalog(w.customers, w.prices), w.sales, w.settings, w.makeBill, w.clock as Clock)
+    private fun newFlow() = scopes.track(InvoiceFlowViewModel(WorkerCatalog(w.customers, w.prices), w.sales, w.settings, w.makeBill, w.clock as Clock))
 
     private suspend fun InvoiceFlowViewModel.ready(): InvoiceFlowViewModel {
         withTimeout(10_000) { ui.first { !it.loading && it.deviceCode != null } }
