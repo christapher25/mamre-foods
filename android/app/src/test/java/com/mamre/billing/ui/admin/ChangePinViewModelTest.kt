@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.admin
 
+import com.mamre.billing.ui.ViewModelScopes
 import com.mamre.billing.data.local.MutableClock
 import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.TestDatabase
@@ -42,12 +43,15 @@ class ChangePinViewModelTest {
         lock.unlock()
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private fun vm() = ChangePinViewModel(ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock, w.clock), lock, w.clock)
+    private fun vm() = scopes.track(ChangePinViewModel(ChangePin(w.unitOfWork, w.settings, w.changeLog, w.clock, w.clock), lock, w.clock))
 
     private fun verify(pin: String) = runBlocking { VerifyPin(w.unitOfWork, w.settings, w.clock, w.clock)(pin) }
 

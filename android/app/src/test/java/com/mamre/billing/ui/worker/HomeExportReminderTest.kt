@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.worker
 
+import com.mamre.billing.ui.ViewModelScopes
 import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
@@ -37,12 +38,15 @@ class HomeExportReminderTest {
         w.clock.set("2026-10-19T12:00:00Z")
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private fun home() = HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock))
+    private fun home() = scopes.track(HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock)))
 
     private suspend fun makeOneBill() {
         w.price(ReferenceIds.TYPE_RESTAURANT, 250, 280)
