@@ -208,4 +208,16 @@ class AccountUseCasesTest {
         setUp()
         assertTrue(login("  ADMIN", "secret1") is LoginResult.Ok)
     }
+
+    @Test fun theSameWordIsStoredAsADifferentHashAndSaltForEachAccount() = runBlocking {
+        createAdmin("Rajesh Admin", "rajesh", "same-pass-1", "same-pass-1")
+        addSalesman("Asha Kumar", "asha", "same-pass-1", "same-pass-1")
+        val a = db.userDao().byUsername("rajesh")!!
+        val b = db.userDao().byUsername("asha")!!
+        assertNotEquals(a.passwordSalt, b.passwordSalt)
+        assertNotEquals("the hash must depend on the salt", a.passwordHash, b.passwordHash)
+        // and a hash made with one account's salt does not open the other.
+        assertTrue(login("rajesh", "same-pass-1") is LoginResult.Ok)
+        assertTrue(login("asha", "same-pass-1") is LoginResult.Ok)
+    }
 }
