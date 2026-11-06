@@ -54,18 +54,20 @@ class LockNowAndSecureWindowTest {
     // The view models start work when made (Settings collects the database revision): they live in a store that is CLEARED before the
     // database is closed, so no coroutine of theirs outlives the test and touches a closed database.
     private val store = ViewModelStore()
+    private val scopes = ViewModelScopes()
 
     @Suppress("UNCHECKED_CAST")
     private inline fun <reified T : ViewModel> made(crossinline create: () -> T): T =
         ViewModelProvider(store, object : ViewModelProvider.Factory {
             override fun <V : ViewModel> create(modelClass: Class<V>): V = create() as V
-        })[T::class.java]
+        })[T::class.java].also { scopes.track(it) }
 
     private fun home() = made { HomeViewModel(w.sales, w.settings, w.clock, lock) }
 
     private fun settingsVm() = made { SettingsViewModel(w.admin, Optional.empty(), lock) }
 
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         store.clear()
         Dispatchers.resetMain()
         w.db.close()

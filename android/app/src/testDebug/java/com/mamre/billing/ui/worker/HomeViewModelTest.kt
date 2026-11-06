@@ -1,5 +1,6 @@
 package com.mamre.billing.ui.worker
 
+import com.mamre.billing.ui.ViewModelScopes
 import com.mamre.billing.data.local.ReferenceIds
 import com.mamre.billing.data.local.SmallWorld
 import com.mamre.billing.data.local.World
@@ -40,12 +41,15 @@ class HomeViewModelTest {
         s = runBlocking { SmallWorld.open() }
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private fun home() = HomeViewModel(w.sales, w.settings, w.clock, AppLock(w.clock))
+    private fun home() = scopes.track(HomeViewModel(w.sales, w.settings, w.clock, AppLock(w.clock)))
 
     @Test fun homeShowsTheBusinessOwnerAndDeviceFromSettings() = runBlocking {
         val state = withTimeout(10_000) { home().state.first { it.deviceCode.isNotEmpty() } }
