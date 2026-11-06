@@ -134,6 +134,7 @@ class SettingsActions(
     val export: () -> Unit,
     val changePin: () -> Unit,
     val lockNow: () -> Unit,
+    val printerCheck: () -> Unit,
 )
 
 @Composable
@@ -141,6 +142,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onExport: () -> Unit,
     onChangePin: () -> Unit,
+    onPrinterCheck: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     lastExportViewModel: LastExportViewModel = hiltViewModel(),
 ) {
@@ -159,6 +161,7 @@ fun SettingsScreen(
             export = onExport,
             changePin = onChangePin,
             lockNow = viewModel::lockNow,
+            printerCheck = onPrinterCheck,
         ),
         lastExport = lastExportLabel(lastExportAt, Locale.getDefault(), ZoneId.systemDefault()),
     )
@@ -247,6 +250,8 @@ fun SettingsContent(
             SecondaryButton("Change PIN", onClick = actions.changePin)
             Hint("Locks the app now. The PIN is asked for again.")
             SecondaryButton("Lock now", onClick = actions.lockNow)
+            Hint("Shows what this phone offers for printing.")
+            SecondaryButton("Printer check", onClick = actions.printerCheck)
 
             SectionHeader("Costing")
             AppCard {

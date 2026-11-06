@@ -5,6 +5,17 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Pretends to print: keeps what it was sent. Tests only; it is not in any shipped source set (AT-17, N13). */
+class MockPrinter : ReceiptPrinter {
+    private val _printed = mutableListOf<PrintDocument>()
+    val printed: List<PrintDocument> get() = _printed.toList()
+
+    override suspend fun print(doc: PrintDocument): PrintResult {
+        _printed += doc
+        return PrintResult.Sent
+    }
+}
+
 /** A printer that always fails, as when the paper is out or Bluetooth drops. */
 class FailingPrinter(private val failure: Throwable? = null) : ReceiptPrinter {
     var attempts = 0

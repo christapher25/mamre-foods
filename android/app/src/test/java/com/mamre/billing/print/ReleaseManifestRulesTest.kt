@@ -84,3 +84,43 @@ class ReleaseManifestRulesTest {
         assertTrue("a doctype or a missing application must not pass as clean", failed)
     }
 }
+
+/** A1 item 5: the permission rules for the merged release manifest. */
+class ReleasePermissionRulesTest {
+    private fun manifest(vararg perms: String) = """<?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.mamre.billing">
+            ${perms.joinToString("\n")}
+            <application />
+        </manifest>"""
+
+    private fun problems(vararg perms: String) = ReleaseManifestRules.permissionProblems(manifest(*perms))
+
+    @Test fun bluetoothConnectAndLegacyBluetoothUpTo30AreAllowed() {
+        assertEquals(
+            emptyList<String>(),
+            problems(
+                """<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />""",
+                """<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />""",
+            ),
+        )
+    }
+
+    @Test fun legacyBluetoothWithoutTheSdkLimitIsRejected() {
+        assertEquals(1, problems("""<uses-permission android:name="android.permission.BLUETOOTH" />""").size)
+    }
+
+    @Test fun internetStorageAndQueryAllPackagesAreForbiddenInRelease() {
+        for (p in listOf("INTERNET", "WRITE_EXTERNAL_STORAGE", "READ_EXTERNAL_STORAGE", "QUERY_ALL_PACKAGES", "MANAGE_EXTERNAL_STORAGE")) {
+            val found = problems("""<uses-permission android:name="android.permission.$p" />""")
+            assertTrue("$p: $found", found.isNotEmpty())
+        }
+    }
+
+    @Test fun theMainManifestDeclaresThePrintingPermissionsAndNoQueryAllPackages() {
+        val file = listOf(java.io.File("src/main/AndroidManifest.xml"), java.io.File("app/src/main/AndroidManifest.xml")).first { it.exists() }
+        val text = file.readText()
+        assertEquals(emptyList<String>(), ReleaseManifestRules.permissionProblems(text))
+        assertTrue(text.contains("android.permission.BLUETOOTH_CONNECT"))
+        assertTrue(text.contains("<queries>"))
+    }
+}
