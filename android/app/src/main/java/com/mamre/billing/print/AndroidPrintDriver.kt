@@ -18,6 +18,7 @@ import java.io.FileOutputStream
 /** A1 item 2c: the system print dialog. Last in the chain because it needs a tap. The 32 lines are drawn in monospace. */
 class AndroidPrintDriver(private val context: Context) : PrinterDriver {
     override val name = "android"
+    override val rememberable = false
 
     override fun isAvailable(): Boolean = context.getSystemService(Context.PRINT_SERVICE) is PrintManager
 

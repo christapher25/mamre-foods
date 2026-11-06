@@ -19,6 +19,12 @@ class BluetoothPrinterPickerTest {
         }
     }
 
+    @Test fun aNonPrinterNameContainingPosIsNotPicked() {
+        for (n in listOf("Compost Speaker", "Positive Audio", "Deposit")) {
+            assertEquals(n, null, pickPrinter(listOf(dev(n), dev("Car")))?.name)
+        }
+    }
+
     @Test fun noPairedDevicesGivesNothing() {
         assertNull(pickPrinter(emptyList()))
     }

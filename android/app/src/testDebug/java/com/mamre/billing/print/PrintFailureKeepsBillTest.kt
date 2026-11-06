@@ -33,6 +33,13 @@ class PrintFailureKeepsBillTest {
         assertEquals("Printer not ready. The bill is saved. Tap Reprint.", PRINTER_NOT_READY)
         val screen = java.io.File("src/main/java/com/mamre/billing/ui/worker/ReceiptScreen.kt")
             .takeIf { it.exists() } ?: java.io.File("app/src/main/java/com/mamre/billing/ui/worker/ReceiptScreen.kt")
-        assertTrue(screen.readText().contains("PRINTER_NOT_READY"))
+        val source = screen.readText()
+        assertTrue(source.contains("PRINTER_NOT_READY"))
+        // A1 round 2, fix 5: the failed state shows the words, and the button reads "Reprint" when failed.
+        assertTrue(
+            "Failed shows the not-ready text",
+            Regex("""is PrintStatus\.Failed ->[^}]*?PRINTER_NOT_READY""", RegexOption.DOT_MATCHES_ALL).containsMatchIn(source),
+        )
+        assertTrue("the button says Reprint when failed", Regex("""if \(failed\) "Reprint" else printLabel""").containsMatchIn(source))
     }
 }

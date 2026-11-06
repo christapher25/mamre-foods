@@ -17,6 +17,9 @@ interface PrinterDriver {
     /** Cheap check: is this way of printing present on this phone at all. */
     fun isAvailable(): Boolean
 
+    /** False for the system print dialog: it is the last resort, never remembered as the detected printer (A1 round 2, fix 2). */
+    val rememberable: Boolean get() = true
+
     suspend fun print(doc: PrintDocument): PrintResult
 }
 
@@ -39,7 +42,7 @@ class PrinterChain(private val drivers: List<PrinterDriver>, private val store: 
         for (driver in drivers) {
             if (!driver.isAvailable()) continue
             if (attempt(driver, doc) == PrintResult.Sent) {
-                store.save(driver.name)
+                if (driver.rememberable) store.save(driver.name)
                 return PrintResult.Sent
             }
         }

@@ -11,6 +11,7 @@ class PrinterChainTest {
         var available: Boolean = true,
         var works: Boolean = true,
         val log: MutableList<String>,
+        override val rememberable: Boolean = true,
     ) : PrinterDriver {
         override fun isAvailable() = available
         override suspend fun print(doc: PrintDocument): PrintResult {
@@ -26,7 +27,8 @@ class PrinterChainTest {
 
     private val doc = PrintDocument(listOf("A BILL"))
     private val log = mutableListOf<String>()
-    private fun d(name: String, available: Boolean = true, works: Boolean = true) = Driver(name, available, works, log)
+    private fun d(name: String, available: Boolean = true, works: Boolean = true, rememberable: Boolean = true) =
+        Driver(name, available, works, log, rememberable)
 
     @Test fun triesTheDriversInOrderAndTheFirstSuccessWinsAndIsSaved() = runTest {
         val store = Store()
@@ -88,5 +90,26 @@ class PrinterChainTest {
         val chain = PrinterChain(listOf(denied, d("android")), store)
         assertEquals(PrintResult.Sent, chain.print(doc))
         assertEquals("android", store.value)
+    }
+
+    @Test fun theSystemPrintDialogIsNeverSavedAsTheDetectedPrinter() = runTest {
+        val store = Store()
+        val chain = PrinterChain(listOf(d("vendor", works = false), d("bluetooth", available = false), d("android", rememberable = false)), store)
+        assertEquals(PrintResult.Sent, chain.print(doc))
+        assertEquals(listOf("vendor", "android"), log)
+        assertEquals(null, store.value)
+    }
+
+    @Test fun afterTheDialogFallbackTheNextPrintTriesTheEarlierDriversFirstAndSavesTheOneThatWorks() = runTest {
+        val store = Store()
+        val vendor = d("vendor", works = false)
+        val chain = PrinterChain(listOf(vendor, d("android", rememberable = false)), store)
+        chain.print(doc)
+        assertEquals(null, store.value)
+        log.clear()
+        vendor.works = true
+        assertEquals(PrintResult.Sent, chain.print(doc))
+        assertEquals(listOf("vendor"), log)
+        assertEquals("vendor", store.value)
     }
 }

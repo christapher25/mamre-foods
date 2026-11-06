@@ -4,7 +4,7 @@ package com.mamre.billing.print
 data class PairedDevice(val address: String, val name: String?, val majorClass: Int)
 
 private const val MAJOR_IMAGING = 0x0600
-private val PRINTER_NAME = Regex("""(?i)printer|pos|^pt-|^mpt""")
+private val PRINTER_NAME = Regex("""(?i)printer|\bpos\b|^pt-|^mpt""")
 
 /** A1 item 2b: the built-in printer among already-paired devices, or null. A name match wins, then a printer class. */
 fun pickPrinter(paired: List<PairedDevice>): PairedDevice? =

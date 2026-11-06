@@ -65,26 +65,54 @@ class SunmiServiceDriver(context: Context) : VendorServiceDriver(context) {
 
     override suspend fun sendBytes(binder: IBinder, bytes: ByteArray): PrintResult {
         val service = IWoyouService.Stub.asInterface(binder)
-        val done = CompletableDeferred<PrintResult>()
-        val callback = object : ICallback.Stub() {
-            override fun onRunResult(isSuccess: Boolean) {
-                done.complete(if (isSuccess) PrintResult.Sent else PrintResult.Failed("Printer refused the bill"))
-            }
+        return runSunmiPrint(
+            bytes,
+            init = { service.printerInit(it) },
+            send = { data, callback -> service.sendRAWData(data, callback) },
+        )
+    }
+}
 
-            override fun onReturnString(result: String?) = Unit
+/**
+ * A1 round 2, fix 1 (AT-11): printerInit gets its own callback that completes nothing, so only the answer to sendRAWData decides
+ * Sent or Failed. [init] and [send] are the two service calls, passed in so a test can stand in for the service.
+ */
+internal suspend fun runSunmiPrint(
+    bytes: ByteArray,
+    init: (ICallback) -> Unit,
+    send: (ByteArray, ICallback) -> Unit,
+    timeoutMs: Long = PRINT_TIMEOUT_MS,
+): PrintResult {
+    val done = CompletableDeferred<PrintResult>()
+    val initCallback = object : ICallback.Stub() {
+        override fun onRunResult(isSuccess: Boolean) = Unit
 
-            override fun onRaiseException(code: Int, msg: String?) {
-                done.complete(PrintResult.Failed(msg ?: "Printer error $code"))
-            }
+        override fun onReturnString(result: String?) = Unit
 
-            override fun onPrintResult(code: Int, msg: String?) = Unit
+        override fun onRaiseException(code: Int, msg: String?) {
+            done.complete(PrintResult.Failed(msg ?: "Printer error $code"))
         }
-        service.printerInit(callback)
-        service.sendRAWData(bytes, callback)
-        return try {
-            withTimeout(PRINT_TIMEOUT_MS) { done.await() }
-        } catch (e: TimeoutCancellationException) {
-            PrintResult.Failed("Printer did not answer")
+
+        override fun onPrintResult(code: Int, msg: String?) = Unit
+    }
+    val printCallback = object : ICallback.Stub() {
+        override fun onRunResult(isSuccess: Boolean) {
+            done.complete(if (isSuccess) PrintResult.Sent else PrintResult.Failed("Printer refused the bill"))
         }
+
+        override fun onReturnString(result: String?) = Unit
+
+        override fun onRaiseException(code: Int, msg: String?) {
+            done.complete(PrintResult.Failed(msg ?: "Printer error $code"))
+        }
+
+        override fun onPrintResult(code: Int, msg: String?) = Unit
+    }
+    init(initCallback)
+    send(bytes, printCallback)
+    return try {
+        withTimeout(timeoutMs) { done.await() }
+    } catch (e: TimeoutCancellationException) {
+        PrintResult.Failed("Printer did not answer")
     }
 }
