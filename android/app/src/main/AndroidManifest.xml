@@ -2,6 +2,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Printing (Doc 4 s5): Bluetooth to the built-in printer. Legacy BLUETOOTH only up to Android 11. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+
+    <queries>
+        <package android:name="woyou.aidlservice.jiuiv5" />
+        <package android:name="com.sunmi.printerhelper" />
+        <package android:name="com.imin.printerservice" />
+        <package android:name="com.telpo.printer" />
+        <package android:name="com.urovo.printservice" />
+        <package android:name="com.senraise.printer" />
+        <package android:name="com.ciontek.printer" />
+        <package android:name="com.iposprinter.service" />
+    </queries>
+
     <application
         android:name=".MamreApp"
         android:allowBackup="false"

@@ -29,6 +29,40 @@ object ReleaseManifestRules {
         }
     }
 
+    /** Permissions the release app must never hold (Doc 2 s6, N18; A1 item 5). Printing needs none of these. */
+    val forbiddenPermissions: Set<String> = setOf(
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.QUERY_ALL_PACKAGES",
+    )
+
+    /** Allowed for printing: BLUETOOTH_CONNECT, and legacy BLUETOOTH only up to SDK 30. */
+    fun permissionProblems(manifestXml: String): List<String> {
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = true
+            setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+        }
+        val document = factory.newDocumentBuilder().parse(manifestXml.byteInputStream())
+        val nodes = document.getElementsByTagName("uses-permission")
+        val problems = mutableListOf<String>()
+        for (i in 0 until nodes.length) {
+            val e = nodes.item(i) as Element
+            val name = e.getAttributeNS(ANDROID_NS, "name")
+            if (name in forbiddenPermissions) problems += "the release manifest requests forbidden permission $name"
+            if (name == "android.permission.BLUETOOTH" && e.getAttributeNS(ANDROID_NS, "maxSdkVersion") != "30") {
+                problems += "android.permission.BLUETOOTH must carry maxSdkVersion 30"
+            }
+        }
+        return problems
+    }
+
     /** One line per door that should not be open; empty when the manifest is as it should be. */
     fun problems(manifestXml: String, allowed: Set<String>): List<String> {
         val factory = DocumentBuilderFactory.newInstance().apply {
