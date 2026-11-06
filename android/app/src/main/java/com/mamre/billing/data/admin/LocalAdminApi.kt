@@ -59,6 +59,7 @@ import com.mamre.billing.domain.usecase.SetLockMinutes
 import com.mamre.billing.domain.usecase.SetWastage
 import com.mamre.billing.domain.usecase.SetYieldPerKg
 import com.mamre.billing.domain.usecase.AddProduct
+import com.mamre.billing.domain.usecase.SetOpeningStock
 import com.mamre.billing.domain.usecase.EditProduct
 import com.mamre.billing.domain.usecase.VoidBill
 import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
@@ -101,6 +102,7 @@ class LocalAdminApi(
     private val setWastage: SetWastage,
     private val setStandardPacketSizeUseCase: SetStandardPacketSize,
     private val setYieldPerKgUseCase: SetYieldPerKg,
+    private val setOpeningStockUseCase: SetOpeningStock,
     private val addProductUseCase: AddProduct,
     private val editProductUseCase: EditProduct,
     private val saveBusinessSettings: SaveBusinessSettings,
@@ -158,6 +160,7 @@ class LocalAdminApi(
                 setWastage = SetWastage(u, settings, log, clock),
                 setStandardPacketSizeUseCase = SetStandardPacketSize(u, stock, log, clock),
                 setYieldPerKgUseCase = SetYieldPerKg(u, stock, log, clock),
+                setOpeningStockUseCase = SetOpeningStock(u, stock, log, clock),
                 addProductUseCase = AddProduct(u, stock, log, clock),
                 editProductUseCase = EditProduct(u, stock, log, clock),
                 saveBusinessSettings = SaveBusinessSettings(u, settings, log, clock),
@@ -287,6 +290,12 @@ class LocalAdminApi(
 
     override suspend fun setStandardPacketSize(productId: String, chapathis: Int) =
         changed { setStandardPacketSizeUseCase(productId, chapathis) }
+
+    override suspend fun openingStock(): List<OpeningStockRow> =
+        stock.openingStock().map { OpeningStockRow(it.materialId, YearMonth.parse(it.month), it.qtyMilli, it.valueCents) }
+
+    override suspend fun setOpeningStock(materialId: String, month: YearMonth, qtyMb: Long, valueCents: Long) =
+        changed { setOpeningStockUseCase(materialId, month, qtyMb, valueCents) }
 
     override suspend fun addProduct(form: ProductForm): String = changed { addProductUseCase(form) }
 

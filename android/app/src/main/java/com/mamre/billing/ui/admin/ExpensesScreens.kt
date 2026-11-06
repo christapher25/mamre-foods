@@ -50,6 +50,11 @@ import com.mamre.billing.domain.admin.purchaseProblemMessage
 import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validatePurchase
 import com.mamre.billing.domain.money.formatCents
+import androidx.lifecycle.SavedStateHandle
+import com.mamre.billing.data.admin.OpeningStockRow
+import com.mamre.billing.domain.admin.monthLabel
+import com.mamre.billing.domain.money.parseCents
+import com.mamre.billing.domain.money.parseMilli
 import com.mamre.billing.domain.money.formatTenThousandths
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
@@ -88,6 +93,9 @@ data class ExpensesUi(
     val stock: StockReport? = null,
     val purchases: List<Purchase> = emptyList(),
     val expenses: ExpensesReport? = null,
+    /** B3: the materials and the opening stock rows saved so far, for the Opening stock section under the purchases. */
+    val materials: List<Material> = emptyList(),
+    val openingStock: List<OpeningStockRow> = emptyList(),
     val error: String? = null,
 )
 
@@ -108,7 +116,12 @@ class ExpensesViewModel @Inject constructor(
 
     private suspend fun load() {
         val month = _ui.value.month ?: return
-        _ui.update { it.copy(loading = false, stock = api.stock(month), purchases = api.purchases(month), expenses = api.expenses(month)) }
+        _ui.update {
+            it.copy(
+                loading = false, stock = api.stock(month), purchases = api.purchases(month), expenses = api.expenses(month),
+                materials = api.materials(), openingStock = api.openingStock(),
+            )
+        }
     }
 
     fun selectMonth(month: YearMonth) {
@@ -138,12 +151,13 @@ class ExpensesViewModel @Inject constructor(
 fun ExpensesScreen(
     onAddPurchase: () -> Unit,
     onAddExpense: () -> Unit,
+    onEnterOpeningStock: (String) -> Unit,
     onBack: () -> Unit,
     viewModel: ExpensesViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     ExpensesContent(
-        ui, onBack, viewModel::selectTab, viewModel::selectMonth, onAddPurchase, onAddExpense,
+        ui, onBack, viewModel::selectTab, viewModel::selectMonth, onAddPurchase, onAddExpense, onEnterOpeningStock,
         viewModel::reversePurchase, viewModel::reverseExpense,
     )
 }
@@ -156,6 +170,7 @@ fun ExpensesContent(
     onMonth: (YearMonth) -> Unit,
     onAddPurchase: () -> Unit,
     onAddExpense: () -> Unit,
+    onEnterOpeningStock: (String) -> Unit,
     onReversePurchase: (String, String) -> Unit,
     onReverseExpense: (String, String) -> Unit,
 ) {
@@ -175,7 +190,7 @@ fun ExpensesContent(
             MonthSelector(month, span.first, span.last, onMonth, inProgress = month == span.last)
             ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             if (ui.tab == 0) {
-                ui.stock?.let { MaterialsTab(it, ui.purchases, onAddPurchase, onReversePurchase) }
+                ui.stock?.let { MaterialsTab(it, ui.purchases, ui.materials, ui.openingStock, onAddPurchase, onEnterOpeningStock, onReversePurchase) }
             } else {
                 ui.expenses?.let { OtherExpensesTab(it, onAddExpense, onReverseExpense) }
             }
@@ -189,7 +204,10 @@ fun ExpensesContent(
 private fun MaterialsTab(
     report: StockReport,
     purchases: List<Purchase>,
+    materials: List<Material>,
+    openingStock: List<OpeningStockRow>,
     onAdd: () -> Unit,
+    onEnterOpeningStock: (String) -> Unit,
     onReverse: (String, String) -> Unit,
 ) {
     var reversing by remember { mutableStateOf<Purchase?>(null) }
@@ -246,6 +264,7 @@ private fun MaterialsTab(
             }
         }
     }
+    OpeningStockSection(materials, openingStock, onEnterOpeningStock)
     reversing?.let { p ->
         ReasonDialog(
             title = "Reverse purchase",
@@ -553,6 +572,178 @@ fun AddExpenseContent(ui: AddExpenseUi, onBack: () -> Unit, onSave: (String, Loc
             PrimaryButton("Save expense", onClick = {
                 tried = true
                 if (check is ExpenseCheck.Ok) onSave(check.categoryId, check.date, check.amountCents, description)
+            })
+        }
+    }
+}
+
+// --- opening stock (B3, Doc 1 s9.4): entered once per material when records start ---
+
+enum class OpeningStockProblem {
+    MATERIAL_REQUIRED, MONTH_REQUIRED, UNIT_REQUIRED, QUANTITY_INVALID, QUANTITY_NEGATIVE, VALUE_INVALID, VALUE_NEGATIVE,
+}
+
+sealed interface OpeningStockCheck {
+    /** [qtyMb] is in thousandths of the material's base unit; [valueCents] is the total value in cents. */
+    data class Ok(val materialId: String, val month: YearMonth, val qtyMb: Long, val valueCents: Long) : OpeningStockCheck
+
+    data class Invalid(val problems: Set<OpeningStockProblem>) : OpeningStockCheck
+}
+
+private const val MILLI_PER_UNIT = 1000L
+
+/**
+ * What the Enter form collects, turned into stored numbers with integer arithmetic: the quantity typed in the chosen purchase unit
+ * becomes thousandths of the base unit (400 kg of wheat is 400,000,000), the value in dollars becomes cents. Zero is allowed (a
+ * material with none on hand); a negative or unreadable number is refused. SetOpeningStock checks again, and refuses a second entry.
+ */
+fun validateOpeningStock(materialId: String?, month: YearMonth?, quantityText: String, unit: MaterialUnit?, valueText: String): OpeningStockCheck {
+    val problems = mutableSetOf<OpeningStockProblem>()
+    if (materialId.isNullOrBlank()) problems += OpeningStockProblem.MATERIAL_REQUIRED
+    if (month == null) problems += OpeningStockProblem.MONTH_REQUIRED
+    if (unit == null) problems += OpeningStockProblem.UNIT_REQUIRED
+    val milli = parseMilli(quantityText)
+    when {
+        milli == null -> problems += OpeningStockProblem.QUANTITY_INVALID
+        milli < 0 -> problems += OpeningStockProblem.QUANTITY_NEGATIVE
+    }
+    val cents = parseCents(valueText)
+    when {
+        cents == null -> problems += OpeningStockProblem.VALUE_INVALID
+        cents < 0 -> problems += OpeningStockProblem.VALUE_NEGATIVE
+    }
+    if (problems.isNotEmpty()) return OpeningStockCheck.Invalid(problems)
+    return OpeningStockCheck.Ok(materialId!!, month!!, milli!! * unit!!.mbPerUnit / MILLI_PER_UNIT, cents!!)
+}
+
+fun openingStockProblemMessage(problem: OpeningStockProblem): String = when (problem) {
+    OpeningStockProblem.MATERIAL_REQUIRED -> "Choose the material"
+    OpeningStockProblem.MONTH_REQUIRED -> "Choose the month"
+    OpeningStockProblem.UNIT_REQUIRED -> "Choose the unit"
+    OpeningStockProblem.QUANTITY_INVALID -> "Enter a quantity like 400 or 12.5 (0 if none)"
+    OpeningStockProblem.QUANTITY_NEGATIVE -> "The quantity cannot be negative"
+    OpeningStockProblem.VALUE_INVALID -> "Enter the total value like 440.00 (0 if none)"
+    OpeningStockProblem.VALUE_NEGATIVE -> "The value cannot be negative"
+}
+
+/** A saved opening stock row as the Expenses screen shows it: the quantity in the purchase unit, the value and the month. */
+fun openingStockLine(material: Material, qtyMb: Long, valueCents: Long, month: YearMonth): String =
+    "${formatQuantity(qtyMb, material)}, ${formatCents(valueCents)}, ${monthLabel(month)}"
+
+/** The section under the purchases: each material is either "Not set" with an Enter button or its saved row, read only. */
+@Composable
+internal fun OpeningStockSection(materials: List<Material>, rows: List<OpeningStockRow>, onEnter: (String) -> Unit) {
+    SectionHeader("Opening stock")
+    val byMaterial = rows.associateBy { it.materialId }
+    AppCard {
+        materials.forEach { m ->
+            val row = byMaterial[m.id]
+            LabelValueRow(m.name) {
+                if (row == null) {
+                    Text("Not set", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text(openingStockLine(m, row.qtyMb, row.valueCents, row.month), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (row == null) SecondaryButton("Enter", onClick = { onEnter(m.id) })
+        }
+        Text(
+            "Opening stock is entered once and is not edited. A wrong figure is corrected with a purchase or a reversing purchase.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+data class OpeningStockUi(
+    val loading: Boolean = true,
+    val material: Material? = null,
+    val month: YearMonth? = null,
+    val error: String? = null,
+    val saved: Boolean = false,
+)
+
+@HiltViewModel
+class OpeningStockViewModel @Inject constructor(
+    private val api: AdminApi,
+    savedState: SavedStateHandle,
+) : ViewModel() {
+    private val materialId: String = checkNotNull(savedState[AdminRoutes.ARG_ID])
+    private val _ui = MutableStateFlow(OpeningStockUi())
+    val ui: StateFlow<OpeningStockUi> = _ui.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _ui.update { it.copy(loading = false, material = api.materials().firstOrNull { m -> m.id == materialId }, month = YearMonth.from(api.today)) }
+        }
+    }
+
+    /** Saves through SetOpeningStock. A refusal (already set, negative) is shown and nothing is saved. */
+    fun save(month: YearMonth, qtyMb: Long, valueCents: Long) {
+        viewModelScope.launch {
+            try {
+                api.setOpeningStock(materialId, month, qtyMb, valueCents)
+                _ui.update { it.copy(error = null, saved = true) }
+            } catch (e: AdminRuleException) {
+                _ui.update { it.copy(error = e.message) }
+            }
+        }
+    }
+}
+
+@Composable
+fun OpeningStockScreen(onBack: () -> Unit, viewModel: OpeningStockViewModel = hiltViewModel()) {
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    LaunchedEffect(ui.saved) { if (ui.saved) onBack() }
+    if (ui.loading) return
+    OpeningStockContent(ui, onBack, viewModel::save)
+}
+
+@Composable
+fun OpeningStockContent(ui: OpeningStockUi, onBack: () -> Unit, onSave: (YearMonth, Long, Long) -> Unit) {
+    val material = ui.material
+    val current = ui.month ?: return
+    var month by remember { mutableStateOf(current) }
+    var unit by remember { mutableStateOf(material?.units?.firstOrNull { it.label == material.purchaseUnit }) }
+    var qty by remember { mutableStateOf("") }
+    var value by remember { mutableStateOf("") }
+    var tried by remember { mutableStateOf(false) }
+    val check = validateOpeningStock(material?.id, month, qty, unit, value)
+    val problems = (check as? OpeningStockCheck.Invalid)?.problems.orEmpty()
+    fun msg(vararg of: OpeningStockProblem) =
+        if (tried) problems.filter { it in of }.joinToString { openingStockProblemMessage(it) }.ifEmpty { null } else null
+
+    Column(Modifier.fillMaxSize()) {
+        AppTopBar(title = "Opening stock", onBack = onBack, actions = { DataLabelChip() })
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            Text(material?.name ?: "Unknown material", style = MaterialTheme.typography.titleMedium)
+            MonthSelector(month = month, first = current.minusMonths(36), last = current, onChange = { month = it })
+            if (material != null) {
+                Text("Unit", style = MaterialTheme.typography.titleSmall)
+                OptionChips(material.units, unit, { it.label }, { unit = it })
+            }
+            LabeledTextField(
+                "Quantity in ${unit?.label ?: "unit"}", qty, { qty = it },
+                errorText = msg(OpeningStockProblem.QUANTITY_INVALID, OpeningStockProblem.QUANTITY_NEGATIVE, OpeningStockProblem.UNIT_REQUIRED),
+                placeholder = "400",
+            )
+            LabeledTextField(
+                "Total value", value, { value = it },
+                errorText = msg(OpeningStockProblem.VALUE_INVALID, OpeningStockProblem.VALUE_NEGATIVE),
+                placeholder = "440.00",
+            )
+            Text(
+                "Opening stock is entered once and is not edited. A wrong figure is corrected with a purchase or a reversing purchase.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            PrimaryButton("Save opening stock", onClick = {
+                tried = true
+                if (check is OpeningStockCheck.Ok) onSave(check.month, check.qtyMb, check.valueCents)
             })
         }
     }
