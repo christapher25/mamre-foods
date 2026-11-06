@@ -22,12 +22,17 @@ import com.mamre.billing.ui.StartingScreen
 import com.mamre.billing.ui.components.LabeledTextField
 import com.mamre.billing.ui.components.MamreLogo
 import com.mamre.billing.ui.components.PrimaryButton
+import com.mamre.billing.ui.setup.SetupBusinessScreen
 import com.mamre.billing.ui.theme.Spacing
 
 /** The PIN screen: the single gate in front of every other screen (Doc 2 s6). */
 @Composable
 fun PinScreen(viewModel: PinViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    if (ui.mode == PinMode.BUSINESS) {
+        SetupBusinessScreen(onDone = viewModel::businessDone)
+        return
+    }
     PinContent(ui, viewModel::onPin, viewModel::onConfirm, viewModel::submit)
 }
 

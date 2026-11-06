@@ -18,7 +18,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class PinMode { LOADING, SETUP, ENTRY }
+/** BUSINESS: the PIN was just chosen on a first run; the Set up your business screen comes before the app opens (Doc 1 s2.1 FR-2). */
+enum class PinMode { LOADING, SETUP, BUSINESS, ENTRY }
 
 data class PinUi(
     val mode: PinMode = PinMode.LOADING,
@@ -74,7 +75,8 @@ class PinViewModel @Inject constructor(
             try {
                 if (now.mode == PinMode.SETUP) {
                     setPin(now.pin, now.confirm)
-                    finish()
+                    // First run: the business screen comes before the app opens; the app stays locked until it is done (FR-2).
+                    _ui.update { PinUi(mode = PinMode.BUSINESS) }
                 } else {
                     when (val r = verifyPin(now.pin)) {
                         PinResult.Ok -> finish()
@@ -90,6 +92,11 @@ class PinViewModel @Inject constructor(
                 _ui.update { it.copy(busy = false, message = e.message) }
             }
         }
+    }
+
+    /** The Set up your business screen was saved or skipped: now the app opens. */
+    fun businessDone() {
+        if (_ui.value.mode == PinMode.BUSINESS) finish()
     }
 
     private fun finish() {

@@ -46,7 +46,7 @@ class HomeExportReminderTest {
         w.db.close()
     }
 
-    private fun home() = scopes.track(HomeViewModel(w.sales, w.settings, w.clock, AppLock(w.clock)))
+    private fun home() = scopes.track(HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock)))
 
     private suspend fun makeOneBill() {
         w.price(ReferenceIds.TYPE_RESTAURANT, 250, 280)

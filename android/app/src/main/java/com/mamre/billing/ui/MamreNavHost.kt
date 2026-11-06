@@ -65,6 +65,9 @@ class AppViewModel @Inject constructor(
     /** The Sales Home's export card: the one-tap switch to the Admin area, opening the Export screen first (no second login). */
     fun openExport() = areaState.open(Area.ADMIN, then = AdminRoutes.EXPORT)
 
+    /** The Finish setup card (Doc 1 s2.1 FR-3): the one-tap switch to the Admin screen that fixes the item. */
+    fun openAdminRoute(route: String) = areaState.open(Area.ADMIN, then = route)
+
     fun takeOpeningRoute(): String? = areaState.takeOpeningRoute()
 }
 
@@ -98,6 +101,7 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
                 onOpenAdmin = { appViewModel.openArea(Area.ADMIN) },
                 onOpenSales = { appViewModel.openArea(Area.SALES) },
                 onOpenExport = appViewModel::openExport,
+                onOpenAdminRoute = appViewModel::openAdminRoute,
                 openingRoute = appViewModel::takeOpeningRoute,
             )
         },
@@ -135,6 +139,7 @@ fun AppContent(
     onOpenAdmin: () -> Unit,
     onOpenSales: () -> Unit,
     onOpenExport: () -> Unit = {},
+    onOpenAdminRoute: (String) -> Unit = {},
     openingRoute: () -> String? = { null },
 ) {
     RetainedContent {
@@ -155,7 +160,7 @@ fun AppContent(
 
         Column(Modifier.fillMaxSize()) {
             NavHost(navController, startDestination = start, modifier = Modifier.weight(1f)) {
-                workerGraph(navController, onOpenAdmin = onOpenAdmin, onOpenExport = onOpenExport)
+                workerGraph(navController, onOpenAdmin = onOpenAdmin, onOpenExport = onOpenExport, onOpenAdminRoute = onOpenAdminRoute)
                 adminGraph(navController, features, onOpenSales = onOpenSales)
             }
             if (area == Area.ADMIN && showsBottomBar(route)) {
