@@ -35,6 +35,7 @@ import java.time.LocalDate
         ExpenseCategoryEntity::class,
         ExpenseEntity::class,
         ChangeLogEntity::class,
+        UserEntity::class,
     ],
     version = 1,
     exportSchema = true,
@@ -59,6 +60,7 @@ abstract class MamreDatabase : RoomDatabase() {
     abstract fun expenseCategoryDao(): ExpenseCategoryDao
     abstract fun expenseDao(): ExpenseDao
     abstract fun changeLogDao(): ChangeLogDao
+    abstract fun userDao(): UserDao
 
     companion object {
         const val FILE_NAME = "mamre.db"

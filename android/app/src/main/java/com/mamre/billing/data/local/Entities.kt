@@ -347,3 +347,26 @@ object Stored {
     const val DIRECT = "direct"
     const val INDIRECT = "indirect"
 }
+
+/**
+ * An account (B8 item a): one ADMIN and SALESMEN. Never deleted, because bills point to it; "switch off" sets [active] false.
+ * [username] is stored trimmed and in lower case (L4) and is unique. The hash and salt are the PinHasher format. The five lock
+ * fields are the per-account wrong-password delay (same rules as the old PIN, PinLockout).
+ */
+@Entity(tableName = "users", indices = [Index("username", unique = true)])
+data class UserEntity(
+    @PrimaryKey val id: String,
+    val username: String,
+    @ColumnInfo(name = "display_name") val displayName: String,
+    /** ADMIN or SALESMAN. */
+    val role: String,
+    @ColumnInfo(name = "password_hash") val passwordHash: String,
+    @ColumnInfo(name = "password_salt") val passwordSalt: String,
+    val active: Boolean,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "fail_count") val failCount: Int = 0,
+    @ColumnInfo(name = "locked_until") val lockedUntil: Long = 0,
+    @ColumnInfo(name = "lock_delay_ms") val lockDelayMs: Long = 0,
+    @ColumnInfo(name = "lock_mono_at") val lockMonoAt: Long = 0,
+    @ColumnInfo(name = "lock_boot") val lockBoot: String = "",
+)
