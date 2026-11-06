@@ -44,4 +44,15 @@ class AccountsSourceGuardTest {
         assertTrue(debug.contains("admin5") && debug.contains("user1") && debug.contains("Demo Admin") && debug.contains("Demo Salesman"))
         assertEquals(false, File(app, "src/debug/java/com/mamre/billing/ui/login/DemoLoginGate.kt").exists())
     }
+
+    /** B8 item e: the Admin tile, the Export card and the Finish setup card (its items open Admin screens) are hidden for a salesman. */
+    @Test fun theSalesHomeHidesTheAdminTileTheExportCardAndTheFinishSetupCardFromASalesman() {
+        val home = File(app, "src/main/java/com/mamre/billing/ui/worker/HomeScreen.kt").readText()
+        assertTrue("isAdmin is read from the logged-in account's role", home.contains("val isAdmin = account?.role == Role.ADMIN"))
+        assertTrue("Finish setup card", home.contains("if (isAdmin && state.setup.any) FinishSetupCard("))
+        assertTrue("Export card", home.contains("if (isAdmin) state.exportDue?.let { ExportReminderCard("))
+        val tile = home.indexOf("GridTile(\"Admin area\"")
+        assertTrue("Admin tile exists", tile > 0)
+        assertTrue("Admin tile sits inside an isAdmin branch", home.lastIndexOf("if (isAdmin) {", tile) in (tile - 200) until tile)
+    }
 }
