@@ -106,8 +106,8 @@ data class SettingEntity(
  */
 @Entity(
     tableName = "invoices",
-    foreignKeys = [ForeignKey(CustomerEntity::class, ["id"], ["customer_id"])],
-    indices = [Index("number", unique = true), Index("customer_id"), Index("issued_at")],
+    foreignKeys = [ForeignKey(CustomerEntity::class, ["id"], ["customer_id"]), ForeignKey(UserEntity::class, ["id"], ["created_by_user_id"])],
+    indices = [Index("number", unique = true), Index("customer_id"), Index("issued_at"), Index("created_by_user_id")],
 )
 data class InvoiceEntity(
     @PrimaryKey val id: String,
@@ -118,6 +118,7 @@ data class InvoiceEntity(
     @ColumnInfo(name = "customer_location") val customerLocation: String,
     @ColumnInfo(name = "is_corporate") val isCorporate: Boolean,
     @ColumnInfo(name = "salesman_name") val salesmanName: String,
+    @ColumnInfo(name = "created_by_user_id") val createdByUserId: String,
     @ColumnInfo(name = "issued_at") val issuedAt: Long,
     @ColumnInfo(name = "total_cents") val totalCents: Long,
     /** "active" or "void". */
@@ -154,8 +155,9 @@ data class InvoiceItemEntity(
     foreignKeys = [
         ForeignKey(CustomerEntity::class, ["id"], ["customer_id"]),
         ForeignKey(InvoiceEntity::class, ["id"], ["invoice_id"]),
+        ForeignKey(UserEntity::class, ["id"], ["created_by_user_id"]),
     ],
-    indices = [Index("receipt_number", unique = true), Index("customer_id"), Index("invoice_id"), Index("paid_at")],
+    indices = [Index("receipt_number", unique = true), Index("customer_id"), Index("invoice_id"), Index("paid_at"), Index("created_by_user_id")],
 )
 data class PaymentEntity(
     @PrimaryKey val id: String,
@@ -167,6 +169,9 @@ data class PaymentEntity(
     val method: String,
     @ColumnInfo(name = "paid_at") val paidAt: Long,
     val note: String,
+    @ColumnInfo(name = "created_by_user_id") val createdByUserId: String,
+    /** The creator display name when the payment was saved: a receipt reprint prints this, whatever the account is called later (B8 L3, L12). */
+    @ColumnInfo(name = "salesman_name") val salesmanName: String,
 )
 
 /** A customer return. A credit reduces the balance, a replacement does not (Doc 1 s7.1). */
@@ -175,9 +180,10 @@ data class PaymentEntity(
     foreignKeys = [
         ForeignKey(CustomerEntity::class, ["id"], ["customer_id"]),
         ForeignKey(InvoiceEntity::class, ["id"], ["invoice_id"]),
+        ForeignKey(UserEntity::class, ["id"], ["created_by_user_id"]),
         ForeignKey(ProductEntity::class, ["id"], ["product_id"]),
     ],
-    indices = [Index("customer_id"), Index("invoice_id"), Index("product_id"), Index("occurred_at")],
+    indices = [Index("customer_id"), Index("invoice_id"), Index("product_id"), Index("occurred_at"), Index("created_by_user_id")],
 )
 data class ReturnEntity(
     @PrimaryKey val id: String,
@@ -193,6 +199,7 @@ data class ReturnEntity(
     @ColumnInfo(name = "credit_cents") val creditCents: Long,
     @ColumnInfo(name = "occurred_at") val occurredAt: Long,
     val note: String,
+    @ColumnInfo(name = "created_by_user_id") val createdByUserId: String,
 )
 
 /** One shared list of materials: wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. */

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "e15e3b91afbae02e15b9afc50595f708",
+    "identityHash": "cd238238d964ed19f6a6c667768ddca7",
     "entities": [
       {
         "tableName": "customer_types",
@@ -424,7 +424,7 @@
       },
       {
         "tableName": "invoices",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `number` TEXT NOT NULL, `customer_id` TEXT, `customer_name` TEXT NOT NULL, `customer_location` TEXT NOT NULL, `is_corporate` INTEGER NOT NULL, `salesman_name` TEXT NOT NULL, `issued_at` INTEGER NOT NULL, `total_cents` INTEGER NOT NULL, `status` TEXT NOT NULL, `void_reason` TEXT, `voided_at` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`customer_id`) REFERENCES `customers`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `number` TEXT NOT NULL, `customer_id` TEXT, `customer_name` TEXT NOT NULL, `customer_location` TEXT NOT NULL, `is_corporate` INTEGER NOT NULL, `salesman_name` TEXT NOT NULL, `created_by_user_id` TEXT NOT NULL, `issued_at` INTEGER NOT NULL, `total_cents` INTEGER NOT NULL, `status` TEXT NOT NULL, `void_reason` TEXT, `voided_at` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`customer_id`) REFERENCES `customers`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -464,6 +464,12 @@
           {
             "fieldPath": "salesmanName",
             "columnName": "salesman_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdByUserId",
+            "columnName": "created_by_user_id",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -529,6 +535,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_invoices_issued_at` ON `${TABLE_NAME}` (`issued_at`)"
+          },
+          {
+            "name": "index_invoices_created_by_user_id",
+            "unique": false,
+            "columnNames": [
+              "created_by_user_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_invoices_created_by_user_id` ON `${TABLE_NAME}` (`created_by_user_id`)"
           }
         ],
         "foreignKeys": [
@@ -538,6 +553,17 @@
             "onUpdate": "NO ACTION",
             "columns": [
               "customer_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "users",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "created_by_user_id"
             ],
             "referencedColumns": [
               "id"
@@ -663,7 +689,7 @@
       },
       {
         "tableName": "payments",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `receipt_number` TEXT NOT NULL, `customer_id` TEXT, `invoice_id` TEXT, `amount_cents` INTEGER NOT NULL, `method` TEXT NOT NULL, `paid_at` INTEGER NOT NULL, `note` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`customer_id`) REFERENCES `customers`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`invoice_id`) REFERENCES `invoices`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `receipt_number` TEXT NOT NULL, `customer_id` TEXT, `invoice_id` TEXT, `amount_cents` INTEGER NOT NULL, `method` TEXT NOT NULL, `paid_at` INTEGER NOT NULL, `note` TEXT NOT NULL, `created_by_user_id` TEXT NOT NULL, `salesman_name` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`customer_id`) REFERENCES `customers`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`invoice_id`) REFERENCES `invoices`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -710,6 +736,18 @@
             "columnName": "note",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "createdByUserId",
+            "columnName": "created_by_user_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "salesmanName",
+            "columnName": "salesman_name",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -754,6 +792,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_payments_paid_at` ON `${TABLE_NAME}` (`paid_at`)"
+          },
+          {
+            "name": "index_payments_created_by_user_id",
+            "unique": false,
+            "columnNames": [
+              "created_by_user_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_payments_created_by_user_id` ON `${TABLE_NAME}` (`created_by_user_id`)"
           }
         ],
         "foreignKeys": [
@@ -778,12 +825,23 @@
             "referencedColumns": [
               "id"
             ]
+          },
+          {
+            "table": "users",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "created_by_user_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
           }
         ]
       },
       {
         "tableName": "return_records",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `customer_id` TEXT NOT NULL, `invoice_id` TEXT, `product_id` TEXT NOT NULL, `qty_packets` INTEGER NOT NULL, `chapathis_per_packet` INTEGER NOT NULL, `reason` TEXT NOT NULL, `resolution` TEXT NOT NULL, `unit_price_cents` INTEGER NOT NULL, `credit_cents` INTEGER NOT NULL, `occurred_at` INTEGER NOT NULL, `note` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`customer_id`) REFERENCES `customers`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`invoice_id`) REFERENCES `invoices`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`product_id`) REFERENCES `products`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `customer_id` TEXT NOT NULL, `invoice_id` TEXT, `product_id` TEXT NOT NULL, `qty_packets` INTEGER NOT NULL, `chapathis_per_packet` INTEGER NOT NULL, `reason` TEXT NOT NULL, `resolution` TEXT NOT NULL, `unit_price_cents` INTEGER NOT NULL, `credit_cents` INTEGER NOT NULL, `occurred_at` INTEGER NOT NULL, `note` TEXT NOT NULL, `created_by_user_id` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`customer_id`) REFERENCES `customers`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`invoice_id`) REFERENCES `invoices`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION , FOREIGN KEY(`product_id`) REFERENCES `products`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
         "fields": [
           {
             "fieldPath": "id",
@@ -855,6 +913,12 @@
             "columnName": "note",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "createdByUserId",
+            "columnName": "created_by_user_id",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -899,6 +963,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_return_records_occurred_at` ON `${TABLE_NAME}` (`occurred_at`)"
+          },
+          {
+            "name": "index_return_records_created_by_user_id",
+            "unique": false,
+            "columnNames": [
+              "created_by_user_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_return_records_created_by_user_id` ON `${TABLE_NAME}` (`created_by_user_id`)"
           }
         ],
         "foreignKeys": [
@@ -919,6 +992,17 @@
             "onUpdate": "NO ACTION",
             "columns": [
               "invoice_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "users",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "created_by_user_id"
             ],
             "referencedColumns": [
               "id"
@@ -1600,7 +1684,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e15e3b91afbae02e15b9afc50595f708')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cd238238d964ed19f6a6c667768ddca7')"
     ]
   }
 }

@@ -9,6 +9,8 @@ import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.StockRepository
+import com.mamre.billing.domain.accounts.Account
+import com.mamre.billing.domain.auth.Role
 import com.mamre.billing.domain.admin.AdminCustomer
 import com.mamre.billing.domain.admin.ChangeLogEntry
 import com.mamre.billing.domain.admin.CustomerForm
@@ -139,7 +141,23 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
 
     val today: LocalDate get() = LocalDate.now(clock)
 
-    suspend fun seed() = ReferenceSeed(db, unitOfWork).run()
+    /** The accounts the tests act as (B8): an admin and a salesman. Bills, payments and returns need a creator that exists (foreign key). */
+    val actor = Account("test-admin", "testadmin", "Test Admin", Role.ADMIN, true, 0L)
+    val asha = Account("test-asha", "asha", "Asha Kumar", Role.SALESMAN, true, 0L)
+
+    suspend fun seed() {
+        ReferenceSeed(db, unitOfWork).run()
+        ensureActors()
+    }
+
+    /** Adds the test admin and salesman when they are missing (a world opened on the demo history has the demo accounts instead). */
+    suspend fun ensureActors() {
+        for (a in listOf(actor, asha)) {
+            if (db.userDao().get(a.id) == null) {
+                db.userDao().insert(UserEntity(a.id, a.username, a.displayName, a.role.name, "x", "x", true, 0L))
+            }
+        }
+    }
 
     /** A price for both products for a type, effective [from]. */
     suspend fun price(typeId: String, fresh: Long, chapathi: Long, from: LocalDate = LocalDate.of(2026, 1, 1)) {
@@ -167,11 +185,11 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
         size: Int = 12,
     ) = InvoiceLine(product, name, qty, unit, size, list)
 
-    fun draft(customerId: String?, lines: List<InvoiceLine>, paid: Long = 0, method: PaymentMethod? = null, id: String = UUID.randomUUID().toString()) =
-        BillDraft(id, customerId, lines, paid, method)
+    fun draft(customerId: String?, lines: List<InvoiceLine>, paid: Long = 0, method: PaymentMethod? = null, id: String = UUID.randomUUID().toString(), by: Account = actor) =
+        BillDraft(id, customerId, lines, paid, method, by)
 
-    fun payment(customerId: String, cents: Long, method: PaymentMethod = PaymentMethod.CASH, note: String = "", id: String = UUID.randomUUID().toString()) =
-        PaymentDraft(id, customerId, cents, method, note)
+    fun payment(customerId: String, cents: Long, method: PaymentMethod = PaymentMethod.CASH, note: String = "", id: String = UUID.randomUUID().toString(), by: Account = actor) =
+        PaymentDraft(id, customerId, cents, method, note, by)
 
     /** A return of [qty] packets of [size] chapathis; the price is worked out by the use case (linked bill, or current price). */
     fun returnOf(
@@ -182,9 +200,10 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
         invoiceId: String? = null,
         size: Int = 12,
         product: String = ReferenceIds.PRODUCT_FRESH,
+        by: Account = actor,
     ) = ReturnDraft(
         id, customerId, product, qty, size, com.mamre.billing.domain.worker.ReturnReason.DAMAGED,
         if (credit) com.mamre.billing.domain.worker.ReturnResolution.CREDIT else com.mamre.billing.domain.worker.ReturnResolution.REPLACEMENT,
-        invoiceId,
+        by, invoiceId,
     )
 }

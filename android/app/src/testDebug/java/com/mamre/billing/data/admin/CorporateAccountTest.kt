@@ -36,6 +36,9 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CorporateAccountTest {
     private lateinit var w: World
+
+    /** The Demo Admin the debug seed creates (B8 item k); the foreign key needs a creator that exists. */
+    private val demoAdmin = com.mamre.billing.domain.accounts.Account("demo-admin", "admin", "Demo Admin", com.mamre.billing.domain.auth.Role.ADMIN, true, 0L)
     private val admin get() = w.admin
     private val banned = listOf("Balance", "TOTAL DUE", "THIS MONTH", "Brought forward")
 
@@ -129,7 +132,7 @@ class CorporateAccountTest {
     // ------------------------------------------------------------------ the bill and the receipt
 
     private suspend fun corporateBill(paid: Long = 0, method: PaymentMethod? = null) = w.makeBill(
-        BillDraft("d-corp", DemoCustomerIds.FRESHMART_DOWNTOWN, listOf(InvoiceLine(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", 70, 270)), paid, method),
+        BillDraft("d-corp", DemoCustomerIds.FRESHMART_DOWNTOWN, listOf(InvoiceLine(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", 70, 270)), paid, method, demoAdmin),
     )
 
     @Test fun aCorporateBillContainsNoBalanceTotalDueMonthSummaryOrBroughtForward() = runBlocking {
@@ -155,7 +158,7 @@ class CorporateAccountTest {
 
     @Test fun aNormalCreditCustomerIsUnaffected() = runBlocking {
         val invoice = w.makeBill(
-            BillDraft("d-normal", DemoCustomerIds.SPICE_GARDEN, listOf(InvoiceLine(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", 10, 240)), 1000, PaymentMethod.CASH),
+            BillDraft("d-normal", DemoCustomerIds.SPICE_GARDEN, listOf(InvoiceLine(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", 10, 240)), 1000, PaymentMethod.CASH, demoAdmin),
         )
         assertFalse(invoice.isCorporate)
         val state = w.sales.state()

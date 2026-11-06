@@ -6,6 +6,11 @@ import com.mamre.billing.data.local.MamreDatabase
 import com.mamre.billing.data.local.RoomUnitOfWork
 import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.UnitOfWork
+import com.mamre.billing.data.local.UserEntity
+import com.mamre.billing.data.repo.UsersRepository
+import com.mamre.billing.domain.accounts.Account
+import com.mamre.billing.domain.auth.Role
+import com.mamre.billing.domain.security.PinHasher
 import com.mamre.billing.data.repo.ChangeLogRepository
 import com.mamre.billing.data.repo.CustomerRepository
 import com.mamre.billing.data.repo.ExpenseRepository
@@ -80,6 +85,27 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
         RoomUnitOfWork(db).run { replay(today, zone, until) }
     }
 
+    /**
+     * B8 item k, debug build only: admin/admin5 (ADMIN, "Demo Admin") and user1/user1 (SALESMAN, "Demo Salesman"). The release
+     * build has no such code. Returns the Demo Admin, the author of the seeded bills.
+     */
+    private suspend fun seedDemoAccounts(now: Long): Account {
+        val users = UsersRepository(db.userDao())
+        suspend fun add(id: String, username: String, name: String, role: Role, password: String): Account {
+            val salt = PinHasher.newSalt()
+            users.insert(
+                UserEntity(
+                    id = id, username = username, displayName = name, role = role.name, passwordHash = PinHasher.hash(password, salt),
+                    passwordSalt = salt, active = true, createdAt = now,
+                ),
+            )
+            return Account(id, username, name, role, true, now)
+        }
+        val admin = add("demo-admin", "admin", "Demo Admin", Role.ADMIN, "admin5")
+        add("demo-salesman", "user1", "Demo Salesman", Role.SALESMAN, "user1")
+        return admin
+    }
+
     private suspend fun replay(today: LocalDate, zone: ZoneId, until: LocalDateTime?) {
         val clock = SeedClock(zone)
         val u: UnitOfWork = RoomUnitOfWork(db)
@@ -98,6 +124,9 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
         val history: BooksSnapshot = AdminSeed.build(today)
         val first = YearMonth.from(today).minusMonths(6).atDay(1)
         clock.at(first.atStartOfDay())
+
+        // The two demo accounts (B8 item k, debug only) and the Demo Admin who is the author of every seeded bill.
+        val demoAdmin = seedDemoAccounts(clock.millis())
 
         // The Owner's setup: name, business details, prices, overrides, customers and opening stock.
         settings.put(SettingKeys.OWNER_NAME, DemoCatalog.OWNER_NAME)
@@ -120,7 +149,7 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
         history.invoices.forEach { inv ->
             val paid = paymentsByInvoice[inv.id]
             events += Event(inv.issuedAt, 1, inv.number) {
-                makeBill(BillDraft(inv.id, inv.customerId, inv.lines(), paid?.amountCents ?: 0L, paid?.method))
+                makeBill(BillDraft(inv.id, inv.customerId, inv.lines(), paid?.amountCents ?: 0L, paid?.method, demoAdmin))
             }
             if (inv.isVoid) {
                 events += Event(inv.voidedAt!!, 2, inv.number) { voidBill(inv.id, inv.voidReason!!) }
@@ -128,12 +157,12 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
         }
         history.payments.filter { !history.paymentInvoiceIds.containsKey(it.id) }.forEach { p ->
             events += Event(p.date.atTime(12, 0), 3, p.receiptNumber) {
-                recordPayment(PaymentDraft(p.id, p.customerId!!, p.amountCents, p.method, p.note))
+                recordPayment(PaymentDraft(p.id, p.customerId!!, p.amountCents, p.method, p.note, demoAdmin))
             }
         }
         history.returns.forEach { r ->
             events += Event(r.date.atTime(14, 0), 4, r.id) {
-                recordReturn(ReturnDraft(r.id, r.customerId, r.productId, r.qtyPackets, r.chapathisPerPacket, r.reason, r.resolution, r.invoiceId))
+                recordReturn(ReturnDraft(r.id, r.customerId, r.productId, r.qtyPackets, r.chapathisPerPacket, r.reason, r.resolution, demoAdmin, r.invoiceId))
             }
         }
         val addPurchase = AddPurchase(u, stock, log, clock)

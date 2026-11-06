@@ -13,6 +13,7 @@ import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.data.repo.stored
 import com.mamre.billing.data.repo.toCustomer
+import com.mamre.billing.domain.accounts.Account
 import com.mamre.billing.domain.admin.cleanVoidReason
 import com.mamre.billing.domain.model.Customer
 import com.mamre.billing.domain.model.Product
@@ -58,6 +59,8 @@ data class BillDraft(
     val lines: List<InvoiceLine>,
     val paidNowCents: Long,
     val method: PaymentMethod?,
+    /** The signed-in account that makes the bill (B8 L9): held in memory by the app, passed in here, never read from storage. */
+    val by: Account,
 )
 
 /**
@@ -123,7 +126,8 @@ class MakeBill(
                 customerName = customerRow?.name ?: WALK_IN_NAME,
                 customerLocation = customerRow?.location.orEmpty(),
                 isCorporate = customerRow?.isCorporate == true,
-                salesmanName = settings.ownerName(),
+                salesmanName = draft.by.displayName,
+                createdByUserId = draft.by.id,
                 issuedAt = now,
                 totalCents = total,
                 status = Stored.ACTIVE,
@@ -154,6 +158,8 @@ class MakeBill(
                     method = it.stored(),
                     paidAt = now,
                     note = "",
+                    createdByUserId = draft.by.id,
+                    salesmanName = draft.by.displayName,
                 )
             }
             sales.insertBill(invoice, items, payment)
@@ -174,6 +180,7 @@ data class PaymentDraft(
     val amountCents: Long,
     val method: PaymentMethod,
     val note: String,
+    val by: Account,
 )
 
 /**
@@ -204,6 +211,8 @@ class RecordPayment(
                     method = draft.method.stored(),
                     paidAt = clock.millis(),
                     note = draft.note.trim(),
+                    createdByUserId = draft.by.id,
+                    salesmanName = draft.by.displayName,
                 ),
             )
         }
@@ -223,6 +232,7 @@ data class ReturnDraft(
     val chapathisPerPacket: Int,
     val reason: ReturnReason,
     val resolution: ReturnResolution,
+    val by: Account,
     val invoiceId: String? = null,
     val note: String = "",
 )
@@ -286,6 +296,7 @@ class RecordReturn(
                     creditCents = returnCreditCents(draft.resolution, draft.qtyPackets, unitPrice),
                     occurredAt = clock.millis(),
                     note = draft.note.trim(),
+                    createdByUserId = draft.by.id,
                 ),
             )
         }
