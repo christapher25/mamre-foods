@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.stateIn
 
 data class HomeState(
     val businessName: String = "",
-    val ownerName: String = "",
     val deviceCode: String = "",
     /** A count only. The Sales area never shows bill totals here (Doc 2 s10, Doc 1 s2). */
     val invoicesToday: Int = 0,
@@ -58,7 +57,6 @@ class HomeViewModel @Inject constructor(
         val today = LocalDate.now(clock)
         HomeState(
             businessName = s[SettingKeys.BUSINESS_NAME].orEmpty(),
-            ownerName = s[SettingKeys.OWNER_NAME].orEmpty(),
             deviceCode = s[SettingKeys.DEVICE_CODE].orEmpty(),
             invoicesToday = sold.invoices.count { it.issuedAt.toLocalDate() == today },
             setup = setupGaps(s, prices.products().filter { it.isActive }.map { it.id }, customers.types().map { it.id }, defaults.filter { !it.effectiveFrom.isAfter(today) }.map { PriceKey(it.productId, it.customerTypeId) }),

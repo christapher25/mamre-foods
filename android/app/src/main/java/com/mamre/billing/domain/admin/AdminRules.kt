@@ -1,6 +1,5 @@
 package com.mamre.billing.domain.admin
 
-import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.parseCents
 import java.time.LocalDate
 import java.time.YearMonth
@@ -114,13 +113,6 @@ fun settingsProblemMessage(problem: SettingsProblem): String = when (problem) {
     SettingsProblem.PHONE_TOO_LONG -> "The phone is at most $MAX_PHONE characters"
     SettingsProblem.FOOTER_TOO_LONG -> "The footer is at most $MAX_FOOTER characters"
 }
-
-/** The owner name printed after "Salesman:" (Doc 1 A-29, P-12): 2 to 40 characters, inner spaces collapsed. Null when it does not fit. */
-const val MIN_OWNER_NAME = 2
-const val MAX_OWNER_NAME = 40
-
-fun cleanOwnerName(text: String): String? =
-    normalizeSpaces(text).takeIf { it.length in MIN_OWNER_NAME..MAX_OWNER_NAME }
 
 /** The device code in bill numbers (Doc 2 I-3): capital letters A to Z and digits, 1 to 8; typed lowercase is made uppercase. Null when it does not fit. */
 const val MAX_DEVICE_CODE = 8

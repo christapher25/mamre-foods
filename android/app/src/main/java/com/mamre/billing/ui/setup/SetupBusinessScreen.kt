@@ -38,7 +38,6 @@ fun SetupBusinessScreen(onDone: () -> Unit, viewModel: SetupBusinessViewModel = 
         Text("Set up your business", style = MaterialTheme.typography.headlineSmall)
         Text("This prints on your bills. You can change it later in Admin, Settings.", style = MaterialTheme.typography.bodyLarge)
         LabeledTextField("Business name", f.businessName, { viewModel.edit(f.copy(businessName = it)) }, enabled = !ui.busy)
-        LabeledTextField("Your name (printed as Salesman)", f.ownerName, { viewModel.edit(f.copy(ownerName = it)) }, enabled = !ui.busy)
         LabeledTextField("Address (up to 4 lines)", f.address, { viewModel.edit(f.copy(address = it)) }, singleLine = false, enabled = !ui.busy)
         LabeledTextField("Phone", f.phone, { viewModel.edit(f.copy(phone = it)) }, enabled = !ui.busy)
         LabeledTextField("Bill footer", f.footer, { viewModel.edit(f.copy(footer = it)) }, enabled = !ui.busy)

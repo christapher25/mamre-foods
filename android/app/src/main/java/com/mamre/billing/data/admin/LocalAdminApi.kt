@@ -9,6 +9,7 @@ import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.ExpenseRepository
 import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.data.repo.UsersRepository
 import com.mamre.billing.data.repo.StockRepository
 import com.mamre.billing.data.repo.toAdmin
 import com.mamre.billing.domain.admin.AdminCustomer
@@ -54,7 +55,6 @@ import com.mamre.billing.domain.usecase.SetSalesmanCanEditPrice
 import com.mamre.billing.domain.usecase.SetStandardPacketSize
 import com.mamre.billing.domain.usecase.SetDeviceCode
 import com.mamre.billing.domain.usecase.SetLockMinutes
-import com.mamre.billing.domain.usecase.SetOwnerName
 import com.mamre.billing.domain.usecase.SetWastage
 import com.mamre.billing.domain.usecase.SetYieldPerKg
 import com.mamre.billing.domain.usecase.VoidBill
@@ -81,6 +81,7 @@ class LocalAdminApi(
     private val stock: StockRepository,
     private val expenseRepo: ExpenseRepository,
     private val settingsRepo: SettingsRepository,
+    private val users: UsersRepository,
     private val voidBill: VoidBill,
     private val addCustomer: AddCustomer,
     private val editCustomer: EditCustomer,
@@ -98,7 +99,6 @@ class LocalAdminApi(
     private val setStandardPacketSizeUseCase: SetStandardPacketSize,
     private val setYieldPerKgUseCase: SetYieldPerKg,
     private val saveBusinessSettings: SaveBusinessSettings,
-    private val setOwnerNameUseCase: SetOwnerName,
     private val setDeviceCodeUseCase: SetDeviceCode,
     private val setLockMinutesUseCase: SetLockMinutes,
     private val clock: Clock = Clock.systemDefaultZone(),
@@ -136,6 +136,7 @@ class LocalAdminApi(
                 stock = stock,
                 expenseRepo = expenses,
                 settingsRepo = settings,
+                users = UsersRepository(db.userDao()),
                 voidBill = VoidBill(u, sales, log, clock),
                 addCustomer = AddCustomer(u, customers, log, clock),
                 editCustomer = EditCustomer(u, customers, log, clock),
@@ -153,7 +154,6 @@ class LocalAdminApi(
                 setStandardPacketSizeUseCase = SetStandardPacketSize(u, stock, log, clock),
                 setYieldPerKgUseCase = SetYieldPerKg(u, stock, log, clock),
                 saveBusinessSettings = SaveBusinessSettings(u, settings, log, clock),
-                setOwnerNameUseCase = SetOwnerName(u, settings, log, clock),
                 setDeviceCodeUseCase = SetDeviceCode(u, settings, log, clock),
                 setLockMinutesUseCase = SetLockMinutes(u, settings, log, clock),
                 clock = clock,
@@ -317,9 +317,8 @@ class LocalAdminApi(
 
     override suspend fun saveSettings(settings: BusinessSettings) = changed { saveBusinessSettings(settings) }
 
-    override suspend fun ownerName(): String = settingsRepo.ownerName()
 
-    override suspend fun setOwnerName(name: String) = changed { setOwnerNameUseCase(name) }
+
 
     override suspend fun deviceCode(): String = settingsRepo.deviceCode()
 
@@ -329,5 +328,5 @@ class LocalAdminApi(
 
     override suspend fun setLockMinutes(minutes: Int) = changed { setLockMinutesUseCase(minutes) }
 
-    private suspend fun owner(): String = settingsRepo.ownerName().ifEmpty { BooksRepository.OWNER_LABEL }
+    private suspend fun owner(): String = users.adminName()
 }

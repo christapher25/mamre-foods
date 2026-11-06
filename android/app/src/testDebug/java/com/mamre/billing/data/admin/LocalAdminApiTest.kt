@@ -247,14 +247,14 @@ class LocalAdminApiTest {
         val detail = api.voidInvoice(inv.id, "  Wrong customer ")
         assertTrue(detail.invoice.isVoid)
         assertEquals("Wrong customer", detail.invoice.voidReason)
-        assertEquals("Rajesh", detail.invoice.voidedBy)
+        assertEquals("Demo Admin", detail.invoice.voidedBy) // the admin account display name (B8 L2)
         assertEquals(inv.number, detail.invoice.number)
         assertEquals(inv.items, detail.invoice.items) // never edited, only voided
         assertTrue(api.invoices().any { it.id == inv.id }) // never deleted
         assertEquals(salesBefore - inv.totalCents, api.dashboard(month).netSalesCents)
         assertEquals(balanceBefore - inv.totalCents, api.customerBalance(SeedIds.SPICE_GARDEN))
         val entry = w.newLog().single()
-        assertEquals("Rajesh", entry.who)
+        assertEquals("Demo Admin", entry.who)
         assertTrue(entry.what.contains(inv.number))
         assertTrue(entry.after.contains("Wrong customer"))
         assertNotEquals(entry.before, entry.after)
@@ -405,7 +405,7 @@ class LocalAdminApiTest {
         val before = api.expenses(m).indirectTotalCents
         val e = api.addExpense(SeedIds.CAT_ELECTRICITY, LocalDate.of(2026, 9, 30), 12_345, " Extra bill ")
         assertEquals("Extra bill", e.description)
-        assertEquals("Rajesh", e.enteredBy)
+        assertEquals("Demo Admin", e.enteredBy)
         val report = api.expenses(m)
         assertEquals(before + 12_345, report.indirectTotalCents)
         assertEquals(report.indirectTotalCents, report.categories.sumOf { it.totalCents })

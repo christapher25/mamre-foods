@@ -40,4 +40,11 @@ class SmokeStartGuardTest {
         for (word in listOf("Force", "Override", "Skip", "NoCheck", "Yes", "Really")) assertFalse("$word in param: $param", param.contains(word, ignoreCase = true))
         assertEquals("the guard is called exactly once", 1, mainFlow().count { it.trim() == "Assert-Emulator" })
     }
+
+    /** B8 L11: a release build starts on the "Create the admin account" screen; the old PIN texts are gone from the script. */
+    @Test fun theScriptWaitsForTheCreateTheAdminAccountScreenAndNotForAPin() {
+        assertTrue(mainFlow().any { it.contains("text=\"Create the admin account\"") })
+        assertFalse("no PIN text is waited for", script.contains("New PIN") || script.contains("Save PIN") || script.contains("PIN setup"))
+        assertTrue("the PASS text names the new screen", script.contains("shows the first-run screen (Create the admin account)"))
+    }
 }

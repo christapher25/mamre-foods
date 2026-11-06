@@ -27,6 +27,14 @@ class UsersRepository(private val dao: UserDao) {
     fun observeAccounts(): Flow<List<Account>> = dao.observeAll().map { rows -> rows.mapNotNull { it.toAccount() } }
 
     suspend fun accounts(): List<Account> = dao.getAll().mapNotNull { it.toAccount() }
+
+    /** The display name of the admin account: the person shown on Admin-area labels (who voided, who entered, the change log). */
+    suspend fun adminName(): String = dao.getAll().firstOrNull { it.role == Role.ADMIN.name }?.displayName ?: ADMIN_LABEL
+
+    companion object {
+        /** Shown as the person of an entry when no admin account exists (never in a normal install). */
+        const val ADMIN_LABEL = "Admin"
+    }
 }
 
 /** Null when the stored role is not exactly ADMIN or SALESMAN (fails closed: such a row cannot sign in). */

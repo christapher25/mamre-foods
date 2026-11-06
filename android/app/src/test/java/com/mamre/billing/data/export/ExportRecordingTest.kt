@@ -27,7 +27,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
 /**
- * When the export is recorded (Doc 1 s11.1, A-26): only when the 18 files and the manifest are written AND the share sheet has been
+ * When the export is recorded (Doc 1 s11.1, A-26): only when the 19 files and the manifest are written AND the share sheet has been
  * launched. A failed read or write, or a share sheet that could not open, records nothing.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -68,7 +68,7 @@ class ExportRecordingTest {
         val vm = vm()
         vm.export().join()
         val files = (vm.ui.value as ExportState.Ready).files
-        assertEquals(18 + 1, files.size) // the 18 CSV files and the manifest are all written by then
+        assertEquals(19 + 1, files.size) // the 19 CSV files and the manifest are all written by then
         assertTrue(files.all { it.length() > 0 })
         vm.shareLaunched().join()
         assertEquals(Instant.parse("2026-10-19T15:10:00Z").toEpochMilli(), recorded())

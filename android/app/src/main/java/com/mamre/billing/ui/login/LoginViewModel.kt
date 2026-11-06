@@ -15,6 +15,7 @@ import com.mamre.billing.domain.usecase.Login
 import com.mamre.billing.domain.usecase.LoginResult
 import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.ui.lock.WaitCountdown
+import com.mamre.billing.ui.lock.waitMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,7 +56,6 @@ const val ACCOUNT_DAMAGED_TEXT =
 const val WRONG_LOGIN_TEXT = "Wrong username or password."
 const val ACCOUNT_OFF_TEXT = "This account is switched off. Ask the admin."
 
-private fun waitText(ms: Long) = "Too many wrong passwords. Please wait ${(ms + 999) / 1000} seconds."
 
 /** The login screen (B8 c, d): create the admin on a first run, log in on every start, after the lock time and after Log out. */
 @HiltViewModel
@@ -74,7 +74,7 @@ class LoginViewModel @Inject constructor(
     private val countdown = WaitCountdown(viewModelScope, clock) { left ->
         _ui.update {
             // Only the account that was locked shows the wait; typing another username hides it (L6).
-            if (it.waitFor == key(it.username)) it.copy(waitMs = left, message = if (left > 0) waitText(left) else null) else it
+            if (it.waitFor == key(it.username)) it.copy(waitMs = left, message = if (left > 0) waitMessage(left) else null) else it
         }
     }
 

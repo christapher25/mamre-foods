@@ -32,6 +32,7 @@ import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.LabeledTextField
 import com.mamre.billing.ui.components.PrimaryButton
 import com.mamre.billing.ui.lock.WaitCountdown
+import com.mamre.billing.ui.lock.waitMessage
 import com.mamre.billing.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -49,7 +50,6 @@ const val CHANGE_PASSWORD_NO_RECOVERY_TEXT = "Write the new password down and ke
 
 const val WRONG_CURRENT_PASSWORD_TEXT = "Wrong current password."
 
-private fun waitText(ms: Long) = "Too many wrong passwords. Please wait ${(ms + 999) / 1000} seconds."
 
 data class ChangePasswordUi(
     val current: String = "",
@@ -76,7 +76,7 @@ class ChangePasswordViewModel @Inject constructor(
     private val _ui = MutableStateFlow(ChangePasswordUi())
     val ui: StateFlow<ChangePasswordUi> = _ui.asStateFlow()
     private val countdown = WaitCountdown(viewModelScope, clock) { left ->
-        _ui.update { it.copy(waitMs = left, message = if (left > 0) waitText(left) else null) }
+        _ui.update { it.copy(waitMs = left, message = if (left > 0) waitMessage(left) else null) }
     }
 
     fun onCurrent(value: String) = _ui.update { it.copy(current = value, message = null) }

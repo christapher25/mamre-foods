@@ -52,7 +52,6 @@ class HomeSetupCardTest {
     }
 
     private suspend fun fillBusinessDetails() {
-        w.settings.put(SettingKeys.OWNER_NAME, "Rajesh")
         w.settings.put(SettingKeys.ADDRESS, "1 Main Road")
         w.settings.put(SettingKeys.PHONE, "9876543210")
     }

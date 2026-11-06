@@ -51,10 +51,9 @@ class HomeViewModelTest {
 
     private fun home() = scopes.track(HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock)))
 
-    @Test fun homeShowsTheBusinessOwnerAndDeviceFromSettings() = runBlocking {
+    @Test fun homeShowsTheBusinessAndDeviceFromSettings() = runBlocking {
         val state = withTimeout(10_000) { home().state.first { it.deviceCode.isNotEmpty() } }
         assertEquals("MAMRE FOODS", state.businessName) // the debug sample settings
-        assertEquals("Rajesh", state.ownerName)
         assertEquals("W1", state.deviceCode)
     }
 

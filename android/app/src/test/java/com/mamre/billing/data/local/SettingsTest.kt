@@ -5,7 +5,6 @@ import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.domain.usecase.SetDeviceCode
 import com.mamre.billing.domain.usecase.SetLockMinutes
-import com.mamre.billing.domain.usecase.SetOwnerName
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.print.invoiceReceiptOf
 import com.mamre.billing.print.layoutInvoiceReceipt
@@ -49,25 +48,10 @@ class SettingsTest {
         return ""
     }
 
-    private fun World.setOwner() = SetOwnerName(unitOfWork, settings, changeLog, clock)
     private fun World.setCode() = SetDeviceCode(unitOfWork, settings, changeLog, clock)
     private fun World.setLock() = SetLockMinutes(unitOfWork, settings, changeLog, clock)
 
     private fun World.cashBill() = draft(null, listOf(line(qty = 1, unit = 260)), paid = 260, method = PaymentMethod.CASH)
-
-    // ---------------------------------------------------------------- owner name
-
-    @Test fun theOwnerNameIsTwoToFortyCharactersAndSurvivesReopening() = runBlocking {
-        var w = first()
-        assertTrue(refused { w.setOwner()("A") }.contains("2 to 40"))
-        assertTrue(refused { w.setOwner()("x".repeat(41)) }.contains("2 to 40"))
-        assertEquals("", w.settings.ownerName())
-        w.setOwner()("Jo")
-        w.setOwner()("x".repeat(40))
-        w.setOwner()(" Rajesh  Thomas ")
-        w = reopen(w)
-        assertEquals("Rajesh Thomas", w.settings.ownerName())
-    }
 
     // ---------------------------------------------------------------- business details
 

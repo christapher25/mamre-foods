@@ -7,12 +7,11 @@ import com.mamre.billing.domain.model.PaymentMode
  * clock set to each day (priced 1.00 per standard packet, so 120 packets are $120.00):
  *   Sep 3  bill 1  $120.00 -> $120.00      Sep 10 bill 2  $90.00 -> $210.00
  *   Sep 12 payment -$150.00 -> $60.00      Sep 20 bill 3  $60.00  -> $120.00
- * The owner's name is Rajesh. The clock is left on 2026-10-02 14:00 UTC. Returns the world and the customer's id.
+ * The clock is left on 2026-10-02 14:00 UTC. Returns the world and the customer's id.
  */
 suspend fun section65World(db: MamreDatabase = TestDatabase.inMemory()): Pair<World, String> {
     val w = World(db, MutableClock("2026-09-01T09:00:00Z"))
     w.seed()
-    w.settings.put(SettingKeys.OWNER_NAME, "Rajesh")
     w.price(ReferenceIds.TYPE_RESTAURANT, 100, 100)
     w.price(ReferenceIds.TYPE_RETAIL, 100, 100)
     w.price(ReferenceIds.TYPE_SHOP, 100, 100)

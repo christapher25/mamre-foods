@@ -38,7 +38,7 @@ class CorporateAccountTest {
     private lateinit var w: World
 
     /** The Demo Admin the debug seed creates (B8 item k); the foreign key needs a creator that exists. */
-    private val demoAdmin = com.mamre.billing.domain.accounts.Account("demo-admin", "admin", "Demo Admin", com.mamre.billing.domain.auth.Role.ADMIN, true, 0L)
+    private val demoAdmin = com.mamre.billing.domain.accounts.Account("00000000-0000-4000-8000-0000000000d1", "admin", "Demo Admin", com.mamre.billing.domain.auth.Role.ADMIN, true, 0L)
     private val admin get() = w.admin
     private val banned = listOf("Balance", "TOTAL DUE", "THIS MONTH", "Brought forward")
 

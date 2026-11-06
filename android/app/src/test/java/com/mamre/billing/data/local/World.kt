@@ -142,8 +142,8 @@ class World(val db: MamreDatabase, val clock: MutableClock = MutableClock()) {
     val today: LocalDate get() = LocalDate.now(clock)
 
     /** The accounts the tests act as (B8): an admin and a salesman. Bills, payments and returns need a creator that exists (foreign key). */
-    val actor = Account("test-admin", "testadmin", "Test Admin", Role.ADMIN, true, 0L)
-    val asha = Account("test-asha", "asha", "Asha Kumar", Role.SALESMAN, true, 0L)
+    val actor = Account("00000000-0000-4000-8000-0000000000a1", "testadmin", "Test Admin", Role.ADMIN, true, 0L)
+    val asha = Account("00000000-0000-4000-8000-0000000000a2", "asha", "Asha Kumar", Role.SALESMAN, true, 0L)
 
     suspend fun seed() {
         ReferenceSeed(db, unitOfWork).run()

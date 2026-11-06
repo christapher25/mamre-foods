@@ -101,8 +101,8 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
             )
             return Account(id, username, name, role, true, now)
         }
-        val admin = add("demo-admin", "admin", "Demo Admin", Role.ADMIN, "admin5")
-        add("demo-salesman", "user1", "Demo Salesman", Role.SALESMAN, "user1")
+        val admin = add("00000000-0000-4000-8000-0000000000d1", "admin", "Demo Admin", Role.ADMIN, "admin5")
+        add("00000000-0000-4000-8000-0000000000d2", "user1", "Demo Salesman", Role.SALESMAN, "user1")
         return admin
     }
 
@@ -129,7 +129,6 @@ class DemoSeeder @Inject constructor(private val db: MamreDatabase) : StartupTas
         val demoAdmin = seedDemoAccounts(clock.millis())
 
         // The Owner's setup: name, business details, prices, overrides, customers and opening stock.
-        settings.put(SettingKeys.OWNER_NAME, DemoCatalog.OWNER_NAME)
         SaveBusinessSettings(u, settings, log, clock)(DemoCatalog.settings)
         val setPrice = SetDefaultPrice(u, customers, prices, log, clock)
         DemoCatalog.prices(today).sortedBy { it.from }.forEach { setPrice(it.productId, it.typeId, it.cents, it.from) }

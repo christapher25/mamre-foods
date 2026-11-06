@@ -5,22 +5,15 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** Doc 1 s2.1 FR-2: name required, owner name 2 to 40 when given, address/phone/footer optional with the Settings limits. */
+/** Doc 1 s2.1 FR-2: name required, address/phone/footer optional with the Settings limits. */
 class SetupFormTest {
-    private val ok = SetupForm("Mamre Foods", "Rajesh", "1 Main Road\nIrving", "9876543210", "Thank you")
+    private val ok = SetupForm("Mamre Foods", "1 Main Road\nIrving", "9876543210", "Thank you")
 
     @Test fun aCompleteFormIsFine() = assertNull(setupFormProblem(ok))
 
-    @Test fun onlyTheBusinessNameIsRequired() = assertNull(setupFormProblem(SetupForm("Mamre Foods", "", "", "", "")))
+    @Test fun onlyTheBusinessNameIsRequired() = assertNull(setupFormProblem(SetupForm("Mamre Foods", "", "", "")))
 
     @Test fun aMissingBusinessNameIsRefused() = assertNotNull(setupFormProblem(ok.copy(businessName = "  ")))
-
-    @Test fun anOwnerNameWhenGivenIsTwoToFortyCharacters() {
-        assertNotNull(setupFormProblem(ok.copy(ownerName = "R")))
-        assertNotNull(setupFormProblem(ok.copy(ownerName = "R".repeat(41))))
-        assertNull(setupFormProblem(ok.copy(ownerName = "Ra")))
-        assertNull(setupFormProblem(ok.copy(ownerName = "R".repeat(40))))
-    }
 
     @Test fun theAddressIsAtMostFourLinesAndThePhoneAndFooterHaveTheSettingsLimits() {
         assertNotNull(setupFormProblem(ok.copy(address = "a\nb\nc\nd\ne")))
