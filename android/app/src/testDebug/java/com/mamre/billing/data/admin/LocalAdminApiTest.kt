@@ -423,7 +423,9 @@ class LocalAdminApiTest {
         val names = AdminApi::class.java.methods.map { it.name }.toSet()
         assertTrue(names.none { it.startsWith("delete") || it.startsWith("remove") })
         assertEquals(setOf("invoices", "invoiceDetail", "voidInvoice"), names.filter { it.contains("nvoice") }.toSet())
-        assertEquals(setOf("expenseCategories", "expenses", "addExpense", "reverseExpense"), names.filter { it.contains("xpense") }.toSet())
+        // B4 adds addExpenseCategory: a category is only ever added (A-18), never renamed, switched off or deleted.
+        assertEquals(setOf("expenseCategories", "addExpenseCategory", "expenses", "addExpense", "reverseExpense"), names.filter { it.contains("xpense") }.toSet())
+        assertTrue(names.none { it.contains("ategory") && (it.startsWith("edit") || it.startsWith("rename") || it.startsWith("update") || it.startsWith("set")) })
         // Purchases and production damage are add only too; a mistake is corrected by a reversing entry (owner spec 5).
         assertEquals(setOf("purchases", "addPurchase", "reversePurchase"), names.filter { it.contains("urchase") }.toSet())
         assertEquals(setOf("addProductionDamage"), names.filter { it.contains("amage") }.toSet())

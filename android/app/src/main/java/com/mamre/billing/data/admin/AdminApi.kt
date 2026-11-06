@@ -121,6 +121,9 @@ interface AdminApi {
     suspend fun packetCost(month: YearMonth, productId: String, chapathis: Int): ProductCost
 
     suspend fun expenseCategories(): List<ExpenseCategory>
+
+    /** Adds an indirect expense category (B4, Doc 1 s10.2); returns its id. Add only. */
+    suspend fun addExpenseCategory(name: String): String
     suspend fun expenses(month: YearMonth): ExpensesReport
     suspend fun addExpense(categoryId: String, date: LocalDate, amountCents: Long, description: String): Expense
 
