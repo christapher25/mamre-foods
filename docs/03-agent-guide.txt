@@ -172,6 +172,7 @@ Settings, URLs, requirements and Gradle files are shared. Change them with the s
 | N16 | Show a balance for a corporate account on a bill, a receipt or any Sales-area screen. |
 | N17 | Write a business detail (name, address, phone) in the code. It comes from Settings. |
 | N18 | Request the INTERNET permission in the version 1 release app. |
+| N19 | Let a salesman account reach the Admin area, or store a password in plain, or log, show or export a password or its hash (Doc 1 s2.2, Doc 2 s6). |
 
 ### 7.2 Always
 
@@ -383,5 +384,5 @@ Stop. Write the question in docs/QUESTIONS.md. Do not guess.
 
 | Version | Changes |
 |---|---|
-| 1.4 (6 Nov 2026) | Owner decision: accounts replace the PIN. Section 1 summary, AT-19 (account rules), AT-20 (19 files, no password data), new AT-23 (a salesman cannot reach the Admin area; creator on bills), CLAUDE.md template line. |
+| 1.4 (6 Nov 2026) | Owner decision: accounts replace the PIN. Section 1 summary, AT-19 (account rules), AT-20 (19 files, no password data), new AT-23 (a salesman cannot reach the Admin area; creator on bills), new hard rule N19 (matches the CLAUDE.md Never rule), CLAUDE.md template line. |
 | 1.3 (2 Nov 2026) | Note at the top: Doc 4 replaces sections 3, 4, 5.3 and 6 where they conflict while version 1 is finished. |
