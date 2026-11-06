@@ -66,6 +66,15 @@ fun NavGraphBuilder.adminGraph(navController: NavController, features: Features,
                 onOpenCustomer = { navController.navigate(AdminRoutes.customerDetail(it)) },
             )
         }
+        composable(AdminRoutes.PRODUCTS) {
+            ProductListScreen(
+                onBack = { navController.popBackStack() },
+                onAdd = { navController.navigate(AdminRoutes.PRODUCT_NEW) },
+                onOpen = { navController.navigate(AdminRoutes.productEdit(it)) },
+            )
+        }
+        composable(AdminRoutes.PRODUCT_NEW) { ProductFormScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.PRODUCT_EDIT, arguments = idArgs()) { ProductFormScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },

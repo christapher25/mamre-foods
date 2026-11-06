@@ -27,6 +27,9 @@ object AdminRoutes {
     const val RETURNS = "admin/more/returns"
     const val DAMAGE_ADD = "admin/more/returns/damage"
     const val BALANCES = "admin/more/balances"
+    const val PRODUCTS = "admin/more/products"
+    const val PRODUCT_NEW = "admin/more/products/new"
+    const val PRODUCT_EDIT = "admin/more/products/{id}/edit"
     const val SETTINGS = "admin/more/settings"
     const val EXPORT = "admin/more/settings/export"
     const val CHANGE_PASSWORD = "admin/more/settings/change-password"
@@ -40,12 +43,13 @@ object AdminRoutes {
     fun salesDetail(id: String) = "admin/sales/$id"
     fun customerDetail(id: String) = "admin/customers/$id"
     fun customerEdit(id: String) = "admin/customers/$id/edit"
+    fun productEdit(id: String) = "admin/more/products/$id/edit"
     fun overrideSet(customerId: String, productId: String) = "admin/customers/$customerId/override/$productId"
     fun priceSet(productId: String, typeId: String) = "admin/prices/set/$productId/$typeId"
 
     val all = listOf(
         DASHBOARD, SALES, SALES_DETAIL, CUSTOMERS, CUSTOMER_NEW, CUSTOMER_DETAIL, CUSTOMER_EDIT, OVERRIDE_SET,
-        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, SETTINGS, EXPORT, CHANGE_PASSWORD, USERS, PRINTER_CHECK,
+        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, PRODUCTS, PRODUCT_NEW, PRODUCT_EDIT, SETTINGS, EXPORT, CHANGE_PASSWORD, USERS, PRINTER_CHECK,
     )
 }
 
@@ -56,7 +60,7 @@ fun adminTabs(features: Features): List<AdminTab> =
 /** The More list of this build, in order: Costing only with analytics. */
 fun moreRoutes(features: Features): List<String> = listOfNotNull(
     AdminRoutes.COSTING.takeIf { features.showAnalytics },
-    AdminRoutes.EXPENSES, AdminRoutes.RETURNS, AdminRoutes.BALANCES, AdminRoutes.SETTINGS,
+    AdminRoutes.EXPENSES, AdminRoutes.RETURNS, AdminRoutes.BALANCES, AdminRoutes.PRODUCTS, AdminRoutes.SETTINGS,
 )
 
 /** The five bottom tabs; More opens Costing, Expenses, Returns and damage, Balances and Settings. */
@@ -81,7 +85,7 @@ fun tabOf(route: String?): AdminTab? = when {
 
 private val ROUTES_WITH_BAR = setOf(
     AdminRoutes.DASHBOARD, AdminRoutes.SALES, AdminRoutes.CUSTOMERS, AdminRoutes.PRICES, AdminRoutes.MORE,
-    AdminRoutes.COSTING, AdminRoutes.EXPENSES, AdminRoutes.RETURNS, AdminRoutes.BALANCES, AdminRoutes.SETTINGS,
+    AdminRoutes.COSTING, AdminRoutes.EXPENSES, AdminRoutes.RETURNS, AdminRoutes.BALANCES, AdminRoutes.PRODUCTS, AdminRoutes.SETTINGS,
 )
 
 /** The bar stays on the tab roots and the More screens; details and forms use the whole screen. */
