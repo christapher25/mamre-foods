@@ -336,6 +336,9 @@ object SettingKeys {
 
     /** When the last export was prepared (epoch ms, UTC); a system record written by RecordExport, exported like any non-pin_ setting. */
     const val LAST_EXPORT_AT = "last_export_at"
+
+    /** The username of the last successful login, pre-filled on the login screen (B8 L8). Not a secret. */
+    const val LAST_USERNAME = "last_username"
 }
 
 /** Stored text of the small closed sets. */
