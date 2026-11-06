@@ -24,6 +24,7 @@ import com.mamre.billing.domain.security.PinLockout
 import com.mamre.billing.domain.security.PinTime
 import java.time.Clock
 import java.util.UUID
+import kotlinx.coroutines.flow.map
 
 // Accounts and login (B8, replaces the PIN of Doc 1 A-25). Only a salted PBKDF2 hash and the salt are stored; a password is never
 // logged, put in the change log or exported. There is no recovery in version 1: a forgotten ADMIN password means clearing the data.
@@ -34,6 +35,9 @@ import java.util.UUID
  */
 class AccountStatus(private val users: UsersRepository) {
     suspend fun anyExists(): Boolean = users.count() > 0
+
+    /** Follows the table: the debug build fills it in the background after the first screen is up, so the login screen must notice. */
+    fun observeAnyExists(): kotlinx.coroutines.flow.Flow<Boolean> = users.observeCount().map { it > 0 }
 }
 
 /** What a login attempt answered. */

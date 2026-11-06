@@ -208,4 +208,23 @@ class LoginViewModelTest {
         v.onDisplayName("Rajesh Admin"); v.type("rajesh", "secret1"); v.onConfirm("secret1")
         assertTrue(v.ui.value.canSubmit)
     }
+
+    @Test fun accountsThatAppearWhileTheFirstRunFormIsUntouchedTurnItIntoTheLogin() = runBlocking {
+        val v = vm()
+        v.ready(LoginMode.CREATE_ADMIN)
+        // The debug build fills the users table in the background after the first screen is up.
+        createAdmin()("Demo Admin", "admin", "admin5", "admin5")
+        val ui = v.ready(LoginMode.LOGIN)
+        assertNull(ui.message)
+        assertTrue(lock.locked.value)
+    }
+
+    @Test fun anAccountAppearingWhileTheAdminIsBeingCreatedHereDoesNotJumpToTheLogin() = runBlocking {
+        val v = vm()
+        v.ready(LoginMode.CREATE_ADMIN)
+        v.onDisplayName("Rajesh Admin"); v.type("rajesh", "secret1"); v.onConfirm("secret1")
+        v.submit()
+        v.ready(LoginMode.BUSINESS) // the table changed because of this very form: the business screen follows, never the login
+        assertEquals(LoginMode.BUSINESS, v.ui.value.mode)
+    }
 }

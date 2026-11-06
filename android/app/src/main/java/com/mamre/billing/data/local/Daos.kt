@@ -268,6 +268,8 @@ interface UserDao {
 
     @Query("SELECT COUNT(*) FROM users") suspend fun count(): Int
 
+    @Query("SELECT COUNT(*) FROM users") fun observeCount(): Flow<Int>
+
     @Query("UPDATE users SET active = :active WHERE id = :id") suspend fun setActive(id: String, active: Boolean): Int
 
     @Query("UPDATE users SET password_hash = :hash, password_salt = :salt WHERE id = :id")

@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.map
 class UsersRepository(private val dao: UserDao) {
     suspend fun count(): Int = dao.count()
 
+    fun observeCount(): Flow<Int> = dao.observeCount()
+
     suspend fun byUsername(username: String): UserEntity? = dao.byUsername(username)
 
     suspend fun get(id: String): UserEntity? = dao.get(id)

@@ -87,6 +87,15 @@ class LoginViewModel @Inject constructor(
                 _ui.update { it.copy(mode = LoginMode.CREATE_ADMIN) }
             }
         }
+        // The debug build fills the table in the background after this screen is up: when accounts appear while the first-run form
+        // is still untouched, show the login instead. Never while the admin is being created here (busy), and never after (BUSINESS).
+        viewModelScope.launch {
+            status.observeAnyExists().collect { any ->
+                if (any && _ui.value.mode == LoginMode.CREATE_ADMIN && !_ui.value.busy) {
+                    _ui.update { it.copy(mode = LoginMode.LOGIN, username = settings.get(SettingKeys.LAST_USERNAME).orEmpty(), message = null) }
+                }
+            }
+        }
     }
 
     private fun key(username: String) = username.trim().lowercase()
