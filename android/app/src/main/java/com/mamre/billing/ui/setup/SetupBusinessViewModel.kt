@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 
 data class SetupUi(
     val loading: Boolean = true,
-    val form: SetupForm = SetupForm("", "", "", "", ""),
+    val form: SetupForm = SetupForm("", "", "", ""),
     val error: String? = null,
     val busy: Boolean = false,
 )
@@ -34,7 +34,7 @@ class SetupBusinessViewModel @Inject constructor(private val api: AdminApi) : Vi
     init {
         viewModelScope.launch {
             val s = api.settings()
-            _ui.update { it.copy(loading = false, form = SetupForm(s.businessName, api.ownerName(), s.address, s.phone, s.footerText)) }
+            _ui.update { it.copy(loading = false, form = SetupForm(s.businessName, s.address, s.phone, s.footerText)) }
         }
     }
 
@@ -48,7 +48,6 @@ class SetupBusinessViewModel @Inject constructor(private val api: AdminApi) : Vi
         viewModelScope.launch {
             try {
                 api.saveSettings(BusinessSettings(form.businessName, form.address, form.phone, form.footer))
-                if (form.ownerName.isNotBlank()) api.setOwnerName(form.ownerName)
                 onDone()
             } catch (e: AdminRuleException) {
                 _ui.update { it.copy(busy = false, error = e.message) }

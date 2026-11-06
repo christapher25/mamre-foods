@@ -34,13 +34,10 @@ import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validateNewPrice
 import com.mamre.billing.domain.admin.validateSettings
 import com.mamre.billing.domain.admin.cleanDeviceCode
-import com.mamre.billing.domain.admin.cleanOwnerName
 import com.mamre.billing.domain.admin.settingsProblemMessage
 import com.mamre.billing.domain.admin.MAX_DEVICE_CODE
 import com.mamre.billing.domain.admin.MAX_LOCK_MINUTES
-import com.mamre.billing.domain.admin.MAX_OWNER_NAME
 import com.mamre.billing.domain.admin.MIN_LOCK_MINUTES
-import com.mamre.billing.domain.admin.MIN_OWNER_NAME
 import com.mamre.billing.domain.model.CustomerIdentity
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.checkCustomerIdentity
@@ -442,23 +439,6 @@ class SaveBusinessSettings(
             settings.put(SettingKeys.PHONE, new.phone.trim())
             settings.put(SettingKeys.FOOTER_TEXT, new.footerText.trim())
             changeLog.add(clock.millis(), "Edit business settings", before, text(new.businessName, new.address, new.phone, new.footerText))
-        }
-    }
-}
-
-/** The Owner's name, printed after "Salesman:" on bills (Doc 1 A-29, P-12): 2 to 40 characters. */
-class SetOwnerName(
-    private val unitOfWork: UnitOfWork,
-    private val settings: SettingsRepository,
-    private val changeLog: ChangeLogRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
-) {
-    suspend operator fun invoke(name: String) {
-        unitOfWork.run {
-            val clean = cleanOwnerName(name) ?: refuse("The owner name is $MIN_OWNER_NAME to $MAX_OWNER_NAME characters")
-            val old = settings.ownerName()
-            settings.put(SettingKeys.OWNER_NAME, clean)
-            changeLog.add(clock.millis(), "Owner name", old, clean)
         }
     }
 }

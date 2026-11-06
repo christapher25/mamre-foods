@@ -252,3 +252,32 @@ interface ChangeLogDao {
 
     @Query("SELECT * FROM change_log ORDER BY at, rowid") fun observeAll(): Flow<List<ChangeLogEntity>>
 }
+
+/** Accounts (B8). No delete: an account is switched off, never removed, because bills point to it. */
+@Dao
+interface UserDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(row: UserEntity)
+
+    @Query("SELECT * FROM users WHERE id = :id") suspend fun get(id: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE username = :username") suspend fun byUsername(username: String): UserEntity?
+
+    @Query("SELECT * FROM users ORDER BY role, display_name") suspend fun getAll(): List<UserEntity>
+
+    @Query("SELECT * FROM users ORDER BY role, display_name") fun observeAll(): Flow<List<UserEntity>>
+
+    @Query("SELECT COUNT(*) FROM users") suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM users") fun observeCount(): Flow<Int>
+
+    @Query("UPDATE users SET active = :active WHERE id = :id") suspend fun setActive(id: String, active: Boolean): Int
+
+    @Query("UPDATE users SET password_hash = :hash, password_salt = :salt WHERE id = :id")
+    suspend fun setCredential(id: String, hash: String, salt: String): Int
+
+    @Query(
+        "UPDATE users SET fail_count = :failCount, locked_until = :lockedUntil, lock_delay_ms = :delayMs, " +
+            "lock_mono_at = :monoAt, lock_boot = :bootId WHERE id = :id",
+    )
+    suspend fun saveLock(id: String, failCount: Int, lockedUntil: Long, delayMs: Long, monoAt: Long, bootId: String): Int
+}

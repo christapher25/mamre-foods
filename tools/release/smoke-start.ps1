@@ -1,6 +1,6 @@
 # C5: "does the release app start?" Installs an APK on the running emulator or phone (clearing its data first), launches it, waits up to
-# 20 s and prints PASS only if the PIN setup screen ("New PIN") is on screen. FAIL (with the reason) when logcat shows a FATAL EXCEPTION
-# for com.mamre.billing, when the app process is gone, or when the PIN setup screen never appears.
+# 20 s and prints PASS only if the first-run screen ("Create the admin account") is on screen. FAIL (with the reason) when logcat shows a FATAL EXCEPTION
+# for com.mamre.billing, when the app process is gone, or when the first-run screen never appears.
 # Run:  powershell -ExecutionPolicy Bypass -File tools\release\smoke-start.ps1 -Apk C:\dev\mamre-team\out\release\mamre-1.0.0-rc1.apk
 # Needs one emulator or phone visible to adb. It UNINSTALLS the app first, so any data on that device is deleted: use an emulator.
 param([Parameter(Mandatory = $true)][string]$Apk, [string]$Serial, [int]$WaitSeconds = 20)
@@ -54,9 +54,9 @@ do {
     if (-not ((Adb shell pidof $pkg 2>&1) -join '').Trim()) { continue }
     Adb shell uiautomator dump /sdcard/smoke-ui.xml 2>&1 | Out-Null
     $xml = (Adb exec-out cat /sdcard/smoke-ui.xml 2>&1) -join "`n"
-    if ($xml -match 'text="New PIN"' -or $xml -match 'text="Save PIN"') { $seen = $true; break }
+    if ($xml -match 'text="Create the admin account"') { $seen = $true; break }
 } while ((Get-Date) -lt $deadline)
 
-if ($seen) { Write-Host 'PASS  smoke-start: the app started and shows the PIN setup screen (New PIN)'; exit 0 }
+if ($seen) { Write-Host 'PASS  smoke-start: the app started and shows the first-run screen (Create the admin account)'; exit 0 }
 if (-not ((Adb shell pidof $pkg 2>&1) -join '').Trim()) { Fail 'the app process is gone and no crash was logged' }
-Fail "the PIN setup screen did not appear within $WaitSeconds s"
+Fail "the first-run screen did not appear within $WaitSeconds s"

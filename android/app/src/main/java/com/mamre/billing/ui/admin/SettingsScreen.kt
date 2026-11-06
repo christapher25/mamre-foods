@@ -31,10 +31,8 @@ import com.mamre.billing.domain.admin.validateSettings
 import com.mamre.billing.domain.export.lastExportLabel
 import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.DataLabelChip
-import com.mamre.billing.ui.EntryGate
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
-import com.mamre.billing.ui.components.ConfirmDialog
 import com.mamre.billing.ui.components.LabelValueRow
 import com.mamre.billing.ui.components.LabeledTextField
 import com.mamre.billing.ui.components.PrimaryButton
@@ -44,7 +42,6 @@ import com.mamre.billing.ui.theme.Spacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.ZoneId
 import java.util.Locale
-import java.util.Optional
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,16 +49,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// B9 Settings (Doc 1 s13 P-6, P-12; Doc 2 s4.2): owner name, business details, device code, wastage and lock time. Every save goes
-// through a use case with validation and a change-log entry. The PIN screens are in ui/lock; Export is added in the next commit.
+// B9 Settings (Doc 1 s13 P-6, P-12; Doc 2 s4.2): business details, device code, wastage and lock time. Every save goes
+// through a use case with validation and a change-log entry. Export is added in the next commit.
 
 /** Which block of the screen the last save or refusal belongs to, so the message appears under the right field. */
-enum class SettingsSection { OWNER, BUSINESS, DEVICE_CODE, WASTAGE, LOCK }
+enum class SettingsSection { BUSINESS, DEVICE_CODE, WASTAGE, LOCK }
 
 data class SettingsUi(
     val loading: Boolean = true,
     val settings: BusinessSettings? = null,
-    val ownerName: String = "",
     val deviceCode: String = "",
     val wastageBp: Int = 0,
     val lockMinutes: Int = 5,
@@ -70,29 +66,24 @@ data class SettingsUi(
     val errorSection: SettingsSection? = null,
     /** The block that was saved last, shown as "Saved." */
     val savedSection: SettingsSection? = null,
-    /** True when a build has put an entry gate in front of the app (the debug login): then there is a Log out. */
-    val canLogOut: Boolean = false,
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val api: AdminApi,
-    gate: Optional<EntryGate>,
     private val appLock: AppLock,
 ) : ViewModel() {
-    private val entryGate: EntryGate? = gate.orElse(null)
-    private val _ui = MutableStateFlow(SettingsUi(canLogOut = entryGate != null))
+    private val _ui = MutableStateFlow(SettingsUi())
     val ui: StateFlow<SettingsUi> = _ui.asStateFlow()
 
     init {
         viewModelScope.launch {
             api.revision.collect {
                 val settings = api.settings()
-                val owner = api.ownerName()
                 val code = api.deviceCode()
                 val wastage = api.wastageBp()
                 val lock = api.lockMinutes()
-                _ui.update { it.copy(loading = false, settings = settings, ownerName = owner, deviceCode = code, wastageBp = wastage, lockMinutes = lock) }
+                _ui.update { it.copy(loading = false, settings = settings, deviceCode = code, wastageBp = wastage, lockMinutes = lock) }
             }
         }
     }
@@ -108,7 +99,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun saveOwnerName(name: String) = save(SettingsSection.OWNER) { api.setOwnerName(name) }
 
     fun saveBusiness(settings: BusinessSettings) = save(SettingsSection.BUSINESS) { api.saveSettings(settings) }
 
@@ -118,21 +108,19 @@ class SettingsViewModel @Inject constructor(
 
     fun saveLockMinutes(minutes: Int) = save(SettingsSection.LOCK) { api.setLockMinutes(minutes) }
 
-    fun logout() = entryGate?.close()
 
-    /** The "Lock now" button: the app locks at once and asks for the PIN (Doc 2 s6). The lock minutes setting is not touched. */
+    /** The "Log out" button: the app locks at once and shows the login (Doc 2 s6). The lock minutes setting is not touched. */
     fun lockNow() = appLock.lockNow()
 }
 
 class SettingsActions(
-    val saveOwnerName: (String) -> Unit,
     val saveBusiness: (BusinessSettings) -> Unit,
     val saveDeviceCode: (String) -> Unit,
     val saveWastage: (Int) -> Unit,
     val saveLockMinutes: (Int) -> Unit,
-    val logout: () -> Unit,
     val export: () -> Unit,
-    val changePin: () -> Unit,
+    val changePassword: () -> Unit,
+    val users: () -> Unit,
     val lockNow: () -> Unit,
     val printerCheck: () -> Unit,
 )
@@ -141,7 +129,8 @@ class SettingsActions(
 fun SettingsScreen(
     onBack: () -> Unit,
     onExport: () -> Unit,
-    onChangePin: () -> Unit,
+    onChangePassword: () -> Unit,
+    onUsers: () -> Unit,
     onPrinterCheck: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     lastExportViewModel: LastExportViewModel = hiltViewModel(),
@@ -152,14 +141,13 @@ fun SettingsScreen(
         ui = ui,
         onBack = onBack,
         actions = SettingsActions(
-            saveOwnerName = viewModel::saveOwnerName,
             saveBusiness = viewModel::saveBusiness,
             saveDeviceCode = viewModel::saveDeviceCode,
             saveWastage = viewModel::saveWastage,
             saveLockMinutes = viewModel::saveLockMinutes,
-            logout = viewModel::logout,
             export = onExport,
-            changePin = onChangePin,
+            changePassword = onChangePassword,
+            users = onUsers,
             lockNow = viewModel::lockNow,
             printerCheck = onPrinterCheck,
         ),
@@ -189,12 +177,10 @@ fun SettingsContent(
     actions: SettingsActions,
     lastExport: String = lastExportLabel(null, Locale.getDefault(), ZoneId.systemDefault()),
 ) {
-    var confirmLogout by remember { mutableStateOf(false) }
     var editWastage by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(title = "Settings", onBack = onBack, actions = { DataLabelChip() })
         val s = ui.settings ?: return@Column
-        var owner by remember(ui.ownerName) { mutableStateOf(ui.ownerName) }
         var name by remember(s) { mutableStateOf(s.businessName) }
         var address by remember(s) { mutableStateOf(s.address) }
         var phone by remember(s) { mutableStateOf(s.phone) }
@@ -208,12 +194,6 @@ fun SettingsContent(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
             verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
-            SectionHeader("Owner")
-            Hint("Printed after \"Salesman:\" on every bill. 2 to 40 characters.")
-            LabeledTextField("Owner name", owner, { owner = it })
-            SectionMessage(ui, SettingsSection.OWNER)
-            PrimaryButton("Save owner name", onClick = { actions.saveOwnerName(owner) })
-
             SectionHeader("Business details")
             Hint("Printed on bills: name, address (one line per text line, up to 4), phone and footer.")
             LabeledTextField(
@@ -246,10 +226,12 @@ fun SettingsContent(
             )
             SectionMessage(ui, SettingsSection.LOCK)
             PrimaryButton("Save lock time", onClick = { actions.saveLockMinutes(lock.toIntOrNull() ?: 0) })
-            Hint("Your PIN opens the app. Changing it needs the current PIN.")
-            SecondaryButton("Change PIN", onClick = actions.changePin)
-            Hint("Locks the app now. The PIN is asked for again.")
-            SecondaryButton("Lock now", onClick = actions.lockNow)
+            Hint("Add a salesman, reset a salesman password, or switch an account off.")
+            SecondaryButton("Users", onClick = actions.users)
+            Hint("Your password opens the app. Changing it needs the current password.")
+            SecondaryButton("Change my password", onClick = actions.changePassword)
+            Hint("Logs you out now. The next person logs in with their own username and password.")
+            SecondaryButton("Log out", onClick = actions.lockNow)
             Hint("Shows what this phone offers for printing.")
             SecondaryButton("Printer check", onClick = actions.printerCheck)
 
@@ -269,21 +251,7 @@ fun SettingsContent(
             Hint("Make plain text files of all your data and share them, for example with your accountant.")
             Text(lastExport, style = MaterialTheme.typography.titleMedium)
             SecondaryButton("Export data", onClick = actions.export)
-
-            if (ui.canLogOut) SecondaryButton("Log out", onClick = { confirmLogout = true })
         }
     }
     if (editWastage) WastageDialog(current = ui.wastageBp, onSave = actions.saveWastage, onDismiss = { editWastage = false })
-    if (confirmLogout) {
-        ConfirmDialog(
-            title = "Log out?",
-            message = "You will need to sign in again.",
-            confirmText = "Log out",
-            onConfirm = {
-                confirmLogout = false
-                actions.logout()
-            },
-            onDismiss = { confirmLogout = false },
-        )
-    }
 }

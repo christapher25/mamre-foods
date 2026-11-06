@@ -57,7 +57,7 @@ class LockedFrameTest {
                     pin = { SideEffect { pin++ }; Text("PIN") },
                     content = {
                         SideEffect { contentSlotEntered++ }
-                        AppContent(area, features, onOpenAdmin = {}, onOpenSales = {})
+                        AppContent(area, com.mamre.billing.domain.auth.Role.ADMIN, features, onOpenAdmin = {}, onOpenSales = {})
                     },
                 )
             }

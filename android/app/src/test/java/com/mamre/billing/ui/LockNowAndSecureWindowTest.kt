@@ -13,7 +13,6 @@ import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.admin.SettingsViewModel
 import com.mamre.billing.ui.worker.HomeViewModel
 import java.io.File
-import java.util.Optional
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -64,7 +63,7 @@ class LockNowAndSecureWindowTest {
 
     private fun home() = made { HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, lock) }
 
-    private fun settingsVm() = made { SettingsViewModel(w.admin, Optional.empty(), lock) }
+    private fun settingsVm() = made { SettingsViewModel(w.admin, lock) }
 
     @After fun tearDown() {
         scopes.endAll() // before resetMain: see ViewModelScopes
@@ -145,10 +144,11 @@ class LockNowAndSecureWindowTest {
         assertTrue(lock.checkIdle(5)) // the lock minutes rule is unchanged
     }
 
-    @Test fun theLockNowButtonsAreInTheScreens() {
+    @Test fun theLogOutButtonsAreInTheScreens() {
         val home = module("src/main/java/com/mamre/billing/ui/worker/HomeScreen.kt")
         val settings = module("src/main/java/com/mamre/billing/ui/admin/SettingsScreen.kt")
-        assertTrue(home.contains("\"Lock now\"") && home.contains("onLockNow"))
-        assertTrue(settings.contains("\"Lock now\"") && settings.contains("actions.lockNow"))
+        assertTrue(home.contains("\"Log out\"") && home.contains("onLockNow") && home.contains("session::logOut")) // B8 h: Lock now is renamed Log out
+        assertTrue(settings.contains("\"Log out\"") && settings.contains("actions.lockNow"))
+        assertTrue("no Lock now label is left", !home.contains("\"Lock now\"") && !settings.contains("\"Lock now\""))
     }
 }

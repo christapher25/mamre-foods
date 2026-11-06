@@ -70,11 +70,13 @@ fun NavGraphBuilder.adminGraph(navController: NavController, features: Features,
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onExport = { navController.navigate(AdminRoutes.EXPORT) },
-                onChangePin = { navController.navigate(AdminRoutes.CHANGE_PIN) },
+                onChangePassword = { navController.navigate(AdminRoutes.CHANGE_PASSWORD) },
+                onUsers = { navController.navigate(AdminRoutes.USERS) },
                 onPrinterCheck = { navController.navigate(AdminRoutes.PRINTER_CHECK) },
             )
         }
-        composable(AdminRoutes.CHANGE_PIN) { ChangePinScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.CHANGE_PASSWORD) { ChangePasswordScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.USERS) { UsersScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.PRINTER_CHECK) { PrinterCheckScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.EXPORT) { ExportScreen(onBack = { navController.popBackStack() }) }
     }

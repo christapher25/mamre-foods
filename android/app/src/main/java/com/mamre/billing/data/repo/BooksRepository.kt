@@ -33,7 +33,7 @@ import java.time.ZoneId
 class BooksRepository(private val db: MamreDatabase, private val zone: () -> ZoneId = { ZoneId.systemDefault() }) {
     suspend fun snapshot(today: LocalDate): BooksSnapshot {
         val z = zone()
-        val ownerName = db.settingDao().get(SettingKeys.OWNER_NAME).orEmpty().trim()
+        val adminName = UsersRepository(db.userDao()).adminName()
         val settings = db.settingDao().getAll().associate { it.key to it.value }
         val types = db.customerTypeDao().getAll()
         val typeName = types.associate { it.id to it.name }
@@ -73,7 +73,7 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
                 totalCents = inv.totalCents,
                 status = if (inv.status == Stored.VOID) InvoiceStatus.VOID else InvoiceStatus.ACTIVE,
                 voidReason = inv.voidReason,
-                voidedBy = if (inv.status == Stored.VOID) ownerName.ifEmpty { OWNER_LABEL } else null,
+                voidedBy = if (inv.status == Stored.VOID) adminName else null,
                 voidedAt = inv.voidedAt?.toLocalDateTime(z),
             )
         }
@@ -129,7 +129,7 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
                     date = e.expenseDate,
                     amountCents = e.amountCents,
                     description = e.description,
-                    enteredBy = ownerName.ifEmpty { OWNER_LABEL },
+                    enteredBy = adminName,
                     reversesId = e.reversesId,
                     reason = e.reason,
                 )
@@ -147,13 +147,13 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
                     qtyMb = p.qtyMilli,
                     totalCents = p.totalPaidCents,
                     note = p.note,
-                    enteredBy = ownerName.ifEmpty { OWNER_LABEL },
+                    enteredBy = adminName,
                     reversesId = p.reversesId,
                     reason = p.reason,
                 )
             },
             damage = db.productionDamageDao().getAll().map {
-                DamageRow(it.id, it.damagedOn, it.productId, it.chapathis, it.note, ownerName.ifEmpty { OWNER_LABEL })
+                DamageRow(it.id, it.damagedOn, it.productId, it.chapathis, it.note, adminName)
             },
             openingStock = db.openingStockDao().getAll().associate { it.materialId to OpeningStock(it.qtyMilli, it.valueCents) },
             wastageBp = settings[SettingKeys.WASTAGE_BP]?.toIntOrNull() ?: 0,
@@ -169,14 +169,10 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
 
     suspend fun changeLog(): List<ChangeLogEntry> {
         val z = zone()
-        val owner = db.settingDao().get(SettingKeys.OWNER_NAME).orEmpty().trim().ifEmpty { OWNER_LABEL }
+        val owner = UsersRepository(db.userDao()).adminName()
         return db.changeLogDao().getAll().mapIndexed { i, row ->
             ChangeLogEntry((i + 1).toLong(), row.at.toLocalDateTime(z), owner, row.what, row.beforeText, row.afterText)
         }.reversed()
     }
 
-    companion object {
-        /** Shown as the person of an entry while the Owner has not typed a name in Settings. */
-        const val OWNER_LABEL = "Owner"
-    }
 }

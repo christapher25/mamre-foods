@@ -10,7 +10,6 @@ import org.junit.Test
 class SetupGapsTest {
     private val done = mapOf(
         SettingKeys.BUSINESS_NAME to "Mamre Foods",
-        SettingKeys.OWNER_NAME to "Rajesh",
         SettingKeys.ADDRESS to "1 Main Road",
         SettingKeys.PHONE to "9876543210",
     )
@@ -46,16 +45,22 @@ class SetupGapsTest {
         assertTrue(gaps.any)
     }
 
-    @Test fun aSkippedSetupScreenLeavesTheOwnerAddressAndPhoneEmptyAndTheCardListsThem() {
-        val skipped = done - SettingKeys.OWNER_NAME - SettingKeys.ADDRESS - SettingKeys.PHONE
+    @Test fun aSkippedSetupScreenLeavesTheAddressAndPhoneEmptyAndTheCardListsThem() {
+        val skipped = done - SettingKeys.ADDRESS - SettingKeys.PHONE
         assertTrue(setupGaps(skipped, products, types, allPrices).businessDetails)
     }
 
-    @Test fun anyOneOfOwnerAddressOrPhoneEmptyOrBlankMeansBusinessDetails() {
-        for (key in listOf(SettingKeys.OWNER_NAME, SettingKeys.ADDRESS, SettingKeys.PHONE)) {
+    @Test fun anyOneOfAddressOrPhoneEmptyOrBlankMeansBusinessDetails() {
+        for (key in listOf(SettingKeys.ADDRESS, SettingKeys.PHONE)) {
             assertTrue(key, setupGaps(done + (key to "  "), products, types, allPrices).businessDetails)
             assertTrue(key, setupGaps(done - key, products, types, allPrices).businessDetails)
         }
+    }
+
+    @Test fun aMissingOwnerNameIsNotAGapBecauseThereIsNoOwnerNameAnyMore() {
+        // B8 L2: the Salesman line is the logged-in account name, so only the address and the phone make Business details.
+        assertTrue(setupGaps(done, products, types, allPrices).businessDetails.not())
+        assertTrue(setupGaps(done - "owner_name", products, types, allPrices).businessDetails.not())
     }
 
     @Test fun aMissingPriceIsNeverTreatedAsZero() {

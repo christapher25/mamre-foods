@@ -132,6 +132,7 @@ class InvoiceFlowViewModel @Inject constructor(
     sales: SalesRepository,
     private val settings: SettingsRepository,
     private val makeBill: MakeBill,
+    private val currentUser: com.mamre.billing.domain.security.CurrentUser,
     private val clock: Clock,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
@@ -283,6 +284,7 @@ class InvoiceFlowViewModel @Inject constructor(
                         lines = u.lines,
                         paidNowCents = ok.amountCents,
                         method = if (ok.amountCents > 0) u.method else null,
+                        by = currentUser.require(),
                     ),
                 )
                 _error.value = null
