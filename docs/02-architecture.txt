@@ -2,10 +2,10 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 2 OF 3
 # Technical Architecture and Data Model
 How the system is built: stack, data, API, sync, printing, security and testing
 
-Version: 1.3 (local-first, 2 November 2026)
-Date: 2 November 2026
+Version: 1.4 (local-first, 6 November 2026)
+Date: 6 November 2026
 Implements: Doc 1: Product Specification. This document may never change business behaviour.
-Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first), on 19 October 2026 (version 1.2.1: s5.3 export, s6 lock and screen privacy) and on 2 November 2026 (version 1.3: s4.2 settings keys, s5.3 last export, s7 printing). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
+Status: Locked decisions, amended 4 October 2026 to match Doc 1 version 1.2 (local-first), on 19 October 2026 (version 1.2.1: s5.3 export, s6 lock and screen privacy) and on 2 November 2026 (version 1.3: s4.2 settings keys, s5.3 last export, s7 printing) and on 6 November 2026 (version 1.4, owner decision: accounts replace the PIN; s4.2 users table, s5.3 19 files, s6 accounts and login). Changing the stack, a table, or an API shape needs owner approval and an entry in docs/DECISIONS.md.
 Companion documents: Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
@@ -16,7 +16,7 @@ Companion documents: Doc 3: Agent Operating Guide and Build Plan.
 ==============================================================================
 
 ```
-SCREENS (PIN lock, Sales area, Admin area) -> LOGIC (pricing, bills, ledger, returns, purchases, expenses)
+SCREENS (login, Sales area, Admin area) -> LOGIC (pricing, bills, ledger, returns, purchases, expenses)
    -> DATABASE ON THE PHONE (Room / SQLite, tested migrations, entries never edited, no network)
 PRINTER (58 mm) and EXPORT (CSV files via the share menu) hang off the screens and the database.
 VERSION 2 (parked): server and database, sync, laptop dashboard, monthly dashboard, costing, separate logins.
@@ -25,7 +25,7 @@ VERSION 2 (parked): server and database, sync, laptop dashboard, monthly dashboa
 ### 1.1 Principles
 
 - Version 1 is local-first. One Android handheld holds all the data. There is no server and no network. The release app declares no INTERNET permission.
-- One Owner, two areas. After the PIN the Owner switches between the Sales area and the Admin area. The areas are separate in code, so version 2 can give them to different people.
+- Accounts, two areas. The admin account uses the Sales area and the Admin area; a salesman account uses the Sales area only (s6). The areas are separate navigation graphs, and the route guard checks the account's role.
 - Money is integer cents. Never floating point. Material quantities are Long milli-units.
 - Entries are never edited or deleted. A bill is voided, a purchase or expense is reversed by a linked entry.
 - The database is never wiped. From the first real release every change to its structure is a tested migration, never a destructive one.
@@ -40,7 +40,7 @@ VERSION 2 (parked): server and database, sync, laptop dashboard, monthly dashboa
 |---|---|---|
 | App | Kotlin, Jetpack Compose with Material 3, Navigation Compose, Hilt | Native, because printing needs the device library |
 | Database | Room (SQLite) with exported schemas and tested migrations | One database file on the phone |
-| PIN | Salted PBKDF2 from javax.crypto | No extra library |
+| Passwords | Salted PBKDF2 from javax.crypto | No extra library |
 | Export | CSV written with the standard library; the Android share sheet | No extra library |
 | Printing | ReceiptPrinter interface; MockPrinter now; the handheld's own library once the model is known (P-1) | Layout is a pure function |
 | Android versions | minSdk 26 by default | Confirm from the real device (P-1) |
@@ -99,11 +99,12 @@ mamre/
 | Customer | id, name, location, type_id, phone, address, payment_mode (cash or credit), is_corporate, opening_balance_cents, notes, is_active | Unique on name plus location (ignoring case and spaces). Walk-in is not a row. |
 | PriceDefault | id, product_id, customer_type_id, unit_price_cents (per standard packet), effective_from | History kept. A newer row needs a later date. |
 | PriceOverride | id, customer_id, product_id, unit_price_cents, effective_from, note, is_active | Beats PriceDefault. |
-| Setting | key, value | owner_name, device_code, business_name, address (lines separated by a newline), phone, footer_text, wastage_bp, lock_minutes, pin_hash, pin_salt and the pin_ delay keys, next_bill_seq, next_receipt_seq, last_export_at, printer_method (the printer driver that last worked, Doc 4 s5). |
-| Billing Invoice | id, number (unique), customer_id (null for walk-in), customer_name, customer_location, is_corporate, salesman_name, issued_at, total_cents, status (active or void), void_reason, voided_at | Immutable except active to void. |
+| Setting | key, value | device_code, business_name, address (lines separated by a newline), phone, footer_text, wastage_bp, lock_minutes, last_username (the last username that logged in), next_bill_seq, next_receipt_seq, last_export_at, printer_method (the printer driver that last worked, Doc 4 s5). No key holds a secret. |
+| User | id, username (stored in lower case, unique), display_name, role (ADMIN or SALESMAN), password_hash, password_salt, active, created_at, fail_count, locked_until | Never deleted; switched off with active = false. Exactly one ADMIN, created at first run; it cannot be switched off. Hash, salt and wait rules in s6. |
+| Billing Invoice | id, number (unique), customer_id (null for walk-in), customer_name, customer_location, is_corporate, created_by_user_id, salesman_name (the creator's display name when saved), issued_at, total_cents, status (active or void), void_reason, voided_at | Immutable except active to void. |
 | InvoiceItem | id, invoice_id, product_id, product_name, qty_packets, chapathis_per_packet, unit_price_cents (charged, per packet), list_price_cents, price_overridden, line_total_cents | Price is a snapshot. line_total = qty_packets x unit_price. |
-| Payment | id, receipt_number, customer_id (null for walk-in), invoice_id (optional), amount_cents, method (cash, zelle, check, card, other), paid_at, note | Append-only. |
-| ReturnRecord | id, customer_id, invoice_id (optional), product_id, qty_packets, chapathis_per_packet, reason, resolution (credit or replacement), unit_price_cents, credit_cents, occurred_at, note | Credit reduces balance. Replacement does not. |
+| Payment | id, receipt_number, customer_id (null for walk-in), invoice_id (optional), amount_cents, method (cash, zelle, check, card, other), paid_at, note, created_by_user_id, salesman_name (the creator's display name when saved) | Append-only. |
+| ReturnRecord | id, customer_id, invoice_id (optional), product_id, qty_packets, chapathis_per_packet, reason, resolution (credit or replacement), unit_price_cents, credit_cents, occurred_at, note, created_by_user_id | Credit reduces balance. Replacement does not. |
 | Materials Material | id, name, base_unit (g, ml or piece), purchase_unit, base_per_purchase_unit, is_packing | Wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. |
 | MaterialPurchase | id, material_id, purchased_on, qty_milli, total_paid_cents, note, reverses_id (optional), reason (required when reversing) | Add-only. A mistake is corrected by a linked reversing row. A row is reversed once; a reversal is never reversed. |
 | OpeningStock | id, material_id, month (YYYY-MM), qty_milli, value_cents | Set once per material. |
@@ -143,32 +144,33 @@ mamre/
 
 ### 5.2 First run (release build)
 
-A release app starts with reference data only: the four customer types with their price-edit switches; the two products (standard packet 12, yield 32); the materials list; the recipe per 1 kg of wheat (wheat 1 kg, oil 80 ml, sugar 20 g, salt 15 g, baking powder 2 g; sorbate unset); the expense categories; and default settings (business name Mamre Foods, device code W1, wastage 2%, lock after 5 minutes). It has no customers, prices, bills or demo data. The debug build seeds demo data from src/debug. The first screen asks the Owner to choose a PIN.
+A release app starts with reference data only: the four customer types with their price-edit switches; the two products (standard packet 12, yield 32); the materials list; the recipe per 1 kg of wheat (wheat 1 kg, oil 80 ml, sugar 20 g, salt 15 g, baking powder 2 g; sorbate unset); the expense categories; and default settings (business name Mamre Foods, device code W1, wastage 2%, lock after 5 minutes). It has no customers, prices, bills or demo data. The debug build seeds demo data from src/debug. It has no accounts: the first screen is Create the admin account (s6). The debug seed also creates two demo accounts (an admin and a salesman); a release build has none.
 
 ### 5.3 Export to files
 
-- Admin area, Export: writes 18 CSV files plus manifest.txt (data version, export time, row counts): customers, customer_types, products, prices, price_overrides, invoices, invoice_items, payments, returns, materials, recipe_items, opening_stock, purchases, expense_categories, expenses, production_damage, settings, change_log.
-- The settings file leaves out every key that starts with pin_ (the PIN hash, the salt and the wrong-PIN counters).
+- Admin area, Export: writes 19 CSV files plus manifest.txt (data version, export time, row counts): customers, customer_types, products, prices, price_overrides, invoices, invoice_items, payments, returns, materials, recipe_items, opening_stock, purchases, expense_categories, expenses, production_damage, settings, users, change_log.
+- users.csv has id, username, display_name, role, active and created_at only: never the password hash, the salt, fail_count or locked_until.
 - UTF-8, header row, UUIDs, money in cents, quantities in milli-units, times in ISO 8601.
 - Delivery is the Android share sheet only (ACTION_SEND_MULTIPLE through a FileProvider on cache/exports; no storage permission). Old export files are deleted before new ones are written. There is no folder picker in version 1.
 - The Export screen warns that the files are plain text with customer data.
-- The settings row last_export_at (epoch milliseconds, UTC) is written by the RecordExport use case in one transaction when the files and the manifest are written and the share sheet is launched, with no change log entry. It is exported in settings.csv like any setting that does not start with pin_. The 7 day reminder is a pure function of last_export_at, the bill count and the Clock; the 7 days are a constant, not a setting.
+- The settings row last_export_at (epoch milliseconds, UTC) is written by the RecordExport use case in one transaction when the files and the manifest are written and the share sheet is launched, with no change log entry. It is exported in settings.csv like any other setting. The 7 day reminder is a pure function of last_export_at, the bill count and the Clock; the 7 days are a constant, not a setting.
 - There is no import in version 1. Version 2 imports these files.
 
 ==============================================================================
-## 6. PIN Lock and Local Security
+## 6. Accounts, Login and Local Security
 ==============================================================================
 
-- At first run the Owner chooses a PIN of 4 to 6 digits. It is stored only as a salted PBKDF2 hash. The plain PIN is never stored or logged.
+- At first run (no accounts yet) the screen Create the admin account asks for display name, username, password and password again (Doc 1 s2.2). A password has at least 6 characters. It is stored only as a salted PBKDF2 hash (PBKDF2WithHmacSHA256, 120,000 iterations, 16-byte salt) in the users table and compared in constant time. The plain password is never stored, logged, shown or exported.
+- Login: username and password, one button Log in; the last username is filled in. The logged-in account is held in memory only and is cleared by the lock and by Log out.
 - The app locks after the number of minutes in Settings (default 5, range 1 to 30) and whenever it has been in the background longer than that. A cold start is always locked. Unlocked state is never saved.
-- Wrong PINs: the first 4 in a row are free; the 5th starts a 30 second delay, and each further wrong PIN doubles it up to 15 minutes. During a delay every PIN is refused and does not count. The counter and the delay are saved in the settings table, so closing the app does not reset them.
+- Wrong passwords, per account: the first 4 in a row are free; the 5th starts a 30 second delay, and each further wrong password doubles it up to 15 minutes. During a delay that account is refused and the try does not count; other accounts are not affected. An unknown username shows the same "Wrong username or password." and changes no counter. The counter and the delay are saved in the account's row (fail_count, locked_until), so closing the app does not reset them. A password reset by the admin clears them.
 - The lock and the delay use the phone's monotonic clock plus the boot count, not the wall clock, so changing the phone's date or time does not shorten a delay or skip the inactivity lock. After a reboot the delay is never shorter than what was still owed.
-- If a PIN hash or salt row exists but is damaged, the app stays locked (it never shows the set-up screen). The PIN screen is drawn instead of the app content while locked; the content is not built behind it.
+- If an account's hash or salt is damaged, that account cannot log in, and while any account row exists the app never shows Create the admin account. The login screen is drawn instead of the app content while logged out; the content is not built behind it.
 - Rotating the phone keeps a bill in progress. Locking clears it.
-- Lock now: a button on the Sales home and in Settings locks the app at once.
+- Log out (formerly Lock now): a button on the Sales home and in Settings returns to the login screen at once.
 - Screen privacy: the release app sets FLAG_SECURE on its window, so screenshots and the recent-apps preview do not show bills or balances. The debug build does not, so screenshots can be taken for review.
-- The Owner can change the PIN while unlocked. There is no PIN recovery in version 1. A forgotten PIN means clearing the app's data, which deletes everything (Doc 1 A-26). The Owner should choose a PIN he will remember.
-- The Sales and Admin areas are separate navigation graphs with a route guard. Cost and profit data is not shown anywhere in version 1.
+- The admin changes their own password by giving the current one, and resets a salesman's password (typed twice). There is no recovery of the admin password in version 1: a forgotten admin password means clearing the app's data, which deletes everything (Doc 1 A-26).
+- The Sales and Admin areas are separate navigation graphs with a route guard. The guard and the area switch check the role: a salesman account cannot reach any Admin route, and the Admin tile and the Export card are hidden for it. Cost and profit data is not shown anywhere in version 1.
 - The release app requests no INTERNET permission and no storage permission, and the build fails if the merged release manifest has any extra screen or any exported component beyond the three allow-listed library entries. No data can leave the phone except through an export the Owner starts. Export files are plain text with customer data: share them only with people you trust.
 - The database is not encrypted beyond Android's own device encryption. Set a screen lock on the phone.
 - Android backups of the app are turned off, so nothing is copied to the cloud behind the Owner's back.
@@ -277,7 +279,7 @@ The Admin area is a bottom-bar section of the same app: Sales, Customers, Prices
 | Expenses | Materials tab (purchases, stock table) and Other expenses tab | Add a purchase or expense; add a reversing entry |
 | Returns and damage | Customer returns (view) and production damage (chapathis) | Add production damage |
 | Balances | Customers by balance with ageing (current, 30+, 60+) | Open a customer |
-| Settings | Owner name, business details, wastage, PIN, lock time, Export | Edit, export |
+| Settings | Business details, wastage, lock time, Users (add salesman, reset password, switch off and on), Change password, Log out, Export | Edit, export. Admin account only. |
 | Hidden in version 1 | Dashboard and Costing | Version 2 |
 
 ==============================================================================
@@ -286,8 +288,8 @@ The Admin area is a bottom-bar section of the same app: Sales, Customers, Prices
 
 | Screen | Contents | Rules |
 |---|---|---|
-| PIN lock | PIN entry, first-run PIN setup, Mamre logo | Locks after inactivity. |
-| Home | New bill, Record payment, Return, Today's bills, switch to the Admin area | Counts only, never totals. |
+| Login | Create the admin account (first run), Log in (username, password), Mamre logo | Shown at every start, after inactivity and after Log out. |
+| Home | New bill, Record payment, Return, Today's bills, switch to the Admin area (admin only), Log out | Counts only, never totals. |
 | Select customer | Four type tiles (Restaurant, Shop, Retail, Catering) with counts, then that type's customers with search. Walk-in under Retail. Balance shown except for corporate accounts | Customers are added in the Admin area. |
 | Bill builder | Product cards. Each line is Standard (12) or Custom (1 to 200 chapathis) with a packet stepper, a running total, and Edit price where the type allows | Price read-only unless the type's switch is on. Blocks any product with no price. |
 | Edit price sheet | Price per packet, list price, Reset to list price | Above 0 and at most 10 times the list price. |
@@ -346,8 +348,8 @@ indirect_per_chapathi(month):
 | Ledger | Doc 1 section 6.5 example. Void bills are excluded. A return credit reduces the balance. Overpayment becomes credit. |
 | Corporate account | No balance on the bill, payment receipt, payment step, confirm screen or customer card, while the Admin ledger still counts it. Tests look at the builders' data and the layout. |
 | Database | A migration test per schema version keeps data. No DAO method updates or deletes a protected table. First run creates reference data only. |
-| Lock and PIN | A wrong PIN is refused. Only a salted hash is stored. The app locks after the set time. |
-| Export | Every table is written. Row counts match the app. The PIN is never exported. |
+| Accounts and login | A wrong password is refused and each account has its own wait. Only a salted hash is stored. The app locks after the set time. A salesman cannot reach any Admin route. Bills, payments and returns store their creator, and the bill prints the creator's name. |
+| Export | Every table is written. Row counts match the app. No password data is exported. |
 | Materials and costing | Golden cases in section 11. Purchases never edited or deleted. A reversing entry nets out. Negative stock warns. A missing price gives INCOMPLETE. Packing excludes damaged chapathis. |
 | Printing | Golden files at 32 columns for the corporate bill, the normal credit bill, the cash walk-in bill and the payment receipt. A print failure keeps the bill. |
 | Release build | The release package contains no fake API, no demo logins, no demo data and no demo address. |
@@ -373,4 +375,5 @@ Nothing in this section is built into version 1. It stays in the repository so v
 
 | Version | Changes |
 |---|---|
+| 1.4 (6 Nov 2026) | Owner decision: accounts replace the PIN. Users table, created_by_user_id on bills, payments and returns, salesman_name snapshot on payments, last_username setting; owner_name and pin_ keys removed (4.2). First run creates the admin account (5.2). Export is 19 files with users.csv without password data (5.3). Section 6 is now accounts and login. Screens and tests (9, 10, 12). |
 | 1.3 (2 Nov 2026) | Settings keys as built, plus last_export_at and printer_method (4.2). last_export_at bullet (5.3). Printing by auto-detect chain, Printer check, printing permissions, exact failure message (7, Doc 4 s5). |

@@ -2,10 +2,10 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 1 OF 3
 # Product Specification
 What the Mamre Foods billing and accounting system must do
 
-Version: 1.3 (local-first, 2 November 2026)
-Date: 2 November 2026
+Version: 1.4 (local-first, 6 November 2026)
+Date: 6 November 2026
 Owner / approver: Christapher (builder). Business owner and Admin user: his father.
-Status: Approved. Amended on 4 October 2026 for the local-first version 1, and on 2 November 2026 (v1.3) (see the change log at the end). Any change needs owner approval and a new version number.
+Status: Approved. Amended on 4 October 2026 for the local-first version 1, on 2 November 2026 (v1.3) and on 6 November 2026 (v1.4, accounts) (see the change log at the end). Any change needs owner approval and a new version number.
 Companion documents: Doc 2: Technical Architecture and Data Model.  Doc 3: Agent Operating Guide and Build Plan.
 
 >> [HOW TO USE THIS DOCUMENT]
@@ -31,8 +31,8 @@ Mamre Foods is a small US-based food business. It makes half-cooked chapathi, pa
 |  | Version 1 (first 1 to 2 months) | Version 2 (built while version 1 is in use) |
 |---|---|---|
 | Where it runs | One Android handheld. No server, no network. All data is stored on the phone (A-24). | A server and database, the Android app, and a laptop. |
-| Who uses it | One user, the owner, who is both salesman and admin (A-25). | Owner on the laptop, salesmen on handhelds, each with a login. |
-| Included | PIN lock. Sales area: bills, payments, returns, today's bills. Admin area: sales list and void, customers and balances, prices and price rules, material purchases, other expenses, production damage, returns list, settings. Bill printing. Export to files. | Laptop dashboard. Monthly dashboard and profit analytics. Costing screens. PDF and Excel reports. Sync between devices. Separate salesman login. Automatic backups. Import of the version 1 export. Month lock. |
+| Who uses it | One phone with accounts: one admin account (the owner) and salesman accounts, each with a username and password (A-25, s2.2). | Owner on the laptop, salesmen on handhelds, each with a login. |
+| Included | Login with accounts (admin and salesmen). Sales area: bills, payments, returns, today's bills. Admin area: sales list and void, customers and balances, prices and price rules, material purchases, other expenses, production damage, returns list, settings. Bill printing. Export to files. | Laptop dashboard. Monthly dashboard and profit analytics. Costing screens. PDF and Excel reports. Sync between devices. Automatic backups. Import of the version 1 export. Month lock. |
 | Data safety | No automatic backup (A-26). Data is entered by hand and can be re-entered. | Server backups. |
 
 ### 1.4 Non-goals for version 1
@@ -51,7 +51,7 @@ A server, a laptop dashboard, the monthly dashboard and profit reports, the Cost
 ## 2. Users and Areas
 ==============================================================================
 
-In version 1 there is one user, the Owner, who is both the salesman and the admin (A-25). The app opens with a PIN. Inside it are two areas, Sales and Admin, which the Owner switches between with one tap and no second login. Wherever this document says Worker or Salesman, it means the Owner in the Sales area; Admin means the Owner in the Admin area. The areas are kept apart on purpose, because version 2 gives them to different people.
+In version 1 the app runs on one phone and has accounts (A-25, s2.2): one admin account, held by the Owner, and salesman accounts added by the admin. Every account logs in with a username and password. Inside are two areas, Sales and Admin. The admin switches between them with one tap and no second login; a salesman sees the Sales area only. Wherever this document says Worker or Salesman, it means the account logged in and working in the Sales area; Admin means the admin account in the Admin area.
 
 | Capability | Sales area | Admin area |
 |---|---|---|
@@ -65,15 +65,23 @@ In version 1 there is one user, the Owner, who is both the salesman and the admi
 | Customers, products, price lists | No (A-13) | Full control |
 | Material purchases, expenses, production damage | No | Yes (add-only, corrections by reversing entry) |
 | Cost, profit, dashboards | Never shown | Hidden in version 1 (A-28), shown in version 2 |
-| Settings: owner name, business details, PIN | No | Yes |
+| Settings: business details, Users (salesman accounts), own password | No | Yes |
 | Export to files | No | Yes |
 
 ### 2.1 First run (rule FR)
 
-1. FR-1. On the very first start the Owner chooses a PIN (4 to 6 digits, entered twice).
-2. FR-2. Straight after the PIN, one screen Set up your business asks for: business name, owner name (printed as Salesman), address (up to 4 lines), phone and bill footer, with the same limits as Admin > Settings. The business name is required and comes pre-filled; an owner name, when given, is 2 to 40 characters; address, phone and footer may be left empty (a missing address or phone prints the placeholder of section 5.3). Save and continue saves through the existing Settings use cases; Skip for now saves nothing. Everything can be changed later in Admin > Settings.
-3. FR-3. While anything needed for billing is missing, the Sales Home shows a Finish setup card. It lists Business details while the owner name, address or phone is empty, and Prices while any product has no default price for a customer type (with the count missing); each item opens the screen that fixes it. The card disappears when nothing is missing and blocks nothing. A product with no price still cannot be sold: the bill screen shows 'No price set - contact admin' (s4.2). Other products can be billed.
-4. FR-4. No demo data, sample customers or sample prices exist in a release build.
+1. FR-1. On the very first start the Owner creates the admin account on the screen Create the admin account: display name (printed on bills), username, password and password again (rules in s2.2). The screen says: "If you forget the admin password, the only way back in is to clear the app's data, which deletes everything."
+2. FR-2. Straight after the admin account, one screen Set up your business asks for: business name, address (up to 4 lines), phone and bill footer, with the same limits as Admin > Settings. The business name is required and comes pre-filled; address, phone and footer may be left empty (a missing address or phone prints the placeholder of section 5.3). Save and continue saves through the existing Settings use cases; Skip for now saves nothing. Everything can be changed later in Admin > Settings.
+3. FR-3. While anything needed for billing is missing, the Sales Home shows a Finish setup card. It lists Business details while the address or phone is empty, and Prices while any product has no default price for a customer type (with the count missing); each item opens the screen that fixes it. The card disappears when nothing is missing and blocks nothing. A product with no price still cannot be sold: the bill screen shows 'No price set - contact admin' (s4.2). Other products can be billed.
+4. FR-4. No demo data, sample customers, sample prices or accounts exist in a release build.
+
+### 2.2 Accounts and login (rule AC, owner decision 6 November 2026)
+
+1. AC-1. Accounts. One admin account, created at first run (FR-1), and salesman accounts, added by the admin in Admin > Settings > Users. Each account has a display name (2 to 40 characters, printed on bills), a username (3 to 20 letters, digits, dots or underscores; unique; capitals do not matter) and a password (at least 6 characters, any characters, typed twice when set). Accounts are never deleted, because bills point to them. The admin can switch a salesman account off and on again. The admin account cannot be switched off.
+2. AC-2. Login. Every start, the inactivity lock and Log out show the login screen: username, password and one button Log in. The last username used is filled in. A wrong password shows "Wrong username or password. N tries left before a wait." The wrong-password waiting rules of Doc 2 s6 apply to each account on its own: one account's wait does not stop another account. A switched-off account shows "This account is switched off. Ask the admin."
+3. AC-3. What each account sees. The admin sees the Sales area and the Admin area. A salesman sees the Sales area only: the Admin area, Settings, Users, price setting and Export cannot be reached.
+4. AC-4. Who made it. Every bill, payment and return records the account that made it. The Salesman line prints that account's display name as it was when the bill or payment was saved; a reprint prints the same name.
+5. AC-5. Passwords. The admin resets a salesman's password (typed twice) and changes their own password by giving the current one. There is no recovery of the admin password: the only way back in is to clear the app's data, which deletes everything (A-26). Passwords are never shown, logged or exported.
 
 ==============================================================================
 ## 3. Products
@@ -120,7 +128,7 @@ Price of a custom packet (unless changed on the line where allowed) = list price
 - Discounts for a regular customer are done as an override price.
 
 >> [NOTE]
-> Risk. With one trusted owner the risk of under-charging is small. It matters when a second salesman is added in version 2. A minimum price per product is an open question (P-11).
+> Risk. With salesman accounts (A-25), a salesman can under-charge where the type's switch is on; every changed price is flagged and the bill records who made it (AC-4). A minimum price per product is an open question (P-11).
 
 ==============================================================================
 ## 5. Billing
@@ -140,7 +148,7 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code is a setting
 ### 5.3 Bill layout (32 columns, modelled on the parent company's bill)
 
 - Header: business name, address lines and phone from Settings (a missing value prints '(address / phone pending)'), then a rule line.
-- Lines in this order: Bill No, Date, Time, Salesman (the owner's name from Settings), Customer (the name, then the location on the next line, indented). The customer type is never printed.
+- Lines in this order: Bill No, Date, Time, Salesman (the display name of the account that made the bill, AC-4), Customer (the name, then the location on the next line, indented). The customer type is never printed.
 - Item table with columns Item Desc, Qty, Price, Amt. Each item is its name in capitals with the chapathis per packet (for example MAMRE CHAPATHI 12NOS), then a line with packets, price per packet and amount, right-aligned. No dollar sign anywhere on a bill; the total line reads TOTAL (USD).
 - Payment block: a PAID line for money taken now (with the method) and a CREDIT line for the unpaid part.
 - Numbers: bills are MAM-<device code>-<sequence>, where the sequence has at least 4 digits (0042) and keeps growing past 9999, payment receipts RCP-<device code>-<sequence>; each has its own counter in Settings and a number is never reused.
@@ -148,7 +156,7 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code is a setting
 - Normal customers: Balance after, and for credit customers a THIS MONTH summary (brought forward, invoiced, credits, each payment with date, amount and method, total due).
 - Corporate accounts: no balance of any kind (no Balance after, THIS MONTH, Brought forward or TOTAL DUE). The bill ends with 'Received by' and 'Sign and stamp' so the store can sign and stamp it.
 - Footer text from Settings. A reprint adds DUPLICATE COPY. A voided bill shows VOID and keeps its number.
-- Payment receipts (a payment with no new bill) use the same header and plain numbers. Lines: Receipt (number), Date, Time, Salesman, Customer with location, then Payment received (method) with the amount, Balance after (not for a corporate account), and the note if one was given.
+- Payment receipts (a payment with no new bill) use the same header and plain numbers. Lines: Receipt (number), Date, Time, Salesman (the display name of the account that recorded the payment, AC-4), Customer with location, then Payment received (method) with the amount, Balance after (not for a corporate account), and the note if one was given.
 - Item codes, a logo and Arabic text are not printed in version 1: they need the printer's own library and real product codes.
 
 ### 5.4 Rules
@@ -333,7 +341,7 @@ Expense entries are add-only. A mistake is corrected by a reversing entry with a
 
 Version 1 has no dashboards, charts or profit reports. The Admin area shows lists with search and filters: Sales (month, customer, status, Price changed), Customers with their month summary, Balances with ageing (current, 30+ days, 60+ days), Returns and damage, and Purchases and other expenses.
 
-Export to files (Admin area): one CSV file per table (18 files: customers, customer types, products, prices, price overrides, bills, bill items, payments, returns, materials, recipe items, opening stock, purchases, expense categories, expenses, production damage, settings without the PIN, change log) plus a manifest with the data version, export time and row counts. UTF-8, header row, UUIDs, money in cents. The Owner shares the files with the phone's share menu (mail, Drive, a cable). The files are plain text with customer data. There is no import in version 1; version 2 imports these files.
+Export to files (Admin area): one CSV file per table (19 files: customers, customer types, products, prices, price overrides, bills, bill items, payments, returns, materials, recipe items, opening stock, purchases, expense categories, expenses, production damage, settings, users without any password data, change log) plus a manifest with the data version, export time and row counts. UTF-8, header row, UUIDs, money in cents. The Owner shares the files with the phone's share menu (mail, Drive, a cable). The files are plain text with customer data. There is no import in version 1; version 2 imports these files.
 
 The app records when an export was last prepared (when the files are written and the share sheet is opened; it cannot know whether the Owner finished sharing) and shows it on the Export screen and in Settings as Last export prepared. When at least one bill exists and the last export is missing, older than 7 days, or dated in the future, the Sales Home shows a quiet card with a button that opens the Export screen. There is no popup and nothing is blocked.
 
@@ -375,7 +383,7 @@ Each assumption stands until the owner changes it. An agent must not silently ch
 | A-11 | WITHDRAWN. Direct cost comes from material purchases and calculated usage (section 9). |
 | A-12 | Machine cost is a monthly amount entered by the Admin. |
 | A-13 | Customers and products are managed in the Admin area only. Customers apply immediately. |
-| A-14 | In version 1 the Owner enters everything. Salesman logins and worker expense entry come in version 2. |
+| A-14 | In version 1 the admin enters everything in the Admin area; salesmen work in the Sales area only. Worker expense entry comes in version 2. |
 | A-15 | Device: Android handheld with a built-in 58 mm thermal printer (to confirm, P-1). |
 | A-16 | A receipt prints when a payment is confirmed. |
 | A-17 | Confirmed bills are immutable. Void or credit is the only correction. |
@@ -386,11 +394,11 @@ Each assumption stands until the owner changes it. An agent must not silently ch
 | A-22 | Packing is counted once per packet, for sold and replacement packets. |
 | A-23 | A walk-in follows the Retail price list and the Retail price-edit setting. |
 | A-24 | Version 1 is local-first: one handheld, no server, no network, all data on the device. |
-| A-25 | One Owner is both salesman and admin. The PIN opens the app; the Sales and Admin areas are kept apart by navigation, not by a second login. The Owner can lock the app at once with a Lock now button. In the release app the screen is hidden from screenshots and from the recent-apps preview, so bills and balances are not shown there. |
+| A-25 | Version 1 has accounts (owner decision 6 November 2026, replacing the single-Owner PIN): one admin account (the Owner) and salesman accounts on the same phone, each with a username and password (s2.2). The admin uses both areas; a salesman uses the Sales area only. Log out (formerly Lock now) returns to the login screen at once. In the release app the screen is hidden from screenshots and from the recent-apps preview, so bills and balances are not shown there. |
 | A-26 | No automatic backups in version 1 (owner decision): data is entered by hand for the first two months and can be re-entered. Uninstalling the app deletes all its data. |
 | A-27 | Export to files is the only way data leaves the device. |
 | A-28 | Dashboards, the Costing screen and profit reports are version 2. Version 1 stores their inputs. |
-| A-29 | The name printed after 'Salesman' on bills is set in Settings. |
+| A-29 | The name printed after 'Salesman' on bills and payment receipts is the display name of the account that made them (AC-4). |
 | A-30 | An update installs over the old app and keeps the data only if it is signed with the same key. The key is kept in two safe places. |
 | A-31 | The business header comes from Settings. No business detail is written in the code. |
 
@@ -411,8 +419,8 @@ The business must supply these. Until then the build uses clearly marked placeho
 | P-8 | Existing customers and opening balances | Entered by hand in the Admin area. |
 | P-9 | Confirm both products share the same base recipe and yield | Recipe defaults. |
 | P-11 | Decide on a minimum price per product where prices can be edited | Under-charging control. |
-| P-12 | The Owner's name for the Salesman line | Settings. Default placeholder. |
-| P-13 | The Owner's PIN (4 to 6 digits). There is no recovery in version 1, so choose one you will remember | First run. |
+| P-12 | Display names for the admin and each salesman (printed on bills) | First run; Admin > Settings > Users. |
+| P-13 | The admin password (at least 6 characters). There is no recovery in version 1, so choose one you will remember | First run. |
 
 ==============================================================================
 ## 14. Glossary
@@ -420,9 +428,10 @@ The business must supply these. Until then the build uses clearly marked placeho
 
 | Term | Meaning |
 |---|---|
-| Owner | The single user of version 1, who is both salesman and admin. |
+| Owner | The business owner. In version 1 the Owner holds the admin account. |
+| Admin account / Salesman account | The two kinds of login in version 1 (s2.2). The admin uses both areas; a salesman uses the Sales area only. |
 | Bill | The document made for a sale (older sections of this document call it an invoice). The app says Bill. |
-| Sales area / Admin area | The two parts of the app, switched with one tap after the PIN. |
+| Sales area / Admin area | The two parts of the app. The admin switches between them with one tap after logging in; a salesman sees only the Sales area. |
 | Chapathi | One half-cooked chapathi. Material usage is calculated per chapathi. |
 | Packet | The sales unit: a standard packet (12 chapathis) or a custom packet (1 to 200). |
 | Credit customer | A customer billed monthly who may carry a balance. |
@@ -442,7 +451,7 @@ The business must supply these. Until then the build uses clearly marked placeho
 
 | Item | Notes |
 |---|---|
-| Server and database, sync, separate salesman login | The backend exists in the repository (accounts, catalog, sales, sync) and is parked. It does not yet know the version 1.1 and 1.2 rules. |
+| Server and database, sync | The backend exists in the repository (accounts, catalog, sales, sync) and is parked. It does not yet know the version 1.1 and 1.2 rules. |
 | Laptop dashboard | Odoo-style lists and forms (Doc 2 section 13). |
 | Monthly dashboard and profit analytics | Built in the Android demo, hidden in version 1. |
 | Costing screen | Built in the Android demo, hidden in version 1. Calculates from stored inputs. |
@@ -457,6 +466,7 @@ Mismatches to fix before a server is connected: the business header setting name
 
 | Version | Changes |
 |---|---|
+| 1.4 (6 Nov 2026) | Owner decision: accounts replace the PIN. One admin account and salesman accounts with username and password (2, 2.1 FR-1 to FR-3, new 2.2, A-14, A-25, A-29, P-12, P-13, glossary). The owner name setting is removed; the Salesman line prints the display name of the account that made the bill or payment (5.3). Export is 19 files with users (11). No change to prices or money rules. |
 | 1.3 (2 Nov 2026) | First run (2.1, FR-1 to FR-4). Bill numbers, walk-in bill and payment receipt lines (5.3). Version 1 computes allocation instead of storing rows (6.2). Last export date and 7-day reminder card (11.1). No change to prices or money rules. |
 | 1.2.1 (19 Oct 2026) | Export is 18 files and goes through the share menu only (no folder picker). Lock now button; release screens are hidden from screenshots and the recent-apps preview (A-25). No change to bills, prices or balances. |
 | 1.2 (4 Oct 2026) | Version 1 is local-first: one handheld, one Owner who is both salesman and admin, a PIN, no server, no automatic backups, export to files. The dashboard, the Costing screen and the laptop move to version 2. New bill layout (modelled on the parent company's bill), salesman name from Settings, customer name plus location, corporate account switch. |

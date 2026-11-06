@@ -2,8 +2,8 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 3 OF 3
 # Agent Operating Guide and Build Plan
 Roles, git workflow, rules, drift control and ready-to-paste prompts for working with multiple Claude Code agents
 
-Version: 1.3 (local-first, 2 November 2026)
-Date: 2 November 2026
+Version: 1.4 (local-first, 6 November 2026)
+Date: 6 November 2026
 Audience: Every Claude Code agent on this project, and the owner who supervises them.
 Companion documents: Doc 1: Product Specification (what).  Doc 2: Technical Architecture and Data Model (how).
 Status: Process rules, amended 4 October 2026 to match Doc 1 version 1.2 (local-first) (rule N4 changed, phases updated). They change only with owner approval.
@@ -34,7 +34,7 @@ Status: Process rules, amended 4 October 2026 to match Doc 1 version 1.2 (local-
 ==============================================================================
 
 - What: billing for Mamre Foods, a US half-cooked chapathi business. Products: Mamre Chapathi and Mamre Fresh Chapathi. Currency USD. No tax.
-- Version 1 is local-first: one Android handheld with a 58 mm printer, one Owner who is both salesman and admin, a PIN, no server and no network. All data is stored on the phone. No automatic backups (the Owner enters data by hand for the first two months). Export to files.
+- Version 1 is local-first: one Android handheld with a 58 mm printer, one admin account (the Owner) and salesman accounts with username and password (Doc 1 s2.2, owner decision 6 November 2026), no server and no network. All data is stored on the phone. No automatic backups (the Owner enters data by hand for the first two months). Export to files.
 - Version 2 (parked): server, sync, laptop dashboard, monthly dashboard, Costing screen, profit analytics, separate salesman logins, backups.
 - Packets: a standard packet is 12 chapathis (editable per product). A custom packet holds 1 to 200 chapathis, for every customer type. Material usage is counted in chapathis.
 - Customers: Restaurant, Shop, Retail and Catering (a walk-in follows Retail). Name plus location is unique. A corporate account never shows a balance on a bill or in the Sales area, but the balance is tracked.
@@ -318,10 +318,11 @@ Review branch [BRANCH] against main:
 | AT-15 | A reversing entry nets a purchase or expense out; the original stays visible; a reversal cannot be reversed. | Doc 1 s9.4 |
 | AT-17 | The release package contains no fake API, no demo logins, no demo data and no demo address. | Doc 2 s8 |
 | AT-18 | Each database migration keeps existing data (a test per schema version). | Doc 2 I-15 |
-| AT-19 | A wrong PIN is refused; only a salted hash is stored; the app locks after the set time. | Doc 2 s6 |
-| AT-20 | Export writes every table, row counts match the app, and the PIN is not exported. | Doc 2 s5.3 |
+| AT-19 | First run creates the admin account. A wrong password is refused and only a salted hash is stored. Each account has its own wrong-password wait (one account's wait does not stop another). A switched-off account is refused. The admin account cannot be switched off. The app returns to the login screen after the set time and on Log out. | Doc 1 s2.2, Doc 2 s6 |
+| AT-20 | Export writes every table (19 files), row counts match the app, and no password data is exported (users.csv has no hash, salt, fail_count or locked_until). | Doc 2 s5.3 |
 | AT-21 | A first-run release database holds reference data only: no customers, prices or bills. | Doc 2 s5.2 |
 | AT-22 | A corporate account's balance appears on no bill, receipt or Sales-area screen, and still appears in the Admin area. | Doc 1 s4.1 |
+| AT-23 | A salesman cannot reach the Admin area: no Admin tile or Export card is shown, and every Admin route is refused by the route guard. Bills, payments and returns store the account that made them, and the bill and payment receipt print its display name as saved, also on reprint. | Doc 1 s2.2 AC-3, AC-4; Doc 2 s6 |
 
 Version 2 will add: idempotent sync, no cost data in worker responses, month lock, airplane-mode end to end, and a customer reaching the salesman only after sync.
 
@@ -347,7 +348,7 @@ Paste this into CLAUDE.md at the repository root. Agents read it automatically.
 
 Read docs/01-product-spec.txt, docs/02-architecture.txt and
 docs/03-agent-guide.txt. Doc 1 wins on behaviour, Doc 2 on technology.
-Version 1 is a local-first Android app: one Owner, one phone, no server.
+Version 1 is a local-first Android app: one phone, one admin account and salesman accounts, no server.
 
 ## Always
 - Stay inside the folders you own (Doc 3 section 3.1).
@@ -382,4 +383,5 @@ Stop. Write the question in docs/QUESTIONS.md. Do not guess.
 
 | Version | Changes |
 |---|---|
+| 1.4 (6 Nov 2026) | Owner decision: accounts replace the PIN. Section 1 summary, AT-19 (account rules), AT-20 (19 files, no password data), new AT-23 (a salesman cannot reach the Admin area; creator on bills), CLAUDE.md template line. |
 | 1.3 (2 Nov 2026) | Note at the top: Doc 4 replaces sections 3, 4, 5.3 and 6 where they conflict while version 1 is finished. |
