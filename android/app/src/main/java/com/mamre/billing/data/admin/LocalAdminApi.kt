@@ -31,6 +31,7 @@ import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceEntry
 import com.mamre.billing.domain.admin.PriceMatrix
 import com.mamre.billing.domain.admin.ProductCost
+import com.mamre.billing.domain.admin.ProductForm
 import com.mamre.billing.domain.admin.ProductRecipe
 import com.mamre.billing.domain.admin.ProductionDamage
 import com.mamre.billing.domain.admin.Purchase
@@ -57,6 +58,8 @@ import com.mamre.billing.domain.usecase.SetDeviceCode
 import com.mamre.billing.domain.usecase.SetLockMinutes
 import com.mamre.billing.domain.usecase.SetWastage
 import com.mamre.billing.domain.usecase.SetYieldPerKg
+import com.mamre.billing.domain.usecase.AddProduct
+import com.mamre.billing.domain.usecase.EditProduct
 import com.mamre.billing.domain.usecase.VoidBill
 import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
 import com.mamre.billing.domain.worker.isValidPacketSize
@@ -98,6 +101,8 @@ class LocalAdminApi(
     private val setWastage: SetWastage,
     private val setStandardPacketSizeUseCase: SetStandardPacketSize,
     private val setYieldPerKgUseCase: SetYieldPerKg,
+    private val addProductUseCase: AddProduct,
+    private val editProductUseCase: EditProduct,
     private val saveBusinessSettings: SaveBusinessSettings,
     private val setDeviceCodeUseCase: SetDeviceCode,
     private val setLockMinutesUseCase: SetLockMinutes,
@@ -153,6 +158,8 @@ class LocalAdminApi(
                 setWastage = SetWastage(u, settings, log, clock),
                 setStandardPacketSizeUseCase = SetStandardPacketSize(u, stock, log, clock),
                 setYieldPerKgUseCase = SetYieldPerKg(u, stock, log, clock),
+                addProductUseCase = AddProduct(u, stock, log, clock),
+                editProductUseCase = EditProduct(u, stock, log, clock),
                 saveBusinessSettings = SaveBusinessSettings(u, settings, log, clock),
                 setDeviceCodeUseCase = SetDeviceCode(u, settings, log, clock),
                 setLockMinutesUseCase = SetLockMinutes(u, settings, log, clock),
@@ -280,6 +287,11 @@ class LocalAdminApi(
 
     override suspend fun setStandardPacketSize(productId: String, chapathis: Int) =
         changed { setStandardPacketSizeUseCase(productId, chapathis) }
+
+    override suspend fun addProduct(form: ProductForm): String = changed { addProductUseCase(form) }
+
+    override suspend fun editProduct(productId: String, name: String, code: String, active: Boolean) =
+        changed { editProductUseCase(productId, name, code, active) }
 
     override suspend fun setYieldPerKg(productId: String, chapathisPerKg: Int) =
         changed { setYieldPerKgUseCase(productId, chapathisPerKg) }

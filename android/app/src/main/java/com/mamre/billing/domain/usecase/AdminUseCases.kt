@@ -43,6 +43,12 @@ import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.checkCustomerIdentity
 import com.mamre.billing.domain.model.identityKey
 import com.mamre.billing.domain.model.identityProblemMessage
+import com.mamre.billing.data.local.ProductEntity
+import com.mamre.billing.domain.admin.ExistingProduct
+import com.mamre.billing.domain.admin.ProductForm
+import com.mamre.billing.domain.admin.cleanProductCode
+import com.mamre.billing.domain.admin.productProblemMessage
+import com.mamre.billing.domain.admin.validateProductForm
 import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.money.formatCents
@@ -476,6 +482,64 @@ class SetLockMinutes(
             val old = settings.lockMinutes()
             settings.put(SettingKeys.LOCK_MINUTES, minutes.toString())
             changeLog.add(clock.millis(), "Lock time", "$old minutes", "$minutes minutes")
+        }
+    }
+}
+
+/**
+ * Adds a product (Doc 1 s3: a simple Admin form, no code change). One transaction: the row and one change log entry. Every rule of
+ * [validateProductForm] is checked again here, because the screen is not the only guard. The new product has NO price, so it cannot
+ * be sold until the Admin sets one (Doc 1 s4.2), and B2's Finish setup card counts its missing prices. Returns the new product id.
+ */
+class AddProduct(
+    private val unitOfWork: UnitOfWork,
+    private val stock: StockRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(form: ProductForm): String = unitOfWork.run {
+        val existing = stock.products().map { ExistingProduct(it.id, it.name, it.code) }
+        validateProductForm(form, existing).firstOrNull()?.let { refuse(productProblemMessage(it)) }
+        val row = ProductEntity(
+            id = UUID.randomUUID().toString(),
+            code = cleanProductCode(form.code),
+            name = normalizeSpaces(form.name),
+            standardPacketSize = form.packetSize,
+            yieldPerKg = form.yieldPerKg,
+            isActive = form.active,
+        )
+        stock.insertProduct(row)
+        changeLog.add(
+            clock.millis(), "Add product ${row.name}", "none",
+            "code ${row.code}, ${row.standardPacketSize} chapathis a packet, ${row.yieldPerKg} per kg, ${if (row.isActive) "active" else "inactive"}",
+        )
+        row.id
+    }
+}
+
+/**
+ * Edits a product's name, code and active flag (Doc 1 s3). The packet size and the yield keep their own use cases
+ * ([SetStandardPacketSize], [SetYieldPerKg]). One change log entry with before and after. A product is never deleted: switching it
+ * off keeps it, its price history and every bill; it is only no longer offered on a new bill.
+ */
+class EditProduct(
+    private val unitOfWork: UnitOfWork,
+    private val stock: StockRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(productId: String, name: String, code: String, active: Boolean) {
+        unitOfWork.run {
+            val old = stock.product(productId) ?: refuse("Unknown product")
+            val existing = stock.products().map { ExistingProduct(it.id, it.name, it.code) }
+            val form = ProductForm(name, code, old.standardPacketSize, old.yieldPerKg, active)
+            validateProductForm(form, existing, selfId = productId).firstOrNull()?.let { refuse(productProblemMessage(it)) }
+            val newName = normalizeSpaces(name)
+            val newCode = cleanProductCode(code)
+            if (newName == old.name && newCode == old.code && active == old.isActive) refuse("Nothing was changed")
+            stock.editProduct(productId, newName, newCode, active)
+            fun describe(n: String, c: String, a: Boolean) = "$n, code $c, ${if (a) "active" else "inactive"}"
+            changeLog.add(clock.millis(), "Edit product ${old.name}", describe(old.name, old.code, old.isActive), describe(newName, newCode, active))
         }
     }
 }

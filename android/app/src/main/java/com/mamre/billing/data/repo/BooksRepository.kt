@@ -80,7 +80,7 @@ class BooksRepository(private val db: MamreDatabase, private val zone: () -> Zon
 
         return BooksSnapshot(
             types = types.inTypeOrder { it.name }.map { AdminCustomerType(it.id, it.name, it.salesmanCanEditPrice) },
-            products = productRows.map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, it.yieldPerKg) },
+            products = productRows.map { AdminProduct(it.id, it.code, it.name, it.standardPacketSize, it.yieldPerKg, it.isActive) },
             customers = customerRows.map { c ->
                 c.toAdmin(typeName[c.typeId].orEmpty())
             },

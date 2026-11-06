@@ -40,6 +40,8 @@ data class AdminProduct(
     val unitsPerPacket: Int,
     /** Chapathis made from 1 kg of wheat (32). Admin only: recipe quantities are per 1 kg of wheat. */
     val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,
+    /** False once the Admin switched the product off (B5): it is no longer offered on a new bill. */
+    val isActive: Boolean = true,
 )
 
 const val DEFAULT_YIELD_PER_KG = 32
@@ -247,6 +249,8 @@ data class ProductRecipe(
     val lines: List<RecipeLine>,
     /** Chapathis from 1 kg of wheat. Recipe quantities are per 1 kg of wheat, except packing (one piece per packet). */
     val yieldPerKg: Int = DEFAULT_YIELD_PER_KG,
+    /** False once the Admin switched the product off (B5): it is no longer offered on a new bill. */
+    val isActive: Boolean = true,
     val standardPacketSize: Int = DEFAULT_PACKET_SIZE,
 )
 
