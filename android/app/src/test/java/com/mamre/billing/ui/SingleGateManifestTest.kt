@@ -53,10 +53,16 @@ class SingleGateManifestTest {
         }
     }
 
-    @Test fun theMainManifestAsksForNoPermissionAtAll() {
+    /** A1 items 4 and 5: the printer permissions are the only ones the main manifest may declare, and legacy BLUETOOTH stops at SDK 30. */
+    @Test fun theMainManifestAsksOnlyForTheTwoPrinterPermissions() {
         val m = read("src/main/AndroidManifest.xml")
-        assertFalse("a permission is declared", m.contains("<uses-permission"))
-        for (banned in listOf("INTERNET", "STORAGE", "MANAGE_EXTERNAL", "READ_MEDIA")) assertFalse(banned, m.contains(banned))
+        val tags = Regex("""<uses-permission\b[^>]*>""", RegexOption.DOT_MATCHES_ALL).findAll(m).map { it.value }.toList()
+        val names = tags.map { Regex("""android:name="([^"]+)"""").find(it)!!.groupValues[1] }.toSet()
+        assertEquals(setOf("android.permission.BLUETOOTH_CONNECT", "android.permission.BLUETOOTH"), names)
+        assertEquals("no permission declared twice", names.size, tags.size)
+        val legacy = tags.single { it.contains("\"android.permission.BLUETOOTH\"") }
+        assertTrue("BLUETOOTH carries maxSdkVersion 30", legacy.contains("android:maxSdkVersion=\"30\""))
+        for (banned in listOf("INTERNET", "STORAGE", "MANAGE_EXTERNAL", "READ_MEDIA", "QUERY_ALL_PACKAGES")) assertFalse(banned, m.contains(banned))
     }
 
     @Test fun theOnlyDebugEntryIsTheStateGalleryAndItReadsNoData() {

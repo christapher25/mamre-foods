@@ -66,6 +66,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        aidl = true
     }
     testOptions {
         unitTests {
@@ -145,6 +146,8 @@ val verifyReleaseComponents = tasks.register("verifyReleaseComponents") {
         val text = merged.get().asFile.readText()
         val problems = ReleaseManifestRules.problems(text, allowed) + ReleaseManifestRules.backupProblems(text)
         check(problems.isEmpty()) { "the merged release manifest opens doors it should not: $problems" }
+        val permissionProblems = ReleaseManifestRules.permissionProblems(merged.get().asFile.readText())
+        check(permissionProblems.isEmpty()) { "the merged release manifest holds a permission it should not: $permissionProblems" }
     }
 }
 
