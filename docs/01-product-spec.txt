@@ -87,7 +87,7 @@ In version 1 the app runs on one phone and has accounts (A-25, s2.2): one admin 
 ## 3. Products
 ==============================================================================
 
-Two products at launch, both sold half-cooked. Adding a new product must be a simple Admin form with no code change.
+Two products at launch, both sold half-cooked. Adding a new product must be a simple Admin form with no code change. Their product codes are FRESH (Mamre Fresh Chapathi) and CHAPATHI (Mamre Chapathi), kept by the owner on 6 November 2026. Codes are not printed on bills; they appear only in the export files and can be changed in Admin > Products.
 
 | Product | Description | Standard packet |
 |---|---|---|
@@ -108,7 +108,7 @@ Customer types: Restaurant, Shop, Retail and Catering. A saved customer has: nam
 
 - Name plus location must be unique, ignoring case and extra spaces, so two shops with the same name in different places never clash. Location is required for Restaurant, Shop and Catering; optional for a new Retail name; and always required when the name already exists. Screens show 'Name - Location'.
 - Corporate account (for chains such as supermarkets): no balance of any kind is shown on the bill or anywhere in the Sales area. The balance is still tracked and visible in the Admin area.
-- A walk-in sale is an anonymous Retail sale with no ledger; it follows the Retail price list and the Retail price-edit setting, and must be paid in full at the time of sale.
+- A walk-in sale is an anonymous Retail sale with no ledger; it follows the Retail price list and the Retail price-edit setting, and must be paid in full at the time of sale. The app records exactly the bill total for a walk-in; if the customer hands over more cash, the salesman gives the change by hand (owner decision 6 November 2026).
 - Customers are created and edited in the Admin area only (A-13) and apply immediately.
 
 ### 4.2 Price resolution order
@@ -128,7 +128,7 @@ Price of a custom packet (unless changed on the line where allowed) = list price
 - Discounts for a regular customer are done as an override price.
 
 >> [NOTE]
-> Risk. With salesman accounts (A-25), a salesman can under-charge where the type's switch is on; every changed price is flagged and the bill records who made it (AC-4). A minimum price per product is an open question (P-11).
+> Risk. With salesman accounts (A-25), a salesman can under-charge where the type's switch is on; every changed price is flagged and the bill records who made it (AC-4). Version 1 has no minimum price: a changed price is above 0 and at most 10 times the list price (owner decision 6 November 2026; P-11 closed).
 
 ==============================================================================
 ## 5. Billing
@@ -172,7 +172,7 @@ Format MAM-<DEVICE>-<SEQ>, for example MAM-W1-0042. The device code is a setting
 
 ### 6.1 Payment methods and customer modes
 
-- Methods accepted: Cash, Zelle, Check, Card, Other (with a note) (A-3).
+- Methods accepted: Cash, Zelle, Check, Card, Other (A-3). A note may be added to a payment but is never required, also for Other (owner decision 6 November 2026).
 - Cash customers pay at the time of sale. Credit customers may leave a balance and are billed per calendar month in the business time zone (P-7).
 - This applies equally to restaurants, shops and named retail customers.
 
@@ -339,7 +339,7 @@ Expense entries are add-only. A mistake is corrected by a reversing entry with a
 
 ### 11.1 Version 1: lists and export
 
-Version 1 has no dashboards, charts or profit reports. The Admin area shows lists with search and filters: Sales (month, customer, status, Price changed), Customers with their month summary, Balances with ageing (current, 30+ days, 60+ days), Returns and damage, and Purchases and other expenses.
+Version 1 has no dashboards, charts or profit reports. The Admin area shows lists with search and filters: Sales (month, customer, status, Price changed), Customers with their month summary, Balances with ageing (under 30 days, 30 to 59 days, 60 days or more, by the age of each bill after payments are applied oldest first; an opening balance counts as 60 days or more; owner decision 6 November 2026), Returns and damage, and Purchases and other expenses.
 
 Export to files (Admin area): one CSV file per table (19 files: customers, customer types, products, prices, price overrides, bills, bill items, payments, returns, materials, recipe items, opening stock, purchases, expense categories, expenses, production damage, settings, users without any password data, change log) plus a manifest with the data version, export time and row counts. UTF-8, header row, UUIDs, money in cents. The Owner shares the files with the phone's share menu (mail, Drive, a cable). The files are plain text with customer data. There is no import in version 1; version 2 imports these files.
 
@@ -418,7 +418,7 @@ The business must supply these. Until then the build uses clearly marked placeho
 | P-7 | Time zone | Month boundaries use the phone's time zone in version 1. |
 | P-8 | Existing customers and opening balances | Entered by hand in the Admin area. |
 | P-9 | Confirm both products share the same base recipe and yield | Recipe defaults. |
-| P-11 | Decide on a minimum price per product where prices can be edited | Under-charging control. |
+| P-11 | Closed 6 November 2026: no minimum price in version 1 (a changed price is above 0 and at most 10 times the list price) | Under-charging control. |
 | P-12 | Display names for the admin and each salesman (printed on bills) | First run; Admin > Settings > Users. |
 | P-13 | The admin password (at least 6 characters). There is no recovery in version 1, so choose one you will remember | First run. |
 
@@ -466,7 +466,7 @@ Mismatches to fix before a server is connected: the business header setting name
 
 | Version | Changes |
 |---|---|
-| 1.4 (6 Nov 2026) | Owner decision: accounts replace the PIN. One admin account and salesman accounts with username and password (2, 2.1 FR-1 to FR-3, new 2.2, A-14, A-25, A-29, P-12, P-13, glossary). The owner name setting is removed; the Salesman line prints the display name of the account that made the bill or payment (5.3). Export is 19 files with users (11). No change to prices or money rules. |
+| 1.4 (6 Nov 2026) | Owner answers to OWNER.md item 2 (no change to how the app behaves today): product codes FRESH and CHAPATHI (3); a walk-in pays the exact total, change by hand (4.1); no minimum price (4.3, P-11); a note is never required, also for Other (6.1); ageing buckets (11). Owner decision: accounts replace the PIN. One admin account and salesman accounts with username and password (2, 2.1 FR-1 to FR-3, new 2.2, A-14, A-25, A-29, P-12, P-13, glossary). The owner name setting is removed; the Salesman line prints the display name of the account that made the bill or payment (5.3). Export is 19 files with users (11). No change to prices or money rules. |
 | 1.3 (2 Nov 2026) | First run (2.1, FR-1 to FR-4). Bill numbers, walk-in bill and payment receipt lines (5.3). Version 1 computes allocation instead of storing rows (6.2). Last export date and 7-day reminder card (11.1). No change to prices or money rules. |
 | 1.2.1 (19 Oct 2026) | Export is 18 files and goes through the share menu only (no folder picker). Lock now button; release screens are hidden from screenshots and the recent-apps preview (A-25). No change to bills, prices or balances. |
 | 1.2 (4 Oct 2026) | Version 1 is local-first: one handheld, one Owner who is both salesman and admin, a PIN, no server, no automatic backups, export to files. The dashboard, the Costing screen and the laptop move to version 2. New bill layout (modelled on the parent company's bill), salesman name from Settings, customer name plus location, corporate account switch. |
