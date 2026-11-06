@@ -132,7 +132,7 @@ private fun ExportReminderCard(due: ExportDue, onOpenExport: () -> Unit) {
 }
 
 /**
- * The top bar's "Lock now": locks the app at once. Only the lock icon, named "Lock now" for screen readers: a text label took the
+ * The top bar's Log out: locks the app at once and shows the login. Only the lock icon, named Log out for screen readers: a text label took the
  * title's width at font scale 1.3 and 360 dp and squeezed the business name into a column.
  */
 @Composable

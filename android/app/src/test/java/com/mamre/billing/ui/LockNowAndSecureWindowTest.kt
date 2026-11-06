@@ -144,10 +144,11 @@ class LockNowAndSecureWindowTest {
         assertTrue(lock.checkIdle(5)) // the lock minutes rule is unchanged
     }
 
-    @Test fun theLockNowButtonsAreInTheScreens() {
+    @Test fun theLogOutButtonsAreInTheScreens() {
         val home = module("src/main/java/com/mamre/billing/ui/worker/HomeScreen.kt")
         val settings = module("src/main/java/com/mamre/billing/ui/admin/SettingsScreen.kt")
-        assertTrue(home.contains("\"Lock now\"") && home.contains("onLockNow"))
-        assertTrue(settings.contains("\"Lock now\"") && settings.contains("actions.lockNow"))
+        assertTrue(home.contains("\"Log out\"") && home.contains("onLockNow") && home.contains("session::logOut")) // B8 h: Lock now is renamed Log out
+        assertTrue(settings.contains("\"Log out\"") && settings.contains("actions.lockNow"))
+        assertTrue("no Lock now label is left", !home.contains("\"Lock now\"") && !settings.contains("\"Lock now\""))
     }
 }
