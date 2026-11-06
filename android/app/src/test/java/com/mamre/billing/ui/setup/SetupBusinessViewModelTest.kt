@@ -4,6 +4,7 @@ import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.setup.SetupForm
+import com.mamre.billing.ui.ViewModelScopes
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,6 +29,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class SetupBusinessViewModelTest {
     private lateinit var w: World
+    private val scopes = ViewModelScopes()
 
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -35,11 +37,12 @@ class SetupBusinessViewModelTest {
     }
 
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private suspend fun ready() = SetupBusinessViewModel(w.admin).also { vm -> withTimeout(10_000) { vm.ui.first { !it.loading } } }
+    private suspend fun ready() = scopes.track(SetupBusinessViewModel(w.admin)).also { vm -> withTimeout(10_000) { vm.ui.first { !it.loading } } }
 
     @Test fun theBusinessNameIsPrefilledFromTheSeed() = runBlocking {
         val vm = ready()

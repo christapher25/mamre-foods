@@ -6,6 +6,7 @@ import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.TestDatabase
 import com.mamre.billing.data.local.World
 import com.mamre.billing.domain.security.AppLock
+import com.mamre.billing.ui.ViewModelScopes
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -29,6 +30,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class HomeSetupCardTest {
     private lateinit var w: World
+    private val scopes = ViewModelScopes()
 
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -36,11 +38,12 @@ class HomeSetupCardTest {
     }
 
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         w.db.close()
     }
 
-    private fun home() = HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock))
+    private fun home() = scopes.track(HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, AppLock(w.clock)))
 
     private suspend fun HomeViewModel.stateWhere(predicate: (HomeState) -> Boolean) = withTimeout(10_000) { state.first(predicate) }
 
