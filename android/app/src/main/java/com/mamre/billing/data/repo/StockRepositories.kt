@@ -24,6 +24,10 @@ class StockRepository(private val db: MamreDatabase) {
 
     suspend fun setYieldPerKg(productId: String, yieldPerKg: Int) = db.productDao().setYieldPerKg(productId, yieldPerKg)
 
+    suspend fun insertProduct(row: ProductEntity) = db.productDao().insert(row)
+
+    suspend fun editProduct(id: String, name: String, code: String, active: Boolean) = db.productDao().editIdentity(id, name, code, active)
+
     suspend fun materials(): List<MaterialEntity> = db.materialDao().getAll()
 
     suspend fun recipe(): List<RecipeItemEntity> = db.recipeDao().getAll()

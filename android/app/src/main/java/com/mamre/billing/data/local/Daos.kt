@@ -44,6 +44,12 @@ interface ProductDao {
     @Query("UPDATE products SET yield_per_kg = :yieldPerKg WHERE id = :id")
     suspend fun setYieldPerKg(id: String, yieldPerKg: Int): Int
 
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(row: ProductEntity)
+
+    /** Name, code and active only: the packet size and the yield have their own queries above. A product is never deleted (B5). */
+    @Query("UPDATE products SET name = :name, code = :code, is_active = :active WHERE id = :id")
+    suspend fun editIdentity(id: String, name: String, code: String, active: Boolean): Int
+
     @Query("SELECT COUNT(*) FROM products") suspend fun count(): Int
 }
 

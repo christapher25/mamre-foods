@@ -64,4 +64,16 @@ class RoleGuardTest {
         }
         assertFalse(routeAllowedFor(Role.SALESMAN, Area.ADMIN, AdminRoutes.SETTINGS, on))
     }
+
+    @Test fun aSalesmanCannotReachAdminProductsInAnyWay() {
+        // B5: Admin > More > Products, Add product and Edit product are Admin routes.
+        val routes = listOf(AdminRoutes.PRODUCTS, AdminRoutes.PRODUCT_NEW, AdminRoutes.productEdit("some-id"), AdminRoutes.PRODUCT_EDIT)
+        for (features in listOf(on, off)) for (r in routes) {
+            assertFalse(r, routeAllowedFor(Role.SALESMAN, Area.ADMIN, r, features))
+            assertFalse(r, routeAllowedFor(Role.SALESMAN, Area.SALES, r, features))
+            assertEquals(Routes.SALES_HOME, navTargetFor(Role.SALESMAN, Area.ADMIN, features, r))
+            assertTrue(r, routeAllowedFor(Role.ADMIN, Area.ADMIN, r, features))
+        }
+        assertTrue(AdminRoutes.PRODUCTS in com.mamre.billing.ui.admin.moreRoutes(off))
+    }
 }

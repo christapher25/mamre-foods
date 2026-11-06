@@ -1,6 +1,10 @@
 package com.mamre.billing.domain.admin
 
 import com.mamre.billing.domain.money.parseCents
+import com.mamre.billing.domain.model.identityKey
+import com.mamre.billing.domain.model.normalizeSpaces
+import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
+import com.mamre.billing.domain.worker.isValidPacketSize
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -160,4 +164,49 @@ fun monthShort(month: YearMonth): String = month.month.getDisplayName(TextStyle.
 fun sharePercent(part: Long, total: Long): Int {
     if (total <= 0 || part <= 0) return 0
     return minOf(part * 100 / total, 100L).toInt()
+}
+
+// --- products (B5, Doc 1 s3): Add and Edit product ---
+
+enum class ProductProblem { NAME_LENGTH, NAME_TAKEN, CODE_INVALID, CODE_TAKEN, PACKET_SIZE, YIELD }
+
+const val MIN_PRODUCT_NAME = 2
+const val MAX_PRODUCT_NAME = 40
+const val MAX_PRODUCT_CODE = 12
+
+/** What the Add and Edit product screens collect. [code] is as typed: [cleanProductCode] trims and upper-cases it. */
+data class ProductForm(val name: String, val code: String, val packetSize: Int, val yieldPerKg: Int, val active: Boolean)
+
+/** One product that already exists, for the duplicate checks. */
+data class ExistingProduct(val id: String, val name: String, val code: String)
+
+/** The stored form of a code: trimmed and upper-cased. */
+fun cleanProductCode(raw: String): String = raw.trim().uppercase()
+
+private val PRODUCT_CODE_CHARS = Regex("[A-Z0-9]+")
+
+/**
+ * The product rules (Doc 1 s3), shared by the screen and the use cases (the screen is never the only guard): a name of 2 to 40
+ * characters that no other product has (ignoring case and extra spaces); a code of 1 to 12 letters or digits that no other
+ * product has (ignoring case); a packet size of 1 to 200; a yield of 1 to [MAX_YIELD_PER_KG] chapathis per kg of wheat.
+ * [selfId] is the product being edited, which may keep its own name and code.
+ */
+fun validateProductForm(form: ProductForm, existing: List<ExistingProduct>, selfId: String? = null): Set<ProductProblem> = buildSet {
+    val name = normalizeSpaces(form.name)
+    if (name.length !in MIN_PRODUCT_NAME..MAX_PRODUCT_NAME) add(ProductProblem.NAME_LENGTH)
+    else if (existing.any { it.id != selfId && identityKey(it.name) == identityKey(name) }) add(ProductProblem.NAME_TAKEN)
+    val code = cleanProductCode(form.code)
+    if (code.length !in 1..MAX_PRODUCT_CODE || !PRODUCT_CODE_CHARS.matches(code)) add(ProductProblem.CODE_INVALID)
+    else if (existing.any { it.id != selfId && cleanProductCode(it.code) == code }) add(ProductProblem.CODE_TAKEN)
+    if (!isValidPacketSize(form.packetSize)) add(ProductProblem.PACKET_SIZE)
+    if (form.yieldPerKg !in 1..MAX_YIELD_PER_KG) add(ProductProblem.YIELD)
+}
+
+fun productProblemMessage(problem: ProductProblem): String = when (problem) {
+    ProductProblem.NAME_LENGTH -> "The name is $MIN_PRODUCT_NAME to $MAX_PRODUCT_NAME characters"
+    ProductProblem.NAME_TAKEN -> "Another product already has that name"
+    ProductProblem.CODE_INVALID -> "The code is 1 to $MAX_PRODUCT_CODE letters or digits, no spaces"
+    ProductProblem.CODE_TAKEN -> "Another product already has that code"
+    ProductProblem.PACKET_SIZE -> "A packet holds 1 to $MAX_PACKET_SIZE chapathis"
+    ProductProblem.YIELD -> "The yield is 1 to $MAX_YIELD_PER_KG chapathis per kg of wheat"
 }
