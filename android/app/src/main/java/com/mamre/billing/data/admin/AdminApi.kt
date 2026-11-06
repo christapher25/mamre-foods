@@ -18,6 +18,7 @@ import com.mamre.billing.domain.admin.Material
 import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceMatrix
 import com.mamre.billing.domain.admin.ProductCost
+import com.mamre.billing.domain.admin.ProductForm
 import com.mamre.billing.domain.admin.ProductRecipe
 import com.mamre.billing.domain.admin.ProductionDamage
 import com.mamre.billing.domain.admin.Purchase
@@ -100,6 +101,12 @@ interface AdminApi {
 
     /** Chapathis made from 1 kg of wheat. Usage and cost per chapathi follow it. */
     suspend fun setYieldPerKg(productId: String, chapathisPerKg: Int)
+
+    /** Adds a product (B5, Doc 1 s3); returns its id. It has no price until the Admin sets one. */
+    suspend fun addProduct(form: ProductForm): String
+
+    /** Name, code and active of a product (B5). Packet size and yield have their own calls above. */
+    suspend fun editProduct(productId: String, name: String, code: String, active: Boolean)
 
     /** Cost of a packet of [chapathis] (a custom packet: per chapathi x N + packing), calculated by the server. */
     suspend fun packetCost(month: YearMonth, productId: String, chapathis: Int): ProductCost
