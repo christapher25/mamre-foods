@@ -13,7 +13,6 @@ import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.ui.admin.SettingsViewModel
 import com.mamre.billing.ui.worker.HomeViewModel
 import java.io.File
-import java.util.Optional
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -64,7 +63,7 @@ class LockNowAndSecureWindowTest {
 
     private fun home() = made { HomeViewModel(w.sales, w.settings, w.clock, w.prices, w.customers, lock) }
 
-    private fun settingsVm() = made { SettingsViewModel(w.admin, Optional.empty(), lock) }
+    private fun settingsVm() = made { SettingsViewModel(w.admin, lock) }
 
     @After fun tearDown() {
         scopes.endAll() // before resetMain: see ViewModelScopes

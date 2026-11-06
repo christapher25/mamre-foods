@@ -201,7 +201,7 @@ class ChangeOwnPassword(
             val now = readTime(clock, mono)
             val state = row.lockState()
             val remaining = PinLockout.remainingMs(state, now)
-            if (remaining > 0) return@run PinDelay(remaining)
+            if (remaining > 0) return@run PasswordDelay(remaining)
             if (PinHasher.verify(current, row.passwordSalt, row.passwordHash)) {
                 users.saveLock(row.id, PinLockout.afterCorrect())
                 return@run null
@@ -209,7 +209,7 @@ class ChangeOwnPassword(
             val next = PinLockout.afterWrong(state, now)
             users.saveLock(row.id, next)
             val wait = PinLockout.remainingMs(next, now)
-            if (wait > 0) PinDelay(wait) else WrongCurrentPin(PinLockout.FREE_TRIES + 1 - next.failCount)
+            if (wait > 0) PasswordDelay(wait) else WrongCurrentPassword(PinLockout.FREE_TRIES + 1 - next.failCount)
         }
         if (problem != null) throw problem
         unitOfWork.run {
@@ -222,3 +222,9 @@ class ChangeOwnPassword(
         }
     }
 }
+
+/** The current password given to [ChangeOwnPassword] was wrong; it was counted. Carries only the number of free tries left. */
+class WrongCurrentPassword(val triesBeforeDelay: Int) : RuleException("The current password is not right")
+
+/** The wrong-password delay is running (or has just started); every password is refused for [remainingMs] more. */
+class PasswordDelay(val remainingMs: Long) : RuleException("Too many wrong passwords: wait ${(remainingMs + 999) / 1000} seconds")

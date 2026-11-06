@@ -26,7 +26,7 @@ class FinishSetupAreaSwitchTest {
     }
     private val features = Features(showAnalytics = false)
 
-    private fun vm(areas: AreaState) = AppViewModel(areas, Optional.empty(), features, ready, AppLock(MutableClock()))
+    private fun vm(areas: AreaState) = AppViewModel(areas, Optional.empty(), features, ready, AppLock(MutableClock()), com.mamre.billing.domain.security.CurrentUser())
 
     @Test fun aCardTapSwitchesToTheAdminAreaAndHandsOverTheScreenToOpenOnce() {
         for (route in listOf(AdminRoutes.SETTINGS, AdminRoutes.PRICES)) {

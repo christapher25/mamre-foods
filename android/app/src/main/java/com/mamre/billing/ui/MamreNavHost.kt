@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mamre.billing.data.startup.AppReadiness
 import com.mamre.billing.domain.auth.Area
+import com.mamre.billing.domain.auth.Role
 import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.startDestinationFor
@@ -32,7 +33,7 @@ import com.mamre.billing.ui.admin.adminGraph
 import com.mamre.billing.ui.admin.adminTabs
 import com.mamre.billing.ui.admin.showsBottomBar
 import com.mamre.billing.ui.admin.tabOf
-import com.mamre.billing.ui.lock.PinScreen
+import com.mamre.billing.ui.login.LoginScreen
 import com.mamre.billing.ui.worker.workerGraph
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Optional
@@ -47,6 +48,7 @@ class AppViewModel @Inject constructor(
     val features: Features,
     readiness: AppReadiness,
     private val appLock: AppLock,
+    currentUser: com.mamre.billing.domain.security.CurrentUser,
 ) : ViewModel() {
     /** False until the database is open: the first screen is a short loading screen (Doc 2 s5.2). */
     val ready: StateFlow<Boolean> = readiness.ready
@@ -59,6 +61,9 @@ class AppViewModel @Inject constructor(
 
     /** True until the right PIN is given; true at every process start (Doc 2 s6). */
     val locked: StateFlow<Boolean> = appLock.locked
+
+    /** Who is logged in (B8 L9): the role decides which routes the guard allows. */
+    val account: StateFlow<com.mamre.billing.domain.accounts.Account?> = currentUser.account
 
     fun openArea(area: Area) = areaState.open(area)
 
@@ -89,14 +94,16 @@ fun MamreNavHost(appViewModel: AppViewModel = hiltViewModel()) {
     val area by appViewModel.area.collectAsStateWithLifecycle()
     val gateOpen by appViewModel.gateOpen.collectAsStateWithLifecycle()
     val locked by appViewModel.locked.collectAsStateWithLifecycle()
+    val account by appViewModel.account.collectAsStateWithLifecycle()
     val gate = appViewModel.gate
     AppFrame(
         screen = screenFor(hasGate = gate != null, gateOpen = gateOpen, locked = locked),
         gate = { gate?.let { GateHost(it) } },
-        pin = { PinScreen() },
+        pin = { LoginScreen() },
         content = {
             AppContent(
                 area = area,
+                role = account.roleOrNarrowest,
                 features = appViewModel.features,
                 onOpenAdmin = { appViewModel.openArea(Area.ADMIN) },
                 onOpenSales = { appViewModel.openArea(Area.SALES) },
@@ -135,6 +142,7 @@ private fun GateHost(gate: EntryGate) {
 @Composable
 fun AppContent(
     area: Area,
+    role: Role,
     features: Features,
     onOpenAdmin: () -> Unit,
     onOpenSales: () -> Unit,
@@ -149,12 +157,12 @@ fun AppContent(
         val start = remember { areaGraph(area) }
 
         // Switching area and every move afterwards: the one policy (navTarget) decides.
-        LaunchedEffect(area) {
-            navTarget(area, features, navController.currentDestination?.route)?.let { navController.goTo(it) }
+        LaunchedEffect(area, role) {
+            navTargetFor(role, area, features, navController.currentDestination?.route)?.let { navController.goTo(it) }
             // A switch that came with a first screen (the Sales Home's export card) opens it on top of the Admin start.
             if (area == Area.ADMIN) openingRoute()?.let { navController.navigate(it) }
             navController.currentBackStackEntryFlow.collect { entry ->
-                navTarget(area, features, entry.destination.route)?.let { navController.goTo(it) }
+                navTargetFor(role, area, features, entry.destination.route)?.let { navController.goTo(it) }
             }
         }
 
