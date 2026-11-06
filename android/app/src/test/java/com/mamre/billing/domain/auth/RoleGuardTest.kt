@@ -55,4 +55,13 @@ class RoleGuardTest {
         assertNull(Role.fromStored("admin "))
         assertNull(Role.fromStored(""))
     }
+
+    @Test fun aSalesmanWhoLogsInWhileTheAreaIsStillAdminStillReachesTheSalesRoutes() {
+        // Found on the emulator: the admin logged out from the Admin area, the salesman logged in, and every Sales tile did nothing.
+        for (r in listOf(Routes.SALES_HOME, WorkerRoutes.INVOICE_CUSTOMER, WorkerRoutes.INVOICE_BUILD, WorkerRoutes.TODAY)) {
+            assertTrue(r, routeAllowedFor(Role.SALESMAN, Area.ADMIN, r, on))
+            assertEquals(null, navTargetFor(Role.SALESMAN, Area.ADMIN, on, r))
+        }
+        assertFalse(routeAllowedFor(Role.SALESMAN, Area.ADMIN, AdminRoutes.SETTINGS, on))
+    }
 }

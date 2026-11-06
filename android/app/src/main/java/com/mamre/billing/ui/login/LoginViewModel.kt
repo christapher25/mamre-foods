@@ -6,6 +6,8 @@ import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.domain.accounts.Account
 import com.mamre.billing.domain.accounts.MIN_PASSWORD
+import com.mamre.billing.domain.auth.Area
+import com.mamre.billing.domain.auth.AreaState
 import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.domain.security.CurrentUser
 import com.mamre.billing.domain.security.MonotonicClock
@@ -67,6 +69,7 @@ class LoginViewModel @Inject constructor(
     private val lock: AppLock,
     private val currentUser: CurrentUser,
     private val clock: MonotonicClock,
+    private val areaState: AreaState,
 ) : ViewModel() {
     private val _ui = MutableStateFlow(LoginUi())
     val ui: StateFlow<LoginUi> = _ui.asStateFlow()
@@ -162,6 +165,7 @@ class LoginViewModel @Inject constructor(
 
     private fun finish(account: Account) {
         currentUser.set(account)
+        areaState.open(Area.SALES) // a new login always starts in Sales, whatever area the last person left open
         _ui.update { LoginUi(mode = LoginMode.LOGIN, username = account.username) } // the password never stays in memory longer than needed
         lock.unlock()
     }

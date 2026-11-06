@@ -24,7 +24,8 @@ enum class Role {
  * salesman cannot reach the Admin area, Settings, Users, price editing or Export by any route.
  */
 fun routeAllowedFor(role: Role, area: Area, route: String?, features: Features): Boolean {
-    if (!role.mayOpen(area)) return false
+    // A salesman can only be in the Sales area: a stale Admin area (the admin logged out there) counts as Sales.
+    val open = if (role.mayOpen(area)) area else Area.SALES
     if (role == Role.SALESMAN && route != null && !(route == Routes.SALES_GRAPH || route.startsWith("${Routes.SALES_GRAPH}/"))) return false
-    return routeAllowed(area, route, features)
+    return routeAllowed(open, route, features)
 }

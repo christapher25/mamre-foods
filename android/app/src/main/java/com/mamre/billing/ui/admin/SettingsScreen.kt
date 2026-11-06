@@ -109,7 +109,7 @@ class SettingsViewModel @Inject constructor(
     fun saveLockMinutes(minutes: Int) = save(SettingsSection.LOCK) { api.setLockMinutes(minutes) }
 
 
-    /** The "Lock now" button: the app locks at once and asks for the PIN (Doc 2 s6). The lock minutes setting is not touched. */
+    /** The "Log out" button: the app locks at once and shows the login (Doc 2 s6). The lock minutes setting is not touched. */
     fun lockNow() = appLock.lockNow()
 }
 
@@ -226,7 +226,7 @@ fun SettingsContent(
             )
             SectionMessage(ui, SettingsSection.LOCK)
             PrimaryButton("Save lock time", onClick = { actions.saveLockMinutes(lock.toIntOrNull() ?: 0) })
-            Hint("Your PIN opens the app. Changing it needs the current PIN.")
+            Hint("Add a salesman, reset a salesman password, or switch an account off.")
             SecondaryButton("Users", onClick = actions.users)
             Hint("Your password opens the app. Changing it needs the current password.")
             SecondaryButton("Change my password", onClick = actions.changePassword)

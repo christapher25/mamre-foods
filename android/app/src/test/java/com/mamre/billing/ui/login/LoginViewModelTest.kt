@@ -40,6 +40,7 @@ class LoginViewModelTest {
     private lateinit var lock: AppLock
     private lateinit var current: CurrentUser
     private lateinit var users: UsersRepository
+    private val areas = com.mamre.billing.domain.auth.AreaState()
 
     @Before fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -63,7 +64,7 @@ class LoginViewModelTest {
     private fun addSalesman() = AddSalesman(w.unitOfWork, users, w.changeLog, w.clock)
 
     private fun vm() = scopes.track(
-        LoginViewModel(AccountStatus(users), createAdmin(), Login(w.unitOfWork, users, w.settings, w.clock, w.clock), w.settings, lock, current, w.clock),
+        LoginViewModel(AccountStatus(users), createAdmin(), Login(w.unitOfWork, users, w.settings, w.clock, w.clock), w.settings, lock, current, w.clock, areas),
     )
 
     private suspend fun LoginViewModel.ready(mode: LoginMode): LoginUi = withTimeout(10_000) { ui.first { it.mode == mode } }
@@ -226,5 +227,17 @@ class LoginViewModelTest {
         v.submit()
         v.ready(LoginMode.BUSINESS) // the table changed because of this very form: the business screen follows, never the login
         assertEquals(LoginMode.BUSINESS, v.ui.value.mode)
+    }
+
+    @Test fun aLoginAlwaysStartsInTheSalesAreaWhateverAreaTheLastPersonLeftOpen() = runBlocking {
+        createAdmin()("Rajesh Admin", "rajesh", "secret1", "secret1")
+        addSalesman()("Asha Kumar", "asha", "asha-pw", "asha-pw")
+        areas.open(com.mamre.billing.domain.auth.Area.ADMIN) // the admin logged out from the Admin area
+        val v = vm()
+        v.ready(LoginMode.LOGIN)
+        v.type("asha", "asha-pw")
+        v.submit()
+        withTimeout(10_000) { lock.locked.first { !it } }
+        assertEquals(com.mamre.billing.domain.auth.Area.SALES, areas.area.value)
     }
 }
