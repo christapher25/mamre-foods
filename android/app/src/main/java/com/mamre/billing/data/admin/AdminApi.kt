@@ -34,6 +34,9 @@ typealias AdminRuleException = com.mamre.billing.domain.usecase.RuleException
 /** The months the data covers: [first] to [last], the month in progress. */
 data class DataSpan(val first: YearMonth, val last: YearMonth)
 
+/** One saved opening stock row: the quantity in thousandths of the material base unit, the value in cents, and the month it starts. */
+data class OpeningStockRow(val materialId: String, val month: YearMonth, val qtyMb: Long, val valueCents: Long)
+
 /**
  * What the Admin screens ask of the books (Doc 2 s9). There is no call that edits or deletes a bill, a payment, a
  * return, a purchase or an expense (Doc 3 N3, Doc 2 I-9): a bill is only voided with a reason, and purchases and
@@ -77,6 +80,12 @@ interface AdminApi {
 
     /** The shared materials list (owner costing spec). Prices come from purchases, not from a price list. */
     suspend fun materials(): List<Material>
+
+    /** The opening stock entered so far (B3, Doc 1 s9.4): at most one row per material. */
+    suspend fun openingStock(): List<OpeningStockRow>
+
+    /** Opening stock of one material, once (SetOpeningStock refuses a second entry). Quantity in thousandths of the base unit. */
+    suspend fun setOpeningStock(materialId: String, month: YearMonth, qtyMb: Long, valueCents: Long)
     suspend fun recipes(): List<ProductRecipe>
     suspend fun setRecipeQuantity(productId: String, materialId: String, qtyMb: Long)
     suspend fun wastageBp(): Int

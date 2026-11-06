@@ -76,4 +76,15 @@ class RoleGuardTest {
         }
         assertTrue(AdminRoutes.PRODUCTS in com.mamre.billing.ui.admin.moreRoutes(off))
     }
+
+    @Test fun aSalesmanCannotReachTheOpeningStockScreen() {
+        // B3: the Enter opening stock screen is an Admin route (under Expenses).
+        val routes = listOf(AdminRoutes.OPENING_STOCK, AdminRoutes.openingStock("some-material"))
+        for (features in listOf(on, off)) for (r in routes) {
+            assertFalse(r, routeAllowedFor(Role.SALESMAN, Area.ADMIN, r, features))
+            assertFalse(r, routeAllowedFor(Role.SALESMAN, Area.SALES, r, features))
+            assertEquals(Routes.SALES_HOME, navTargetFor(Role.SALESMAN, Area.ADMIN, features, r))
+            assertTrue(r, routeAllowedFor(Role.ADMIN, Area.ADMIN, r, features))
+        }
+    }
 }

@@ -50,11 +50,13 @@ fun NavGraphBuilder.adminGraph(navController: NavController, features: Features,
         composable(AdminRoutes.EXPENSES) {
             ExpensesScreen(
                 onAddPurchase = { navController.navigate(AdminRoutes.PURCHASE_ADD) },
+                onEnterOpeningStock = { navController.navigate(AdminRoutes.openingStock(it)) },
                 onAddExpense = { navController.navigate(AdminRoutes.EXPENSE_ADD) },
                 onBack = { navController.popBackStack() },
             )
         }
         composable(AdminRoutes.PURCHASE_ADD) { AddPurchaseScreen(onBack = { navController.popBackStack() }) }
+        composable(AdminRoutes.OPENING_STOCK, arguments = idArgs()) { OpeningStockScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.EXPENSE_ADD) { AddExpenseScreen(onBack = { navController.popBackStack() }) }
         composable(AdminRoutes.RETURNS) {
             ReturnsScreen(onBack = { navController.popBackStack() }, onAddDamage = { navController.navigate(AdminRoutes.DAMAGE_ADD) })

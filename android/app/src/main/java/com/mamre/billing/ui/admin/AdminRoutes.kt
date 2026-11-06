@@ -24,6 +24,7 @@ object AdminRoutes {
     const val EXPENSES = "admin/more/expenses"
     const val EXPENSE_ADD = "admin/more/expenses/add"
     const val PURCHASE_ADD = "admin/more/expenses/purchase"
+    const val OPENING_STOCK = "admin/more/expenses/opening/{id}"
     const val RETURNS = "admin/more/returns"
     const val DAMAGE_ADD = "admin/more/returns/damage"
     const val BALANCES = "admin/more/balances"
@@ -44,12 +45,13 @@ object AdminRoutes {
     fun customerDetail(id: String) = "admin/customers/$id"
     fun customerEdit(id: String) = "admin/customers/$id/edit"
     fun productEdit(id: String) = "admin/more/products/$id/edit"
+    fun openingStock(id: String) = "admin/more/expenses/opening/$id"
     fun overrideSet(customerId: String, productId: String) = "admin/customers/$customerId/override/$productId"
     fun priceSet(productId: String, typeId: String) = "admin/prices/set/$productId/$typeId"
 
     val all = listOf(
         DASHBOARD, SALES, SALES_DETAIL, CUSTOMERS, CUSTOMER_NEW, CUSTOMER_DETAIL, CUSTOMER_EDIT, OVERRIDE_SET,
-        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, PRODUCTS, PRODUCT_NEW, PRODUCT_EDIT, SETTINGS, EXPORT, CHANGE_PASSWORD, USERS, PRINTER_CHECK,
+        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, OPENING_STOCK, RETURNS, DAMAGE_ADD, BALANCES, PRODUCTS, PRODUCT_NEW, PRODUCT_EDIT, SETTINGS, EXPORT, CHANGE_PASSWORD, USERS, PRINTER_CHECK,
     )
 }
 
