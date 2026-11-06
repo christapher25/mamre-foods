@@ -30,6 +30,7 @@ object AdminRoutes {
     const val SETTINGS = "admin/more/settings"
     const val EXPORT = "admin/more/settings/export"
     const val CHANGE_PIN = "admin/more/settings/change-pin"
+    const val USERS = "admin/more/settings/users"
     const val PRINTER_CHECK = "admin/more/settings/printer-check"
 
     const val ARG_ID = "id"
@@ -44,7 +45,7 @@ object AdminRoutes {
 
     val all = listOf(
         DASHBOARD, SALES, SALES_DETAIL, CUSTOMERS, CUSTOMER_NEW, CUSTOMER_DETAIL, CUSTOMER_EDIT, OVERRIDE_SET,
-        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, SETTINGS, EXPORT, CHANGE_PIN, PRINTER_CHECK,
+        PRICES, PRICE_SET, MORE, COSTING, EXPENSES, EXPENSE_ADD, PURCHASE_ADD, RETURNS, DAMAGE_ADD, BALANCES, SETTINGS, EXPORT, CHANGE_PIN, USERS, PRINTER_CHECK,
     )
 }
 
