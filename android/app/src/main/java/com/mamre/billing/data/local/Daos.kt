@@ -234,6 +234,9 @@ interface ExpenseCategoryDao {
 
     @Query("SELECT * FROM expense_categories ORDER BY rowid") suspend fun getAll(): List<ExpenseCategoryEntity>
 
+    /** Add only (B4, A-18): categories are never renamed, switched off or deleted. */
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(row: ExpenseCategoryEntity)
+
     @Query("SELECT COUNT(*) FROM expense_categories") suspend fun count(): Int
 }
 

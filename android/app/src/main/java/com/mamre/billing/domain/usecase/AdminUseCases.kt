@@ -44,6 +44,10 @@ import com.mamre.billing.domain.model.checkCustomerIdentity
 import com.mamre.billing.domain.model.identityKey
 import com.mamre.billing.domain.model.identityProblemMessage
 import com.mamre.billing.data.local.ProductEntity
+import com.mamre.billing.domain.admin.validateCategoryName
+import com.mamre.billing.domain.admin.categoryProblemMessage
+import com.mamre.billing.domain.admin.cleanCategoryName
+import com.mamre.billing.data.local.ExpenseCategoryEntity
 import com.mamre.billing.domain.admin.ExistingProduct
 import com.mamre.billing.domain.admin.ProductForm
 import com.mamre.billing.domain.admin.cleanProductCode
@@ -541,5 +545,26 @@ class EditProduct(
             fun describe(n: String, c: String, a: Boolean) = "$n, code $c, ${if (a) "active" else "inactive"}"
             changeLog.add(clock.millis(), "Edit product ${old.name}", describe(old.name, old.code, old.isActive), describe(newName, newCode, active))
         }
+    }
+}
+
+/**
+ * Adds an expense category (Doc 1 s10.2, A-18: add only). One transaction: the row and one change log entry. [validateCategoryName]
+ * is checked again here, because the screen is not the only guard. Every new category is INDIRECT: direct cost is the materials and
+ * packing from purchases (Doc 1 s10.1), so there is no kind to choose. Returns the new category id.
+ */
+class AddExpenseCategory(
+    private val unitOfWork: UnitOfWork,
+    private val expenses: ExpenseRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(name: String): String = unitOfWork.run {
+        val problems = validateCategoryName(name, expenses.categories().map { it.name })
+        problems.firstOrNull()?.let { refuse(categoryProblemMessage(it)) }
+        val row = ExpenseCategoryEntity(UUID.randomUUID().toString(), cleanCategoryName(name), Stored.INDIRECT)
+        expenses.addCategory(row)
+        changeLog.add(clock.millis(), "Add expense category ${row.name}", "-", "indirect")
+        row.id
     }
 }

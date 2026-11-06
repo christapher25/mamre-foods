@@ -59,6 +59,7 @@ import com.mamre.billing.domain.usecase.SetLockMinutes
 import com.mamre.billing.domain.usecase.SetWastage
 import com.mamre.billing.domain.usecase.SetYieldPerKg
 import com.mamre.billing.domain.usecase.AddProduct
+import com.mamre.billing.domain.usecase.AddExpenseCategory
 import com.mamre.billing.domain.usecase.SetOpeningStock
 import com.mamre.billing.domain.usecase.EditProduct
 import com.mamre.billing.domain.usecase.VoidBill
@@ -103,6 +104,7 @@ class LocalAdminApi(
     private val setStandardPacketSizeUseCase: SetStandardPacketSize,
     private val setYieldPerKgUseCase: SetYieldPerKg,
     private val setOpeningStockUseCase: SetOpeningStock,
+    private val addExpenseCategoryUseCase: AddExpenseCategory,
     private val addProductUseCase: AddProduct,
     private val editProductUseCase: EditProduct,
     private val saveBusinessSettings: SaveBusinessSettings,
@@ -161,6 +163,7 @@ class LocalAdminApi(
                 setStandardPacketSizeUseCase = SetStandardPacketSize(u, stock, log, clock),
                 setYieldPerKgUseCase = SetYieldPerKg(u, stock, log, clock),
                 setOpeningStockUseCase = SetOpeningStock(u, stock, log, clock),
+                addExpenseCategoryUseCase = AddExpenseCategory(u, expenses, log, clock),
                 addProductUseCase = AddProduct(u, stock, log, clock),
                 editProductUseCase = EditProduct(u, stock, log, clock),
                 saveBusinessSettings = SaveBusinessSettings(u, settings, log, clock),
@@ -315,6 +318,8 @@ class LocalAdminApi(
     // ------------------------------------------------------------------ expenses
 
     override suspend fun expenseCategories(): List<ExpenseCategory> = expenseRepo.categories().map { it.toAdmin() }
+
+    override suspend fun addExpenseCategory(name: String): String = changed { addExpenseCategoryUseCase(name) }
 
     override suspend fun expenses(month: YearMonth): ExpensesReport = BooksLogic.expensesReport(snapshot(), month)
 

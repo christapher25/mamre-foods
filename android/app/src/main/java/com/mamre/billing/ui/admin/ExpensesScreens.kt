@@ -50,6 +50,8 @@ import com.mamre.billing.domain.admin.purchaseProblemMessage
 import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validatePurchase
 import com.mamre.billing.domain.money.formatCents
+import com.mamre.billing.domain.admin.validateCategoryName
+import com.mamre.billing.domain.admin.categoryProblemMessage
 import androidx.lifecycle.SavedStateHandle
 import com.mamre.billing.data.admin.OpeningStockRow
 import com.mamre.billing.domain.admin.monthLabel
@@ -152,12 +154,13 @@ fun ExpensesScreen(
     onAddPurchase: () -> Unit,
     onAddExpense: () -> Unit,
     onEnterOpeningStock: (String) -> Unit,
+    onAddCategory: () -> Unit,
     onBack: () -> Unit,
     viewModel: ExpensesViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     ExpensesContent(
-        ui, onBack, viewModel::selectTab, viewModel::selectMonth, onAddPurchase, onAddExpense, onEnterOpeningStock,
+        ui, onBack, viewModel::selectTab, viewModel::selectMonth, onAddPurchase, onAddExpense, onEnterOpeningStock, onAddCategory,
         viewModel::reversePurchase, viewModel::reverseExpense,
     )
 }
@@ -171,6 +174,7 @@ fun ExpensesContent(
     onAddPurchase: () -> Unit,
     onAddExpense: () -> Unit,
     onEnterOpeningStock: (String) -> Unit,
+    onAddCategory: () -> Unit,
     onReversePurchase: (String, String) -> Unit,
     onReverseExpense: (String, String) -> Unit,
 ) {
@@ -192,7 +196,7 @@ fun ExpensesContent(
             if (ui.tab == 0) {
                 ui.stock?.let { MaterialsTab(it, ui.purchases, ui.materials, ui.openingStock, onAddPurchase, onEnterOpeningStock, onReversePurchase) }
             } else {
-                ui.expenses?.let { OtherExpensesTab(it, onAddExpense, onReverseExpense) }
+                ui.expenses?.let { OtherExpensesTab(it, onAddExpense, onAddCategory, onReverseExpense) }
             }
         }
     }
@@ -330,10 +334,13 @@ private fun FigureLine(
 // --- other expenses ---
 
 @Composable
-private fun OtherExpensesTab(report: ExpensesReport, onAdd: () -> Unit, onReverse: (String, String) -> Unit) {
+private fun OtherExpensesTab(report: ExpensesReport, onAdd: () -> Unit, onAddCategory: () -> Unit, onReverse: (String, String) -> Unit) {
     var reversing by remember { mutableStateOf<Expense?>(null) }
     var reason by remember { mutableStateOf("") }
-    PrimaryButton("Add expense", onClick = onAdd)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        PrimaryButton("Add expense", onClick = onAdd, modifier = Modifier.weight(1f))
+        SecondaryButton("Add category", onClick = onAddCategory, modifier = Modifier.weight(1f))
+    }
     AppCard {
         Text("Indirect expenses this month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(formatCents(report.indirectTotalCents), style = MaterialTheme.typography.headlineSmall)
@@ -744,6 +751,78 @@ fun OpeningStockContent(ui: OpeningStockUi, onBack: () -> Unit, onSave: (YearMon
             PrimaryButton("Save opening stock", onClick = {
                 tried = true
                 if (check is OpeningStockCheck.Ok) onSave(check.month, check.qtyMb, check.valueCents)
+            })
+        }
+    }
+}
+
+// --- add expense category (B4, Doc 1 s10.2): add only ---
+
+data class AddCategoryUi(
+    val loading: Boolean = true,
+    /** The names that already exist, so the rule can be shown before Save. */
+    val existingNames: List<String> = emptyList(),
+    val error: String? = null,
+    val saved: Boolean = false,
+)
+
+@HiltViewModel
+class AddCategoryViewModel @Inject constructor(
+    private val api: AdminApi,
+) : ViewModel() {
+    private val _ui = MutableStateFlow(AddCategoryUi())
+    val ui: StateFlow<AddCategoryUi> = _ui.asStateFlow()
+
+    init {
+        viewModelScope.launch { _ui.update { it.copy(loading = false, existingNames = api.expenseCategories().map { c -> c.name }) } }
+    }
+
+    /** The rule problems of [name] as sentences (empty when it is fine). */
+    fun problems(ui: AddCategoryUi, name: String): List<String> =
+        validateCategoryName(name, ui.existingNames).map(::categoryProblemMessage)
+
+    /** Saves through AddExpenseCategory, which checks the rule again. A refusal is shown and nothing is saved. */
+    fun save(name: String) {
+        viewModelScope.launch {
+            try {
+                api.addExpenseCategory(name)
+                _ui.update { it.copy(error = null, saved = true) }
+            } catch (e: AdminRuleException) {
+                _ui.update { it.copy(error = e.message) }
+            }
+        }
+    }
+}
+
+@Composable
+fun AddCategoryScreen(onBack: () -> Unit, viewModel: AddCategoryViewModel = hiltViewModel()) {
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    LaunchedEffect(ui.saved) { if (ui.saved) onBack() }
+    if (ui.loading) return
+    AddCategoryContent(ui, onBack, viewModel::problems, viewModel::save)
+}
+
+@Composable
+fun AddCategoryContent(ui: AddCategoryUi, onBack: () -> Unit, problems: (AddCategoryUi, String) -> List<String>, onSave: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var tried by remember { mutableStateOf(false) }
+    val shown = if (tried) problems(ui, name) else emptyList()
+    Column(Modifier.fillMaxSize()) {
+        AppTopBar(title = "Add category", onBack = onBack, actions = { DataLabelChip() })
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        ) {
+            LabeledTextField("Category name", name, { name = it }, errorText = shown.firstOrNull())
+            Text(
+                "A new category is an indirect expense. Categories are added here and are not renamed or deleted.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ui.error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            PrimaryButton("Save", onClick = {
+                tried = true
+                if (problems(ui, name).isEmpty()) onSave(name)
             })
         }
     }

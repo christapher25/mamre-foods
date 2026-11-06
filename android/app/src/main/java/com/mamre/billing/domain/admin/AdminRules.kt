@@ -210,3 +210,29 @@ fun productProblemMessage(problem: ProductProblem): String = when (problem) {
     ProductProblem.PACKET_SIZE -> "A packet holds 1 to $MAX_PACKET_SIZE chapathis"
     ProductProblem.YIELD -> "The yield is 1 to $MAX_YIELD_PER_KG chapathis per kg of wheat"
 }
+
+// --- expense categories (B4, Doc 1 s10.2): the Admin can add a category ---
+
+enum class CategoryProblem { NAME_LENGTH, NAME_TAKEN }
+
+const val MIN_CATEGORY_NAME = 2
+const val MAX_CATEGORY_NAME = 30
+
+/** The stored form of a category name: trimmed, every run of spaces made one. */
+fun cleanCategoryName(raw: String): String = normalizeSpaces(raw)
+
+/**
+ * The Add category rule (Doc 1 s10.2), shared by the screen and the use case (the screen is never the only guard): 2 to 30
+ * characters after trimming and collapsing spaces, and not already used by another category, ignoring case and extra spaces.
+ * A name of the wrong length is reported only as that, never also as a duplicate.
+ */
+fun validateCategoryName(name: String, existingNames: List<String>): Set<CategoryProblem> = buildSet {
+    val clean = cleanCategoryName(name)
+    if (clean.length !in MIN_CATEGORY_NAME..MAX_CATEGORY_NAME) add(CategoryProblem.NAME_LENGTH)
+    else if (existingNames.any { identityKey(it) == identityKey(clean) }) add(CategoryProblem.NAME_TAKEN)
+}
+
+fun categoryProblemMessage(problem: CategoryProblem): String = when (problem) {
+    CategoryProblem.NAME_LENGTH -> "The name is $MIN_CATEGORY_NAME to $MAX_CATEGORY_NAME characters"
+    CategoryProblem.NAME_TAKEN -> "A category with this name already exists"
+}

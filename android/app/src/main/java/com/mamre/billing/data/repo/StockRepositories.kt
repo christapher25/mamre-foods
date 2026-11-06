@@ -60,6 +60,8 @@ class StockRepository(private val db: MamreDatabase) {
 class ExpenseRepository(private val db: MamreDatabase) {
     suspend fun categories(): List<ExpenseCategoryEntity> = db.expenseCategoryDao().getAll()
 
+    suspend fun addCategory(row: ExpenseCategoryEntity) = db.expenseCategoryDao().insert(row)
+
     suspend fun expenses(): List<ExpenseEntity> = db.expenseDao().getAll()
 
     suspend fun expense(id: String): ExpenseEntity? = db.expenseDao().get(id)

@@ -87,4 +87,15 @@ class RoleGuardTest {
             assertTrue(r, routeAllowedFor(Role.ADMIN, Area.ADMIN, r, features))
         }
     }
+
+    @Test fun aSalesmanCannotReachTheAddCategoryScreen() {
+        // B4: Add category (under Expenses) is an Admin route.
+        for (features in listOf(on, off)) {
+            val r = AdminRoutes.CATEGORY_ADD
+            assertFalse(r, routeAllowedFor(Role.SALESMAN, Area.ADMIN, r, features))
+            assertFalse(r, routeAllowedFor(Role.SALESMAN, Area.SALES, r, features))
+            assertEquals(Routes.SALES_HOME, navTargetFor(Role.SALESMAN, Area.ADMIN, features, r))
+            assertTrue(r, routeAllowedFor(Role.ADMIN, Area.ADMIN, r, features))
+        }
+    }
 }
