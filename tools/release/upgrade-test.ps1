@@ -3,7 +3,7 @@
 # Needs: one emulator or phone visible to adb, and NO android\keystore.properties (the Owner's real key is never touched).
 # Builds two release APKs with a THROWAWAY key made by make-keystore.ps1 (versionCode N and N+1), then drives the real UI with
 # adb (uiautomator). It restores android\version.properties and removes the throwaway key and keystore.properties at the end.
-param([string]$Serial, [switch]$SkipBuild, [switch]$BuildOnly)   # -BuildOnly then -SkipBuild lets Gradle and the emulator run one after the other (low memory)
+param([string]$Serial, [string]$OutputFile = 'C:\dev\mamre-team\out\C2\upgrade-test-output-accounts.txt', [switch]$SkipBuild, [switch]$BuildOnly)   # -BuildOnly then -SkipBuild lets Gradle and the emulator run one after the other (low memory)
 $ErrorActionPreference = 'Continue'   # native tools print warnings on stderr; every call below checks its exit code
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $android = Join-Path $root 'android'
@@ -17,12 +17,15 @@ $results = [System.Collections.Generic.List[string]]::new()
 $failed = $false
 
 function Fail([string]$reason) { Write-Host "FAIL  upgrade-test: $reason"; exit 1 }
+New-Item -ItemType Directory -Force (Split-Path $OutputFile) -ErrorAction Stop | Out-Null
+Set-Content -Path $OutputFile -Value "upgrade-test run $(Get-Date -Format s)" -Encoding UTF8 -ErrorAction Stop
 # The emulator-only guard (Doc 1 A-26) is shared with smoke-start.ps1 and pinned by SmokeStartGuardTest.
 . (Join-Path $PSScriptRoot 'emulator-guard.ps1')
 
 function Check([string]$name, [bool]$ok, [string]$detail = '') {
     $line = $(if ($ok) { 'PASS' } else { 'FAIL' }) + "  $name" + $(if ($detail) { "  ($detail)" } else { '' })
     Write-Host $line
+    Add-Content -Path $OutputFile -Value $line -Encoding UTF8 -ErrorAction Stop   # the evidence file must be written, or the run stops loudly
     $script:results.Add($line)
     if (-not $ok) { $script:failed = $true }
 }
@@ -36,7 +39,7 @@ function Get-Screen {
     Adb shell uiautomator dump /sdcard/ui.xml 2>&1 | Out-Null
     $xml = [xml](Adb exec-out cat /sdcard/ui.xml)
     foreach ($n in $xml.SelectNodes('//node')) {
-        [pscustomobject]@{ Text = $n.text; Desc = $n.'content-desc'; Bounds = $n.bounds; Class = $n.class }
+        [pscustomobject]@{ Text = $n.text; Desc = $n.'content-desc'; Bounds = $n.bounds; Class = $n.class; Focused = $n.focused }
     }
 }
 function Matches-Node($n, [string]$text) { $n.Text -eq $text -or $n.Desc -eq $text }
@@ -72,12 +75,21 @@ function Hide-Keyboard {
 # The label is a text node inside its field, so tapping the label focuses the field. The old text is cleared first, then the keyboard is
 # hidden (it would cover the Save button).
 function Type-Into([string]$label, [string]$value) {
-    Tap-Text $label
-    Adb shell input keyevent KEYCODE_MOVE_END | Out-Null
-    Adb shell input keyevent (@('KEYCODE_DEL') * 60) | Out-Null
-    Adb shell input text ($value -replace ' ', '%s') | Out-Null
-    Start-Sleep -Milliseconds 400
-    Hide-Keyboard
+    # Focus is checked BEFORE typing and the text is read back AFTER typing (the keyboard of a freshly booted emulator can drop the
+    # first input). Up to three tries; a box that stays empty stops the step with its name.
+    for ($try = 1; $try -le 3; $try++) {
+        Tap-Text $label
+        Start-Sleep -Milliseconds 1200
+        $edit = Get-Screen | Where-Object { $_.Class -like '*EditText' -and $_.Focused -eq 'true' } | Select-Object -First 1
+        if (-not $edit) { continue }
+        Adb shell input keyevent KEYCODE_MOVE_END | Out-Null
+        Adb shell input keyevent (@('KEYCODE_DEL') * 60) | Out-Null
+        Adb shell input text ($value -replace ' ', '%s') | Out-Null
+        Start-Sleep -Milliseconds 1200
+        $now = Get-Screen | Where-Object { $_.Class -like '*EditText' -and $_.Focused -eq 'true' } | Select-Object -First 1
+        if ($now -and $now.Text) { Hide-Keyboard; return }
+    }
+    throw "the box '$label' stayed empty after typing (3 tries)"
 }
 function Scroll-Down { Adb shell input swipe 540 1800 540 500 300 | Out-Null; Start-Sleep -Milliseconds 800 }
 function Scroll-Up { Adb shell input swipe 540 600 540 1800 300 | Out-Null; Start-Sleep -Milliseconds 800 }
@@ -122,7 +134,8 @@ $adminPassword = 'Upgrade-Test-1'
 $customerName = 'Upgrade Customer'
 $businessName = 'Upgrade Test Foods'
 function Launch-App { Adb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1 2>&1 | Out-Null; Start-Sleep -Seconds 3 }
-function Go-Settings { Tap-Text 'Admin area'; Tap-Text 'More' -Last; Tap-Text 'Settings' }
+function Go-Settings { if (-not (Has-Text 'Admin area' 3)) { Scroll-Down }   # the Finish setup and Export cards can push the tiles below the fold
+    Tap-Text 'Admin area'; Tap-Text 'More' -Last; Tap-Text 'Settings' }
 # The More tab remembers its last nested screen (for example Settings), so after tapping it press Back until the More list shows.
 function Go-SalesHome {
     Tap-Text 'More' -Last
@@ -158,13 +171,26 @@ try {
     Tap-Text 'Save customer'
     Check 'customer saved and listed' (Has-Text $customerName)
 
-    # One default price: Mamre Chapathi for Retail = 77 (the first reference product ships in every build). The list has one
-    # "Set new price" per product and customer type, in the order Restaurant, Shop, Retail, Catering: the third one is Retail.
+    # One default price: Mamre Chapathi for Retail = 77 (the first reference product ships in every build). The Prices screen starts
+    # with the price rules (one "Retail" row too), so the button is found BY NAME, not by position: scroll until the product header
+    # "Mamre Chapathi" is on screen, take the first "Retail" row under it and above the next product header, and tap the first
+    # "Set new price" below that row.
     Tap-Text 'Prices' -Last
-    Scroll-Down
-    $buttons = @(Get-Screen | Where-Object { $_.Text -eq 'Set new price' } | Sort-Object { [int](($_.Bounds -replace '^\[\d+,(\d+)\].*', '$1')) })
-    if ($buttons.Count -lt 3) { throw "expected the Retail 'Set new price' button, found $($buttons.Count) buttons" }
-    $x, $y = Center $buttons[2]; Tap-Xy $x $y
+    $retailButton = $null
+    for ($i = 0; $i -lt 14 -and -not $retailButton; $i++) {
+        if ($i -gt 0) { Adb shell input swipe 540 1700 540 1200 300 | Out-Null; Start-Sleep -Milliseconds 800 }
+        $screen = @(Get-Screen)
+        $rowY = { param($n) [int](($n.Bounds -replace '^\[\d+,(\d+)\].*', '$1')) }
+        $head = $screen | Where-Object { $_.Text -eq 'Mamre Chapathi' } | Select-Object -First 1
+        if (-not $head) { continue }
+        $next = $screen | Where-Object { $_.Text -eq 'Mamre Fresh Chapathi' } | Select-Object -First 1
+        $limit = if ($next) { & $rowY $next } else { [int]::MaxValue }
+        $retail = $screen | Where-Object { $_.Text -eq 'Retail' -and (& $rowY $_) -gt (& $rowY $head) -and (& $rowY $_) -lt $limit } | Select-Object -First 1
+        if (-not $retail) { continue }
+        $retailButton = $screen | Where-Object { $_.Text -eq 'Set new price' -and (& $rowY $_) -gt (& $rowY $retail) } | Sort-Object { & $rowY $_ } | Select-Object -First 1
+    }
+    if (-not $retailButton) { throw "the Retail 'Set new price' button under 'Mamre Chapathi' was not found" }
+    $x, $y = Center $retailButton; Tap-Xy $x $y
     Type-Into 'New price per packet' '77'
     # The "Effective from" field has no text node of its own (checked with uiautomator): it is the clickable box right under the price
     # input, so tap 100 px below the bottom edge of the price input.
@@ -222,6 +248,7 @@ try {
     Check 'default price survived the update ($77.00)' (Has-Text '$77.00')
 
     Go-SalesHome
+    if (-not (Has-Text "Today's invoices" 3)) { Scroll-Down }   # the cards can push the tiles below the fold
     Tap-Text "Today's invoices"
     Start-Sleep -Seconds 2
     $after = Screen-Texts

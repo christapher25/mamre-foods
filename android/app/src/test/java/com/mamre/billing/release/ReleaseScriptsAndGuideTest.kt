@@ -51,6 +51,33 @@ class ReleaseScriptsAndGuideTest {
         assertTrue("Home is expected after the login", home > login!!.index)
     }
 
+    /** Emulator finding (14 Nov): a freshly booted keyboard can drop input. Focus is checked before typing, the text is read back after. */
+    @Test fun typeIntoChecksFocusBeforeAndTheTextAfterTyping() {
+        val text = text("tools/release/upgrade-test.ps1")
+        val body = text.substringAfter("function Type-Into").substringBefore("function Scroll-Down")
+        val focus = body.indexOf("Focused -eq 'true'")
+        val typing = body.indexOf("input text")
+        val readBack = body.lastIndexOf("Focused -eq 'true'")
+        assertTrue("focus is checked before typing", focus in 0 until typing)
+        assertTrue("the text is read back after typing", readBack > typing && body.contains("\$now.Text"))
+        assertTrue("an empty box stops the step", body.contains("stayed empty"))
+    }
+
+    /** The evidence file must be written or the run stops (the first emulator run lost its output silently). */
+    @Test fun theEvidenceFileIsWrittenOrTheRunStops() {
+        val lines = text("tools/release/upgrade-test.ps1").lines()
+        assertTrue("OutputFile parameter", lines.first { it.startsWith("param(") }.contains("\$OutputFile"))
+        assertTrue("each result is appended with -ErrorAction Stop", lines.any { it.contains("Add-Content -Path \$OutputFile") && it.contains("-ErrorAction Stop") })
+        assertTrue("the file is created with -ErrorAction Stop", lines.any { it.contains("Set-Content -Path \$OutputFile") && it.contains("-ErrorAction Stop") })
+    }
+
+    /** The Prices screen starts with the price rules (also a "Retail" row), so the price button is found by name, not by position. */
+    @Test fun theRetailPriceButtonIsFoundByNameNotByPosition() {
+        val text = text("tools/release/upgrade-test.ps1")
+        assertFalse("no positional button index", text.contains("\$buttons[2]"))
+        assertTrue("it looks under the Mamre Chapathi header", text.contains("-eq 'Mamre Chapathi'") && text.contains("-eq 'Mamre Fresh Chapathi'"))
+    }
+
     @Test fun theUpgradeTestScriptHasNoPin() {
         assertFalse("no PIN left in upgrade-test.ps1", pinWord.containsMatchIn(text("tools/release/upgrade-test.ps1")))
     }
