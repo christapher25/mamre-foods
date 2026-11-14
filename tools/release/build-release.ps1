@@ -1,5 +1,5 @@
 # C1: builds the signed release APK, verifies it, copies it to the team out folder and prints the SHA-256 values.
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'   # native tools print warnings on stderr; every call below checks its exit code
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $android = Join-Path $root 'android'
 if (-not (Test-Path (Join-Path $android 'keystore.properties'))) { throw 'android\keystore.properties is missing. Run tools\release\make-keystore.ps1 first.' }
@@ -24,9 +24,9 @@ $certs | Write-Host
 $outDir = 'C:\dev\mamre-team\out\release'
 New-Item -ItemType Directory -Force $outDir | Out-Null
 $dest = Join-Path $outDir "mamre-$version.apk"
-Copy-Item $apk $dest -Force
+Copy-Item $apk $dest -Force -ErrorAction Stop
 Write-Host ''
 Write-Host "APK:                    $dest"
-Write-Host ("APK SHA-256:            " + (Get-FileHash $dest -Algorithm SHA256).Hash)
+Write-Host ("APK SHA-256:            " + (Get-FileHash $dest -Algorithm SHA256 -ErrorAction Stop).Hash)
 $certLine = $certs | Where-Object { $_ -match 'certificate SHA-256 digest' } | Select-Object -First 1
 Write-Host ("Signing certificate:    " + ($certLine -replace '.*digest:\s*', ''))
