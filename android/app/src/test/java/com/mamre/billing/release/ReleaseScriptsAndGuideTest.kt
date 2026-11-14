@@ -61,6 +61,11 @@ class ReleaseScriptsAndGuideTest {
         assertTrue("focus is checked before typing", focus in 0 until typing)
         assertTrue("the text is read back after typing", readBack > typing && body.contains("\$now.Text"))
         assertTrue("an empty box stops the step", body.contains("stayed empty"))
+        // A box that is not focused must stop the typing: the gate sits between the focus query and the first input.
+        val query = body.indexOf("\$edit = Get-Screen")
+        val gate = body.indexOf("if (-not \$edit) { continue }")
+        assertTrue("no focus, no typing (the gate is after the query and before input text)", query in 0 until gate && gate < typing)
+        assertTrue("a retry is logged so a dropped first input is visible", body.contains("Write-Host \"NOTE  Type-Into"))
     }
 
     /** The evidence file must be written or the run stops (the first emulator run lost its output silently). */
@@ -68,6 +73,7 @@ class ReleaseScriptsAndGuideTest {
         val lines = text("tools/release/upgrade-test.ps1").lines()
         assertTrue("OutputFile parameter", lines.first { it.startsWith("param(") }.contains("\$OutputFile"))
         assertTrue("each result is appended with -ErrorAction Stop", lines.any { it.contains("Add-Content -Path \$OutputFile") && it.contains("-ErrorAction Stop") })
+        assertTrue("the folder is created with -ErrorAction Stop", lines.any { it.contains("New-Item") && it.contains("Split-Path \$OutputFile") && it.contains("-ErrorAction Stop") })
         assertTrue("the file is created with -ErrorAction Stop", lines.any { it.contains("Set-Content -Path \$OutputFile") && it.contains("-ErrorAction Stop") })
     }
 

@@ -78,6 +78,7 @@ function Type-Into([string]$label, [string]$value) {
     # Focus is checked BEFORE typing and the text is read back AFTER typing (the keyboard of a freshly booted emulator can drop the
     # first input). Up to three tries; a box that stays empty stops the step with its name.
     for ($try = 1; $try -le 3; $try++) {
+        if ($try -gt 1) { Write-Host "NOTE  Type-Into ${label}: try $try (the first input was dropped or the box was not focused)" }
         Tap-Text $label
         Start-Sleep -Milliseconds 1200
         $edit = Get-Screen | Where-Object { $_.Class -like '*EditText' -and $_.Focused -eq 'true' } | Select-Object -First 1
