@@ -5,22 +5,54 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** C2 round 1: source checks on the release scripts and the update guide (the scripts run on a laptop and an emulator, not in CI). */
+/** C2: source checks on the release scripts and the update guide (the scripts run on a laptop and an emulator, not in CI). */
 class ReleaseScriptsAndGuideTest {
     private val root = File(listOf(File(".."), File(".")).first { File(it, "app/src/main").isDirectory }.canonicalFile, "..").canonicalFile
     private fun text(path: String) = File(root, path).readText()
+    private val pinWord = Regex("\bPIN\b")
 
-    /** B2 puts "Set up your business" right after the first PIN. The upgrade test must work before and after B2. */
-    @Test fun theUpgradeTestSkipsTheFirstRunSetupScreenWhenItIsThere() {
+    /** Doc 1 s2.1 FR-1: the seed creates the admin account; B2 then shows "Set up your business", which the test skips; then Home. */
+    @Test fun theUpgradeTestCreatesTheAdminAccountThenSkipsTheFirstRunSetupScreen() {
         val lines = text("tools/release/upgrade-test.ps1").lines().map { it.trim() }
-        val savePin = lines.indexOf("Tap-Text 'Save PIN'")
-        assertTrue("Save PIN step exists", savePin >= 0)
+        val create = lines.indexOfFirst { it.contains("Check 'fresh install shows") && it.contains("Create the admin account") }
+        assertTrue("the first screen is checked to be Create the admin account", create >= 0)
+        for (label in listOf("Your name (printed on bills)", "Username", "Password", "Password again")) {
+            val at = lines.indexOfFirst { it.startsWith("Type-Into '$label'") }
+            assertTrue("'$label' is typed after the first-screen check", at > create)
+        }
+        val submit = lines.indexOf("Tap-Text 'Create account'")
+        assertTrue("Create account is tapped", submit > create)
         val setup = lines.indexOfFirst { it.contains("Set up your business") }
         val skip = lines.indexOfFirst { it.contains("Tap-Text 'Skip for now'") }
-        assertTrue("the Set up your business screen is checked after Save PIN", setup > savePin)
+        assertTrue("the Set up your business screen is checked after Create account", setup > submit)
         assertTrue("Skip for now is tapped after that check", skip > setup)
-        val home = lines.indexOfFirst { it.contains("'PIN saved, Home is shown'") }
+        val home = lines.indexOfFirst { it.contains("'admin account created, Home is shown'") }
         assertTrue("Home ('New invoice') is expected only after the skip step", home > skip)
+        assertFalse("the Owner name setting is gone", lines.any { it.contains("Owner name") || it.contains("Save owner name") })
+    }
+
+    /** After the update the app must show Log in (not Create the admin account) and the same login must work. */
+    @Test fun afterTheUpdateTheAppShowsLogInAndTheSameAdminLogsIn() {
+        val lines = text("tools/release/upgrade-test.ps1").lines().map { it.trim() }
+        val update = lines.indexOfFirst { it.contains("'install N+1 over N") }
+        val shows = lines.indexOfFirst { it.contains("Check 'after the update the app shows Log in") }
+        assertTrue("the update step exists", update >= 0)
+        assertTrue("the Log in check follows the update", shows > update)
+        val check = lines[shows]
+        assertTrue("it looks for Log in", check.contains("Has-Text 'Log in'"))
+        assertTrue("and for the absence of Create the admin account", check.contains("-not (Has-Text 'Create the admin account'"))
+        val user = lines.withIndex().firstOrNull { it.index > shows && it.value == "Type-Into 'Username' \$adminUser" }
+        assertTrue("the same username is typed after the check", user != null)
+        val pass = lines.withIndex().firstOrNull { it.index > shows && it.value == "Type-Into 'Password' \$adminPassword" }
+        assertTrue("the same password is typed after the check", pass != null)
+        val login = lines.withIndex().firstOrNull { it.index > shows && it.value == "Tap-Text 'Log in' -Last" }
+        assertTrue("the Log in button is tapped", login != null)
+        val home = lines.indexOfFirst { it.contains("'after the update the admin logs in with the same password and Home is shown'") }
+        assertTrue("Home is expected after the login", home > login!!.index)
+    }
+
+    @Test fun theUpgradeTestScriptHasNoPin() {
+        assertFalse("no PIN left in upgrade-test.ps1", pinWord.containsMatchIn(text("tools/release/upgrade-test.ps1")))
     }
 
     /** build-release.ps1 runs with ErrorActionPreference Continue (native tools write to stderr), so the file steps must stop on error. */
@@ -41,5 +73,15 @@ class ReleaseScriptsAndGuideTest {
         for (word in listOf("Update", "Admin area", "More", "Settings", "Export data", "Export and share", "NEVER UNINSTALL", "Open")) {
             assertTrue("the guide quotes '$word'", guide.contains(word))
         }
+    }
+
+    /** Accounts replace the PIN (Doc 1 s2.2): the guide names the login screen and the first-run screen, and has no PIN. */
+    @Test fun theUpdateGuideUsesTheLoginWordsAndHasNoPin() {
+        val guide = text("docs/UPDATE-GUIDE.txt")
+        assertFalse("no PIN in the update guide", pinWord.containsMatchIn(guide))
+        for (word in listOf("\"Log in\"", "\"Username\"", "\"Password\"", "\"Create the admin account\"")) {
+            assertTrue("the guide quotes $word", guide.contains(word))
+        }
+        assertTrue("log in with your username and password", guide.contains("log in with your username and password"))
     }
 }

@@ -12,7 +12,7 @@ You install the new version OVER the old one and everything stays.
 
 BEFORE YOU UPDATE (as a precaution)
 -----------------------------------
-1. Open the app and enter your PIN.
+1. Open the app and log in with your username and password.
 2. On the Home screen tap "Admin area", then "More", then "Settings", then
    "Export data". (If the Home screen shows a card that says "Open Export",
    you can tap that instead.)
@@ -33,16 +33,16 @@ THE UPDATE
    Tap "Update".
    Do NOT tap "Uninstall" or "Delete" on any screen.
 5. When it says the app is installed, tap "Open".
-6. The app shows "Enter your PIN", a box named "PIN" and a button "Open". Enter the PIN
-   you always use. It must NOT ask you to choose a new PIN. Your customers,
-   prices and bills are all still there.
+6. The app shows "Log in", the boxes "Username" and "Password" and a button
+   "Log in". Log in as always. It must NOT show "Create the admin account".
+   Your customers, prices and bills are all still there.
 
 IF SOMETHING LOOKS WRONG
 ------------------------
 - The phone says "App not installed" or "Newer version already installed":
   you are trying to put an older version over a newer one. Do nothing,
   keep the app you have, and ask for the newest link.
-- The app asks you to choose a NEW PIN, or your data is missing: STOP.
+- The app shows "Create the admin account", or your data is missing: STOP.
   Do not uninstall, do not clear data, do not install again.
   Call for help and keep the safety copy from "Before you update".
 - You cannot find the file you downloaded: open your phone's "Downloads"

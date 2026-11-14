@@ -63,7 +63,8 @@ class SmokeStartGuardTest {
 
     /** B8 L11: a release build starts on the "Create the admin account" screen; the old PIN texts are gone from the script. */
     @Test fun theScriptWaitsForTheCreateTheAdminAccountScreenAndNotForAPin() {
-        assertTrue(mainFlow().any { it.contains("text=\"Create the admin account\"") })
+        val script = scripts.getValue("smoke-start.ps1")
+        assertTrue(code(script).any { it.contains("text=\"Create the admin account\"") })
         assertFalse("no PIN text is waited for", script.contains("New PIN") || script.contains("Save PIN") || script.contains("PIN setup"))
         assertTrue("the PASS text names the new screen", script.contains("shows the first-run screen (Create the admin account)"))
     }

@@ -110,13 +110,15 @@ try {
 if ($BuildOnly) { Write-Host "Built: $apkA and $apkB"; exit 0 }
 Assert-Emulator
 Adb get-state | Out-Null
-# smoke-start.ps1 (same guard) installs A with its data cleared, starts it and passes only on the PIN setup screen.
+# smoke-start.ps1 (same guard) installs A with its data cleared, starts it and passes only on the first-run screen (Create the admin account).
 & (Join-Path $PSScriptRoot 'smoke-start.ps1') -Apk $apkA -Serial $Serial
 Check 'install version N and it starts (smoke-start.ps1)' ($LASTEXITCODE -eq 0)
 
 # --- UI steps. Labels and positions come from the real release app on the emulator (uiautomator). A step that cannot find its label
 # throws, and the phase is reported as one FAIL line with the reason, never a silent pass.
-$testPin = '2468'
+$adminName = 'Upgrade Admin'     # throwaway values for the test account (never a real password)
+$adminUser = 'upgrade.admin'
+$adminPassword = 'Upgrade-Test-1'
 $customerName = 'Upgrade Customer'
 $businessName = 'Upgrade Test Foods'
 function Launch-App { Adb shell monkey -p $pkg -c android.intent.category.LAUNCHER 1 2>&1 | Out-Null; Start-Sleep -Seconds 3 }
@@ -131,19 +133,20 @@ function Go-SalesHome {
 $before = @{}
 try {
     Launch-App
-    Check 'fresh install asks to choose a PIN (setup screen)' (Has-Text 'Save PIN')
-    Type-Into 'New PIN' $testPin
-    Type-Into 'New PIN again' $testPin
-    Tap-Text 'Save PIN'
-    # B2 (first-run setup) shows "Set up your business" right after the first PIN; this script fills the details in Settings itself,
-    # so it skips that screen when it is there. Before B2 the screen does not exist and the check just times out (4 s).
+    Check 'fresh install shows Create the admin account (first-run screen)' (Has-Text 'Create the admin account')
+    Type-Into 'Your name (printed on bills)' $adminName
+    Type-Into 'Username' $adminUser
+    Type-Into 'Password' $adminPassword
+    Type-Into 'Password again' $adminPassword
+    Tap-Text 'Create account'
+    # B2 (first-run setup) shows "Set up your business" right after the account is created; this script fills the details in Settings
+    # itself, so it skips that screen when it is there (the check times out after 4 s if it is not).
     if (Has-Text 'Set up your business' 4) {
         Tap-Text 'Skip for now'
     }
-    Check 'PIN saved, Home is shown' (Has-Text 'New invoice')
+    Check 'admin account created, Home is shown' (Has-Text 'New invoice')
 
     Go-Settings
-    Type-Into 'Owner name' 'Test Owner'; Tap-Text 'Save owner name'
     Type-Into 'Business name' $businessName; Tap-Text 'Save business details'
     Check 'business name is shown in Settings after saving' (Has-Text $businessName)
 
@@ -204,9 +207,11 @@ Check 'install N+1 over N (adb install -r)' ($out -match 'Success') $out.Trim()
 try {
     Adb shell am force-stop $pkg | Out-Null
     Launch-App
-    Check 'after the update the app asks for the existing PIN (not setup)' ((Has-Text 'Open') -and -not (Has-Text 'Save PIN'))
-    Type-Into 'PIN' $testPin; Tap-Text 'Open'
-    Check 'after the update the PIN is accepted and Home is shown' (Has-Text 'New invoice')
+    Check 'after the update the app shows Log in, not Create the admin account' ((Has-Text 'Log in') -and -not (Has-Text 'Create the admin account' 2))
+    Type-Into 'Username' $adminUser
+    Type-Into 'Password' $adminPassword
+    Tap-Text 'Log in' -Last
+    Check 'after the update the admin logs in with the same password and Home is shown' (Has-Text 'New invoice')
 
     Go-Settings
     Check 'business name survived the update' (Has-Text $businessName)
