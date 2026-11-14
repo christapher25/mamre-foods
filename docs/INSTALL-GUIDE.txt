@@ -1,0 +1,123 @@
+MAMRE FOODS - HOW TO INSTALL THE APP
+====================================
+
+Read this whole page before you start. Follow the steps in order.
+
+1. BEFORE YOU START
+-------------------
+You need three things:
+- the handheld phone,
+- the link you were sent,
+- about 15 minutes.
+
+Choose now a username and a password. Write them on paper. The password must
+be at least 6 characters. Keep the paper in a safe place.
+The app warns you about this. It says:
+"If you forget the admin password, the only way back in is to clear the
+app's data, which deletes everything."
+
+2. INSTALL
+----------
+1. Open the link you were sent, on the handheld.
+2. Download the file. When the phone says it can download, tap OK / Download.
+3. Open the downloaded file.
+4. If the phone asks to allow installs from this source, turn it on once.
+   Then go back.
+5. The phone shows the app name "Mamre Foods" and a button "Install".
+   Tap "Install". The words can differ a little on each phone.
+6. When it says the app is installed, tap "Open".
+
+3. CREATE THE ADMIN ACCOUNT
+---------------------------
+The first time, the app shows "Create the admin account" and this line:
+"The admin sees everything. Choose a password of at least 6 characters
+and enter it twice."
+Fill in these boxes:
+- "Your name (printed on bills)": 2 to 40 characters.
+- "Username": 3 to 20 letters, digits, dots or underscores. Capital letters
+  do not matter.
+- "Password": at least 6 characters.
+- "Password again": the same password once more.
+Then tap "Create account".
+You do this once only. Every later start shows "Log in" with the boxes
+"Username" and "Password" and the button "Log in".
+
+4. SET UP YOUR BUSINESS
+-----------------------
+The next screen is "Set up your business". It says:
+"This prints on your bills. You can change it later in Admin, Settings."
+Fill in these boxes:
+- "Business name"
+- "Address (up to 4 lines)"
+- "Phone"
+- "Bill footer"
+Tap "Save and continue".
+You may tap "Skip for now" and enter the details later.
+
+5. THE HOME SCREEN AND "Finish setup"
+-------------------------------------
+The Home screen shows these buttons: "New invoice", "Record payment",
+"Return", "Today's invoices" and "Admin area".
+While something is missing, Home also shows a card "Finish setup".
+The card can list:
+- "Business details" (only when the address or the phone is empty),
+- "Prices:" followed by a number and the word "missing".
+The card goes away by itself when nothing is missing.
+
+6. SET THE PRICES
+-----------------
+1. On the card, tap the line that starts with "Prices:". It opens "Prices"
+   in the Admin area.
+2. Under "Default prices", a product that has no price shows "No price".
+3. Tap "Set new price".
+4. Type the price in "New price per packet".
+5. Leave "Effective from" as it is.
+6. Tap "Save price".
+7. Do the same for every product, until the card no longer lists prices.
+A product with no price cannot be sold. The bill screen then says
+"No price set - contact admin".
+
+7. ADD YOUR CUSTOMERS AND SALESMEN
+----------------------------------
+You can do this now or later. It is not needed before your first bill.
+Customers: tap "Admin area", then "Customers", then "Add customer".
+Fill in the boxes and tap "Save customer".
+Salesmen: tap "Admin area", then "More", then "Settings", then "Users".
+Tap "Add salesman" and fill in the boxes "Name (printed on bills)",
+"Username", "Password" and "Password again". Tap "Add salesman".
+A salesman can make bills, take payments and make returns. A salesman
+cannot open the Admin area.
+To go back to selling from the Admin area: tap "More", then "Sales area".
+
+8. YOUR FIRST BILL
+------------------
+1. On Home, tap "New invoice".
+2. Choose the customer. Customers are grouped by type: tap a type, then the
+   customer. For a person who is not a customer, tap "Walk-in sale".
+3. Enter the number of packets for each product.
+4. Tap "Continue".
+5. On the payment screen, type the money you received in
+   "Amount received now", or tap "Full".
+6. Tap "Continue".
+7. Tap "Confirm invoice". The box "Confirm invoice?" appears. Tap "Confirm".
+The bill prints by itself on the handheld's printer.
+If the screen says "Printer not ready. The bill is saved. Tap Reprint." then
+tap "Reprint".
+When you are finished, tap "Done".
+A confirmed bill cannot be changed. The app says it too:
+"A confirmed invoice cannot be edited."
+
+9. EVERY DAY
+------------
+When someone else will use the phone, tap the small lock sign at the top of
+the Home screen. It logs you out. You can also do it in "Admin area", "More",
+"Settings", "Log out".
+Once a week, make a safety copy: tap "Admin area", then "More", then
+"Settings", then "Export data", then "Export and share".
+
+10. THE RULES TO REMEMBER
+-------------------------
+NEVER UNINSTALL THE APP. Never clear its data. That deletes every bill,
+customer, price and payment, and they cannot be brought back.
+Updates are installed over the old app. See the page "How to update the app".
+Keep the paper with your username and password.
