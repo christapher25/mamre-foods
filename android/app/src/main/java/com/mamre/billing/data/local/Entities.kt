@@ -106,8 +106,8 @@ data class SettingEntity(
  */
 @Entity(
     tableName = "invoices",
-    foreignKeys = [ForeignKey(CustomerEntity::class, ["id"], ["customer_id"])],
-    indices = [Index("number", unique = true), Index("customer_id"), Index("issued_at")],
+    foreignKeys = [ForeignKey(CustomerEntity::class, ["id"], ["customer_id"]), ForeignKey(UserEntity::class, ["id"], ["created_by_user_id"])],
+    indices = [Index("number", unique = true), Index("customer_id"), Index("issued_at"), Index("created_by_user_id")],
 )
 data class InvoiceEntity(
     @PrimaryKey val id: String,
@@ -118,6 +118,7 @@ data class InvoiceEntity(
     @ColumnInfo(name = "customer_location") val customerLocation: String,
     @ColumnInfo(name = "is_corporate") val isCorporate: Boolean,
     @ColumnInfo(name = "salesman_name") val salesmanName: String,
+    @ColumnInfo(name = "created_by_user_id") val createdByUserId: String,
     @ColumnInfo(name = "issued_at") val issuedAt: Long,
     @ColumnInfo(name = "total_cents") val totalCents: Long,
     /** "active" or "void". */
@@ -154,8 +155,9 @@ data class InvoiceItemEntity(
     foreignKeys = [
         ForeignKey(CustomerEntity::class, ["id"], ["customer_id"]),
         ForeignKey(InvoiceEntity::class, ["id"], ["invoice_id"]),
+        ForeignKey(UserEntity::class, ["id"], ["created_by_user_id"]),
     ],
-    indices = [Index("receipt_number", unique = true), Index("customer_id"), Index("invoice_id"), Index("paid_at")],
+    indices = [Index("receipt_number", unique = true), Index("customer_id"), Index("invoice_id"), Index("paid_at"), Index("created_by_user_id")],
 )
 data class PaymentEntity(
     @PrimaryKey val id: String,
@@ -167,6 +169,9 @@ data class PaymentEntity(
     val method: String,
     @ColumnInfo(name = "paid_at") val paidAt: Long,
     val note: String,
+    @ColumnInfo(name = "created_by_user_id") val createdByUserId: String,
+    /** The creator display name when the payment was saved: a receipt reprint prints this, whatever the account is called later (B8 L3, L12). */
+    @ColumnInfo(name = "salesman_name") val salesmanName: String,
 )
 
 /** A customer return. A credit reduces the balance, a replacement does not (Doc 1 s7.1). */
@@ -175,9 +180,10 @@ data class PaymentEntity(
     foreignKeys = [
         ForeignKey(CustomerEntity::class, ["id"], ["customer_id"]),
         ForeignKey(InvoiceEntity::class, ["id"], ["invoice_id"]),
+        ForeignKey(UserEntity::class, ["id"], ["created_by_user_id"]),
         ForeignKey(ProductEntity::class, ["id"], ["product_id"]),
     ],
-    indices = [Index("customer_id"), Index("invoice_id"), Index("product_id"), Index("occurred_at")],
+    indices = [Index("customer_id"), Index("invoice_id"), Index("product_id"), Index("occurred_at"), Index("created_by_user_id")],
 )
 data class ReturnEntity(
     @PrimaryKey val id: String,
@@ -193,6 +199,7 @@ data class ReturnEntity(
     @ColumnInfo(name = "credit_cents") val creditCents: Long,
     @ColumnInfo(name = "occurred_at") val occurredAt: Long,
     val note: String,
+    @ColumnInfo(name = "created_by_user_id") val createdByUserId: String,
 )
 
 /** One shared list of materials: wheat, oil, sugar, salt, baking powder, potassium sorbate, packing. */
@@ -309,9 +316,8 @@ data class ChangeLogEntity(
     @ColumnInfo(name = "after_text") val afterText: String,
 )
 
-/** Setting keys (Doc 2 s4.2). The PIN keys (pin_hash, pin_salt, pin_fail_count, pin_locked_until) are never exported. */
+/** Setting keys (Doc 2 s4.2). Accounts and their passwords are in the users table, never in settings (B8). */
 object SettingKeys {
-    const val OWNER_NAME = "owner_name"
     const val DEVICE_CODE = "device_code"
     const val BUSINESS_NAME = "business_name"
     /** Address lines separated by a newline. */
@@ -320,22 +326,14 @@ object SettingKeys {
     const val FOOTER_TEXT = "footer_text"
     const val WASTAGE_BP = "wastage_bp"
     const val LOCK_MINUTES = "lock_minutes"
-    const val PIN_HASH = "pin_hash"
-    const val PIN_SALT = "pin_salt"
-
-    /** Wrong PINs in a row, and the time (epoch ms) until which every PIN is refused: in the database so a killed app cannot reset them. Never exported. */
-    const val PIN_FAIL_COUNT = "pin_fail_count"
-    const val PIN_LOCKED_UNTIL = "pin_locked_until"
-
-    /** The delay as written (ms), the monotonic reading at that moment and the boot it belongs to: the delay cannot be shortened by moving the phone's clock. Never exported. */
-    const val PIN_LOCK_DELAY_MS = "pin_lock_delay_ms"
-    const val PIN_LOCK_MONO_AT = "pin_lock_mono_at"
-    const val PIN_LOCK_BOOT = "pin_lock_boot"
     const val NEXT_BILL_SEQ = "next_bill_seq"
     const val NEXT_RECEIPT_SEQ = "next_receipt_seq"
 
-    /** When the last export was prepared (epoch ms, UTC); a system record written by RecordExport, exported like any non-pin_ setting. */
+    /** When the last export was prepared (epoch ms, UTC); a system record written by RecordExport, exported like any other setting. */
     const val LAST_EXPORT_AT = "last_export_at"
+
+    /** The username of the last successful login, pre-filled on the login screen (B8 L8). Not a secret. */
+    const val LAST_USERNAME = "last_username"
 }
 
 /** Stored text of the small closed sets. */
@@ -347,3 +345,26 @@ object Stored {
     const val DIRECT = "direct"
     const val INDIRECT = "indirect"
 }
+
+/**
+ * An account (B8 item a): one ADMIN and SALESMEN. Never deleted, because bills point to it; "switch off" sets [active] false.
+ * [username] is stored trimmed and in lower case (L4) and is unique. The hash and salt are the PinHasher format. The five lock
+ * fields are the per-account wrong-password delay (same rules as the old PIN, PinLockout).
+ */
+@Entity(tableName = "users", indices = [Index("username", unique = true)])
+data class UserEntity(
+    @PrimaryKey val id: String,
+    val username: String,
+    @ColumnInfo(name = "display_name") val displayName: String,
+    /** ADMIN or SALESMAN. */
+    val role: String,
+    @ColumnInfo(name = "password_hash") val passwordHash: String,
+    @ColumnInfo(name = "password_salt") val passwordSalt: String,
+    val active: Boolean,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
+    @ColumnInfo(name = "fail_count") val failCount: Int = 0,
+    @ColumnInfo(name = "locked_until") val lockedUntil: Long = 0,
+    @ColumnInfo(name = "lock_delay_ms") val lockDelayMs: Long = 0,
+    @ColumnInfo(name = "lock_mono_at") val lockMonoAt: Long = 0,
+    @ColumnInfo(name = "lock_boot") val lockBoot: String = "",
+)

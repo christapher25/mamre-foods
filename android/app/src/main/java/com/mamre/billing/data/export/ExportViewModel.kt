@@ -32,7 +32,7 @@ sealed interface ExportState {
 
 /**
  * Admin > Settings > Export: reads the database (read only), writes the files to the cache folder, offers them to share. The export
- * is recorded (RecordExport, Doc 1 s11.1) only after the 18 files and the manifest are written and the share sheet is launched.
+ * is recorded (RecordExport, Doc 1 s11.1) only after the 19 files and the manifest are written and the share sheet is launched.
  */
 @HiltViewModel
 class ExportViewModel @Inject constructor(

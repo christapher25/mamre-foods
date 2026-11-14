@@ -38,11 +38,11 @@ class ReceiptBuildersTest {
     @Test fun theReceiptCarriesTheSalesmansNameOfTheInvoice() = runBlocking {
         val (w, id) = section65World()
         val invoice = w.makeBill(w.draft(id, listOf(w.line(qty = 2, unit = 100))))
-        assertEquals("Rajesh", invoice.salesmanName)
+        assertEquals("Test Admin", invoice.salesmanName)
         val lines = layoutInvoiceReceipt(invoiceReceiptOf(invoice, w.sales.state().ledgerOf(id), true))
-        assertTrue(lines.contains("Salesman: Rajesh"))
-        // The September invoices were made under the same Owner name.
-        assertTrue(w.sales.state().invoices.all { it.salesmanName == "Rajesh" })
+        assertTrue(lines.contains("Salesman: Test Admin"))
+        // The September invoices were made by the same account.
+        assertTrue(w.sales.state().invoices.all { it.salesmanName == "Test Admin" })
     }
 
     @Test fun theLocationIsKeptOnTheInvoiceAndPrintedUnderTheCustomerName() = runBlocking {

@@ -9,6 +9,7 @@ import com.mamre.billing.data.repo.SalesRepository
 import com.mamre.billing.data.repo.ExpenseRepository
 import com.mamre.billing.data.repo.PriceRepository
 import com.mamre.billing.data.repo.SettingsRepository
+import com.mamre.billing.data.repo.UsersRepository
 import com.mamre.billing.data.repo.StockRepository
 import com.mamre.billing.data.repo.toAdmin
 import com.mamre.billing.domain.admin.AdminCustomer
@@ -30,6 +31,7 @@ import com.mamre.billing.domain.admin.OverridePrice
 import com.mamre.billing.domain.admin.PriceEntry
 import com.mamre.billing.domain.admin.PriceMatrix
 import com.mamre.billing.domain.admin.ProductCost
+import com.mamre.billing.domain.admin.ProductForm
 import com.mamre.billing.domain.admin.ProductRecipe
 import com.mamre.billing.domain.admin.ProductionDamage
 import com.mamre.billing.domain.admin.Purchase
@@ -54,9 +56,12 @@ import com.mamre.billing.domain.usecase.SetSalesmanCanEditPrice
 import com.mamre.billing.domain.usecase.SetStandardPacketSize
 import com.mamre.billing.domain.usecase.SetDeviceCode
 import com.mamre.billing.domain.usecase.SetLockMinutes
-import com.mamre.billing.domain.usecase.SetOwnerName
 import com.mamre.billing.domain.usecase.SetWastage
 import com.mamre.billing.domain.usecase.SetYieldPerKg
+import com.mamre.billing.domain.usecase.AddProduct
+import com.mamre.billing.domain.usecase.AddExpenseCategory
+import com.mamre.billing.domain.usecase.SetOpeningStock
+import com.mamre.billing.domain.usecase.EditProduct
 import com.mamre.billing.domain.usecase.VoidBill
 import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
 import com.mamre.billing.domain.worker.isValidPacketSize
@@ -81,6 +86,7 @@ class LocalAdminApi(
     private val stock: StockRepository,
     private val expenseRepo: ExpenseRepository,
     private val settingsRepo: SettingsRepository,
+    private val users: UsersRepository,
     private val voidBill: VoidBill,
     private val addCustomer: AddCustomer,
     private val editCustomer: EditCustomer,
@@ -97,8 +103,11 @@ class LocalAdminApi(
     private val setWastage: SetWastage,
     private val setStandardPacketSizeUseCase: SetStandardPacketSize,
     private val setYieldPerKgUseCase: SetYieldPerKg,
+    private val setOpeningStockUseCase: SetOpeningStock,
+    private val addExpenseCategoryUseCase: AddExpenseCategory,
+    private val addProductUseCase: AddProduct,
+    private val editProductUseCase: EditProduct,
     private val saveBusinessSettings: SaveBusinessSettings,
-    private val setOwnerNameUseCase: SetOwnerName,
     private val setDeviceCodeUseCase: SetDeviceCode,
     private val setLockMinutesUseCase: SetLockMinutes,
     private val clock: Clock = Clock.systemDefaultZone(),
@@ -136,6 +145,7 @@ class LocalAdminApi(
                 stock = stock,
                 expenseRepo = expenses,
                 settingsRepo = settings,
+                users = UsersRepository(db.userDao()),
                 voidBill = VoidBill(u, sales, log, clock),
                 addCustomer = AddCustomer(u, customers, log, clock),
                 editCustomer = EditCustomer(u, customers, log, clock),
@@ -152,8 +162,11 @@ class LocalAdminApi(
                 setWastage = SetWastage(u, settings, log, clock),
                 setStandardPacketSizeUseCase = SetStandardPacketSize(u, stock, log, clock),
                 setYieldPerKgUseCase = SetYieldPerKg(u, stock, log, clock),
+                setOpeningStockUseCase = SetOpeningStock(u, stock, log, clock),
+                addExpenseCategoryUseCase = AddExpenseCategory(u, expenses, log, clock),
+                addProductUseCase = AddProduct(u, stock, log, clock),
+                editProductUseCase = EditProduct(u, stock, log, clock),
                 saveBusinessSettings = SaveBusinessSettings(u, settings, log, clock),
-                setOwnerNameUseCase = SetOwnerName(u, settings, log, clock),
                 setDeviceCodeUseCase = SetDeviceCode(u, settings, log, clock),
                 setLockMinutesUseCase = SetLockMinutes(u, settings, log, clock),
                 clock = clock,
@@ -281,6 +294,17 @@ class LocalAdminApi(
     override suspend fun setStandardPacketSize(productId: String, chapathis: Int) =
         changed { setStandardPacketSizeUseCase(productId, chapathis) }
 
+    override suspend fun openingStock(): List<OpeningStockRow> =
+        stock.openingStock().map { OpeningStockRow(it.materialId, YearMonth.parse(it.month), it.qtyMilli, it.valueCents) }
+
+    override suspend fun setOpeningStock(materialId: String, month: YearMonth, qtyMb: Long, valueCents: Long) =
+        changed { setOpeningStockUseCase(materialId, month, qtyMb, valueCents) }
+
+    override suspend fun addProduct(form: ProductForm): String = changed { addProductUseCase(form) }
+
+    override suspend fun editProduct(productId: String, name: String, code: String, active: Boolean) =
+        changed { editProductUseCase(productId, name, code, active) }
+
     override suspend fun setYieldPerKg(productId: String, chapathisPerKg: Int) =
         changed { setYieldPerKgUseCase(productId, chapathisPerKg) }
 
@@ -294,6 +318,8 @@ class LocalAdminApi(
     // ------------------------------------------------------------------ expenses
 
     override suspend fun expenseCategories(): List<ExpenseCategory> = expenseRepo.categories().map { it.toAdmin() }
+
+    override suspend fun addExpenseCategory(name: String): String = changed { addExpenseCategoryUseCase(name) }
 
     override suspend fun expenses(month: YearMonth): ExpensesReport = BooksLogic.expensesReport(snapshot(), month)
 
@@ -317,9 +343,8 @@ class LocalAdminApi(
 
     override suspend fun saveSettings(settings: BusinessSettings) = changed { saveBusinessSettings(settings) }
 
-    override suspend fun ownerName(): String = settingsRepo.ownerName()
 
-    override suspend fun setOwnerName(name: String) = changed { setOwnerNameUseCase(name) }
+
 
     override suspend fun deviceCode(): String = settingsRepo.deviceCode()
 
@@ -329,5 +354,5 @@ class LocalAdminApi(
 
     override suspend fun setLockMinutes(minutes: Int) = changed { setLockMinutesUseCase(minutes) }
 
-    private suspend fun owner(): String = settingsRepo.ownerName().ifEmpty { BooksRepository.OWNER_LABEL }
+    private suspend fun owner(): String = users.adminName()
 }

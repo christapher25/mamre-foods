@@ -138,6 +138,5 @@ class AdminUseCasesTest {
         w.saveSettings(BusinessSettings(" Mamre Foods ", "line1\nline2", "555", "Thanks"))
         assertEquals("line1\nline2", w.settings.get(SettingKeys.ADDRESS))
         assertEquals(1, w.changeLog.all().count { it.what == "Edit business settings" })
-        assertNull(w.settings.get(SettingKeys.PIN_HASH)) // the PIN is not touched here
     }
 }

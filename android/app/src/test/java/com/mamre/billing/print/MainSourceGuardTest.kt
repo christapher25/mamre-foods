@@ -27,6 +27,11 @@ class MainSourceGuardTest {
         assertEquals("a demo or fake word is written in main (code or comment): $found", emptyList<String>(), found)
     }
 
+    @Test fun mainHasNoMockPrinterAndNoMockPrintMessage() {
+        // AT-17 / N13: the release app binds the real printer chain and never says "(mock)".
+        assertEquals(emptyList<String>(), hits(Regex("""MockPrinter|\(mock\)""")))
+    }
+
     @Test fun mainHasNoDestructiveMigrationAndNoNetworkClient() {
         assertEquals(emptyList<String>(), hits(Regex("fallbackToDestructiveMigration")))
         assertEquals(emptyList<String>(), hits(Regex("""import (retrofit2|okhttp3)\b""")))

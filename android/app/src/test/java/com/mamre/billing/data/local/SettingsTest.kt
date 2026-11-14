@@ -5,7 +5,6 @@ import com.mamre.billing.domain.security.AppLock
 import com.mamre.billing.domain.usecase.RuleException
 import com.mamre.billing.domain.usecase.SetDeviceCode
 import com.mamre.billing.domain.usecase.SetLockMinutes
-import com.mamre.billing.domain.usecase.SetOwnerName
 import com.mamre.billing.domain.worker.PaymentMethod
 import com.mamre.billing.print.invoiceReceiptOf
 import com.mamre.billing.print.layoutInvoiceReceipt
@@ -49,25 +48,10 @@ class SettingsTest {
         return ""
     }
 
-    private fun World.setOwner() = SetOwnerName(unitOfWork, settings, changeLog, clock)
     private fun World.setCode() = SetDeviceCode(unitOfWork, settings, changeLog, clock)
     private fun World.setLock() = SetLockMinutes(unitOfWork, settings, changeLog, clock)
 
     private fun World.cashBill() = draft(null, listOf(line(qty = 1, unit = 260)), paid = 260, method = PaymentMethod.CASH)
-
-    // ---------------------------------------------------------------- owner name
-
-    @Test fun theOwnerNameIsTwoToFortyCharactersAndSurvivesReopening() = runBlocking {
-        var w = first()
-        assertTrue(refused { w.setOwner()("A") }.contains("2 to 40"))
-        assertTrue(refused { w.setOwner()("x".repeat(41)) }.contains("2 to 40"))
-        assertEquals("", w.settings.ownerName())
-        w.setOwner()("Jo")
-        w.setOwner()("x".repeat(40))
-        w.setOwner()(" Rajesh  Thomas ")
-        w = reopen(w)
-        assertEquals("Rajesh Thomas", w.settings.ownerName())
-    }
 
     // ---------------------------------------------------------------- business details
 
@@ -177,24 +161,22 @@ class SettingsTest {
 
     // ---------------------------------------------------------------- the bill reads the settings only
 
-    @Test fun theHeaderAndTheSalesmanLineComeFromTheSettings() = runBlocking {
+    @Test fun theHeaderComesFromTheSettingsAndTheSalesmanLineFromTheCreator() = runBlocking {
         var w = first()
         w.price(ReferenceIds.TYPE_RETAIL, 260, 290)
         w.saveSettings(BusinessSettings("Test Kitchen", "1 Test Road", "555-0100", "Thanks!"))
-        w.setOwner()("Pat Tester")
         w = reopen(w)
-        val invoice = w.makeBill(w.cashBill())
+        val invoice = w.makeBill(w.cashBill().copy(by = w.asha))
         val lines = layoutInvoiceReceipt(invoiceReceiptOf(invoice, emptyList(), false, w.settings.businessHeader()))
         assertTrue(lines.any { it.trim() == "Test Kitchen" })
         assertTrue(lines.any { it.trim() == "1 Test Road" })
         assertTrue(lines.any { it.trim() == "Ph: 555-0100" })
-        assertTrue(lines.contains("Salesman: Pat Tester"))
+        assertTrue(lines.contains("Salesman: Asha Kumar"))
         assertTrue(lines.any { it.trim() == "Thanks!" })
         // A later change reaches the next bill; the saved bill keeps the salesman it was made with.
-        w.setOwner()("Sam Other")
         val next = w.makeBill(w.cashBill())
-        assertTrue(layoutInvoiceReceipt(invoiceReceiptOf(next, emptyList(), false, w.settings.businessHeader())).contains("Salesman: Sam Other"))
-        assertTrue(layoutInvoiceReceipt(invoiceReceiptOf(invoice, emptyList(), false, w.settings.businessHeader())).contains("Salesman: Pat Tester"))
+        assertTrue(layoutInvoiceReceipt(invoiceReceiptOf(next, emptyList(), false, w.settings.businessHeader())).contains("Salesman: Test Admin"))
+        assertTrue(layoutInvoiceReceipt(invoiceReceiptOf(invoice, emptyList(), false, w.settings.businessHeader())).contains("Salesman: Asha Kumar"))
     }
 
     @Test fun withNothingSavedTheBillPrintsPlaceholdersAndNeverTheDeviceCode() = runBlocking {
@@ -202,19 +184,18 @@ class SettingsTest {
         w.price(ReferenceIds.TYPE_RETAIL, 260, 290)
         val invoice = w.makeBill(w.cashBill())
         val lines = layoutInvoiceReceipt(invoiceReceiptOf(invoice, emptyList(), false, w.settings.businessHeader()))
-        assertTrue(lines.contains("Salesman: (owner name pending)"))
+        assertTrue(lines.contains("Salesman: Test Admin")) // the creator, never the owner name setting (B8 L2, L3)
         assertTrue(lines.any { it.contains("(address / phone pending)") })
         assertFalse(lines.any { it.startsWith("Salesman:") && it.contains("W1") })
         val noName = w.settings.businessHeader().copy(name = "")
         assertTrue(layoutInvoiceReceipt(invoiceReceiptOf(invoice, emptyList(), false, noName)).any { it.contains("(business name pending)") })
     }
 
-    @Test fun thePaymentReceiptTakesTheOwnerNameFromTheSettingsToo() = runBlocking {
+    @Test fun thePaymentReceiptTakesTheCreatorNameOfThePayment() = runBlocking {
         val w = first()
-        w.setOwner()("Pat Tester")
         val c = w.customer("Spice Garden")
-        val payment = w.recordPayment(w.payment(c.id, 500))
+        val payment = w.recordPayment(w.payment(c.id, 500, by = w.asha))
         val lines = layoutPaymentReceipt(paymentReceiptOf(payment, 0, w.settings.businessHeader()))
-        assertTrue(lines.contains("Salesman: Pat Tester"))
+        assertTrue(lines.contains("Salesman: Asha Kumar"))
     }
 }

@@ -2,7 +2,8 @@
 
 Read docs/01-product-spec.txt, docs/02-architecture.txt,
 docs/04-team-plan.txt and docs/03-agent-guide.txt. Doc 1 wins on behaviour, Doc 2 on technology.
-Version 1 is a local-first Android app: one Owner, one phone, no server.
+Version 1 is a local-first Android app: one phone, one admin account and
+salesman accounts (Doc 1 s2.2), no server.
 
 ## Always
 - Stay inside the folders you own (Doc 3 section 3.1).
@@ -20,6 +21,8 @@ Version 1 is a local-first Android app: one Owner, one phone, no server.
 - Let a line's price differ from the list price unless the customer
   type's switch is on. Treat a missing price or cost as zero.
 - Show a corporate account's balance on a bill or in the Sales area.
+- Let a salesman account reach the Admin area. Store a password in
+  plain, or log, show or export a password or its hash.
 - Use a destructive Room migration. Write a business detail in code.
 - Ship demo code (fake API, demo logins, seeds) in a release build.
 - Commit secrets or the signing key. Add dependencies silently.

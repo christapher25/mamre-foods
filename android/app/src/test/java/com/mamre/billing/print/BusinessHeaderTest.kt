@@ -76,9 +76,9 @@ class BusinessHeaderTest {
         assertEquals("Mamre Foods LLC", w.settings.businessHeader().name)
     }
 
-    @Test fun theBillHeaderIsReadFromTheSettingsAndTheOwnerNameFromTheSettingToo() = runBlocking {
+    @Test fun theBillHeaderIsReadFromTheSettingsAndTheSalesmanNameFromTheCreator() = runBlocking {
         val (w, id) = section65World()
         val invoice = w.makeBill(w.draft(id, listOf(w.line(ReferenceIds.PRODUCT_CHAPATHI, "Mamre Chapathi", qty = 1, unit = 100))))
-        assertEquals("Rajesh", invoice.salesmanName) // owner_name in Settings
+        assertEquals("Test Admin", invoice.salesmanName) // the creator display name (B8 L3), not the owner_name setting
     }
 }

@@ -18,7 +18,7 @@ class DaoScanTest {
     )
     private val otherDaos = setOf(
         "CustomerTypeDao", "ProductDao", "CustomerDao", "PriceDefaultDao", "PriceOverrideDao", "SettingDao",
-        "MaterialDao", "RecipeDao", "ExpenseCategoryDao",
+        "MaterialDao", "RecipeDao", "ExpenseCategoryDao", "UserDao",
     )
     private val allowedMethods = setOf("InvoiceDao.markVoid")
 

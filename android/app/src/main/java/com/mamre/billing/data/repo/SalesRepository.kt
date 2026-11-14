@@ -9,7 +9,6 @@ import com.mamre.billing.data.local.MamreDatabase
 import com.mamre.billing.data.local.PaymentEntity
 import com.mamre.billing.data.local.ProductEntity
 import com.mamre.billing.data.local.ReturnEntity
-import com.mamre.billing.data.local.SettingKeys
 import com.mamre.billing.data.local.Stored
 import com.mamre.billing.domain.worker.CreditEntry
 import com.mamre.billing.domain.worker.InvoiceEntry
@@ -125,7 +124,6 @@ class SalesRepository(private val db: MamreDatabase, private val zone: () -> Zon
         customers = customers,
         types = db.customerTypeDao().getAll(),
         products = db.productDao().getAll(),
-        ownerName = db.settingDao().get(SettingKeys.OWNER_NAME).orEmpty().trim(),
         zone = zone(),
     )
 }
@@ -138,7 +136,6 @@ fun buildSalesState(
     customers: List<CustomerEntity>,
     types: List<CustomerTypeEntity>,
     products: List<ProductEntity>,
-    ownerName: String,
     zone: ZoneId,
 ): SalesState {
     val customerById = customers.associateBy { it.id }
@@ -230,7 +227,7 @@ fun buildSalesState(
             amountCents = p.amountCents,
             method = paymentMethodOf(p.method),
             note = p.note,
-            salesmanName = ownerName,
+            salesmanName = p.salesmanName,
             customerLocation = customer.location,
             isCorporate = customer.isCorporate,
         )

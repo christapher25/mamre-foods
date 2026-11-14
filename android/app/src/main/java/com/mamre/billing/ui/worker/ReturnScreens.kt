@@ -100,6 +100,7 @@ class ReturnFlowViewModel @Inject constructor(
     sales: SalesRepository,
     private val settings: SettingsRepository,
     private val recordReturn: RecordReturn,
+    private val currentUser: com.mamre.billing.domain.security.CurrentUser,
     private val clock: Clock,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
@@ -162,7 +163,7 @@ class ReturnFlowViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val record = recordReturn(
-                    ReturnDraft(draftId, customer.id, product.product.id, u.qty, product.standardSize, reason, resolution),
+                    ReturnDraft(draftId, customer.id, product.product.id, u.qty, product.standardSize, reason, resolution, currentUser.require()),
                 )
                 _error.value = null
                 input.update { it.copy(saved = record) }

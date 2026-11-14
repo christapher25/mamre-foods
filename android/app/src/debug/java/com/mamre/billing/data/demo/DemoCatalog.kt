@@ -42,7 +42,6 @@ data class DemoOverride(val customerId: String, val productId: String, val cents
 
 object DemoCatalog {
     /** The name the demo bills print after Salesman. */
-    const val OWNER_NAME = "Rajesh"
 
     val customers: List<DemoCustomer> = listOf(
         DemoCustomer(DemoCustomerIds.SPICE_GARDEN, "Spice Garden", "Irving", ReferenceIds.TYPE_RESTAURANT, PaymentMode.CREDIT),

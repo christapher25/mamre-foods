@@ -10,6 +10,12 @@ import com.mamre.billing.data.repo.SettingsRepository
 import com.mamre.billing.domain.security.AppLock
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.Manifest
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import android.app.AlertDialog
+import com.mamre.billing.print.BluetoothPermissionGate
+import kotlinx.coroutines.CompletableDeferred
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -38,6 +44,12 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var features: Features
     @Inject lateinit var appLock: AppLock
     @Inject lateinit var settings: SettingsRepository
+    @Inject lateinit var bluetoothGate: BluetoothPermissionGate
+
+    private var permissionAnswer: CompletableDeferred<Boolean>? = null
+    private val bluetoothLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        permissionAnswer?.complete(ok)
+    }
 
     /** A touch counts as activity for the idle lock (Doc 2 s6); the time comes from the injected clock. */
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
@@ -60,6 +72,30 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
+        // Printing (A1 item 4): the sentence first, then the system prompt for BLUETOOTH_CONNECT (Android 12 and later).
+        bluetoothGate.requester = { rationale ->
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                true
+            } else {
+                val agreed = CompletableDeferred<Boolean>()
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setMessage(rationale)
+                        .setCancelable(false)
+                        .setPositiveButton(android.R.string.ok) { _, _ -> agreed.complete(true) }
+                        .setNegativeButton(android.R.string.cancel) { _, _ -> agreed.complete(false) }
+                        .show()
+                }
+                if (agreed.await()) {
+                    val answer = CompletableDeferred<Boolean>()
+                    permissionAnswer = answer
+                    runOnUiThread { bluetoothLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT) }
+                    answer.await()
+                } else {
+                    false
+                }
+            }
+        }
         // While the app is in front, look for the idle time every few seconds. It stops with the screen and with the process.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {

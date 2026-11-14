@@ -14,7 +14,7 @@ import java.io.File
 /** What the Owner reads before sharing (Doc 2 s6): the files are not protected. */
 const val EXPORT_WARNING =
     "These files are plain text. They hold your customer names, phone numbers and addresses, your prices, bills and payments, " +
-        "and anyone who gets them can read all of it. Share them only with people you trust. The PIN is never included."
+        "and anyone who gets them can read all of it. Share them only with people you trust. Passwords are never included."
 
 /** Writes an export into cacheDir/exports. Old files are deleted first, so the folder only ever holds the last export. */
 class ExportWriter(private val cacheDir: File) {

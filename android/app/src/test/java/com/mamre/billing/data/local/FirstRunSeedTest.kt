@@ -76,8 +76,8 @@ class FirstRunSeedTest {
         assertEquals("5", s[SettingKeys.LOCK_MINUTES])
         assertEquals("1", s[SettingKeys.NEXT_BILL_SEQ])
         assertEquals("1", s[SettingKeys.NEXT_RECEIPT_SEQ])
-        // The Owner types these in Settings; the app never invents them (Doc 1 A-31, P-6, P-12) and the PIN comes in step 2.
-        for (key in listOf(SettingKeys.ADDRESS, SettingKeys.PHONE, SettingKeys.FOOTER_TEXT, SettingKeys.OWNER_NAME, SettingKeys.PIN_HASH, SettingKeys.PIN_SALT)) {
+        // The Owner types these in Settings; the app never invents them (Doc 1 A-31, P-6, P-12). There is no owner name setting and no PIN row any more (B8 L2).
+        for (key in listOf(SettingKeys.ADDRESS, SettingKeys.PHONE, SettingKeys.FOOTER_TEXT)) {
             assertNull(key, s[key])
         }
         db.close()

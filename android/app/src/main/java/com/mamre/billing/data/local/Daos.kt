@@ -44,6 +44,12 @@ interface ProductDao {
     @Query("UPDATE products SET yield_per_kg = :yieldPerKg WHERE id = :id")
     suspend fun setYieldPerKg(id: String, yieldPerKg: Int): Int
 
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(row: ProductEntity)
+
+    /** Name, code and active only: the packet size and the yield have their own queries above. A product is never deleted (B5). */
+    @Query("UPDATE products SET name = :name, code = :code, is_active = :active WHERE id = :id")
+    suspend fun editIdentity(id: String, name: String, code: String, active: Boolean): Int
+
     @Query("SELECT COUNT(*) FROM products") suspend fun count(): Int
 }
 
@@ -228,6 +234,9 @@ interface ExpenseCategoryDao {
 
     @Query("SELECT * FROM expense_categories ORDER BY rowid") suspend fun getAll(): List<ExpenseCategoryEntity>
 
+    /** Add only (B4, A-18): categories are never renamed, switched off or deleted. */
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(row: ExpenseCategoryEntity)
+
     @Query("SELECT COUNT(*) FROM expense_categories") suspend fun count(): Int
 }
 
@@ -251,4 +260,33 @@ interface ChangeLogDao {
     @Query("SELECT * FROM change_log ORDER BY at, rowid") suspend fun getAll(): List<ChangeLogEntity>
 
     @Query("SELECT * FROM change_log ORDER BY at, rowid") fun observeAll(): Flow<List<ChangeLogEntity>>
+}
+
+/** Accounts (B8). No delete: an account is switched off, never removed, because bills point to it. */
+@Dao
+interface UserDao {
+    @Insert(onConflict = OnConflictStrategy.ABORT) suspend fun insert(row: UserEntity)
+
+    @Query("SELECT * FROM users WHERE id = :id") suspend fun get(id: String): UserEntity?
+
+    @Query("SELECT * FROM users WHERE username = :username") suspend fun byUsername(username: String): UserEntity?
+
+    @Query("SELECT * FROM users ORDER BY role, display_name") suspend fun getAll(): List<UserEntity>
+
+    @Query("SELECT * FROM users ORDER BY role, display_name") fun observeAll(): Flow<List<UserEntity>>
+
+    @Query("SELECT COUNT(*) FROM users") suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM users") fun observeCount(): Flow<Int>
+
+    @Query("UPDATE users SET active = :active WHERE id = :id") suspend fun setActive(id: String, active: Boolean): Int
+
+    @Query("UPDATE users SET password_hash = :hash, password_salt = :salt WHERE id = :id")
+    suspend fun setCredential(id: String, hash: String, salt: String): Int
+
+    @Query(
+        "UPDATE users SET fail_count = :failCount, locked_until = :lockedUntil, lock_delay_ms = :delayMs, " +
+            "lock_mono_at = :monoAt, lock_boot = :bootId WHERE id = :id",
+    )
+    suspend fun saveLock(id: String, failCount: Int, lockedUntil: Long, delayMs: Long, monoAt: Long, bootId: String): Int
 }

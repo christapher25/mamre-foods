@@ -54,6 +54,7 @@ object DemoWorld {
         target.parentFile?.mkdirs()
         file.copyTo(target, overwrite = true)
         val world = World(open(TEST_NAME), MutableClock(CLOCK_START))
+        world.ensureActors()
         world.logBaseline = world.books.changeLog().size
         return world
     }

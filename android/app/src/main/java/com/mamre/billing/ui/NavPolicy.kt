@@ -4,6 +4,8 @@ import com.mamre.billing.domain.auth.Area
 import com.mamre.billing.domain.auth.Features
 import com.mamre.billing.domain.auth.Routes
 import com.mamre.billing.domain.auth.routeAllowed
+import com.mamre.billing.domain.auth.Role
+import com.mamre.billing.domain.auth.routeAllowedFor
 import com.mamre.billing.domain.auth.startDestinationFor
 
 /** What the window shows. Exactly one of these is drawn; the content is never drawn under or behind the other two. */
@@ -44,4 +46,11 @@ fun areaGraph(area: Area): String = when (area) {
 fun navTarget(area: Area, features: Features, current: String?): String? {
     val start = startDestinationFor(area, features)
     return if (routeAllowed(area, current, features)) null else start.takeIf { it != current }
+}
+
+/** [navTarget] for a signed-in role: a salesman is always sent to the Sales start, never to an Admin route. */
+fun navTargetFor(role: Role, area: Area, features: Features, current: String?): String? {
+    val effectiveArea = if (role.mayOpen(area)) area else Area.SALES
+    val start = startDestinationFor(effectiveArea, features)
+    return if (routeAllowedFor(role, area, current, features)) null else start.takeIf { it != current }
 }

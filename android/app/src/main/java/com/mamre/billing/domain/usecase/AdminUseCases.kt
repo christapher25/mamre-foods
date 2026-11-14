@@ -34,18 +34,25 @@ import com.mamre.billing.domain.admin.validateExpense
 import com.mamre.billing.domain.admin.validateNewPrice
 import com.mamre.billing.domain.admin.validateSettings
 import com.mamre.billing.domain.admin.cleanDeviceCode
-import com.mamre.billing.domain.admin.cleanOwnerName
 import com.mamre.billing.domain.admin.settingsProblemMessage
 import com.mamre.billing.domain.admin.MAX_DEVICE_CODE
 import com.mamre.billing.domain.admin.MAX_LOCK_MINUTES
-import com.mamre.billing.domain.admin.MAX_OWNER_NAME
 import com.mamre.billing.domain.admin.MIN_LOCK_MINUTES
-import com.mamre.billing.domain.admin.MIN_OWNER_NAME
 import com.mamre.billing.domain.model.CustomerIdentity
 import com.mamre.billing.domain.model.PaymentMode
 import com.mamre.billing.domain.model.checkCustomerIdentity
 import com.mamre.billing.domain.model.identityKey
 import com.mamre.billing.domain.model.identityProblemMessage
+import com.mamre.billing.data.local.ProductEntity
+import com.mamre.billing.domain.admin.validateCategoryName
+import com.mamre.billing.domain.admin.categoryProblemMessage
+import com.mamre.billing.domain.admin.cleanCategoryName
+import com.mamre.billing.data.local.ExpenseCategoryEntity
+import com.mamre.billing.domain.admin.ExistingProduct
+import com.mamre.billing.domain.admin.ProductForm
+import com.mamre.billing.domain.admin.cleanProductCode
+import com.mamre.billing.domain.admin.productProblemMessage
+import com.mamre.billing.domain.admin.validateProductForm
 import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.centsToPlain
 import com.mamre.billing.domain.money.formatCents
@@ -446,23 +453,6 @@ class SaveBusinessSettings(
     }
 }
 
-/** The Owner's name, printed after "Salesman:" on bills (Doc 1 A-29, P-12): 2 to 40 characters. */
-class SetOwnerName(
-    private val unitOfWork: UnitOfWork,
-    private val settings: SettingsRepository,
-    private val changeLog: ChangeLogRepository,
-    private val clock: Clock = Clock.systemDefaultZone(),
-) {
-    suspend operator fun invoke(name: String) {
-        unitOfWork.run {
-            val clean = cleanOwnerName(name) ?: refuse("The owner name is $MIN_OWNER_NAME to $MAX_OWNER_NAME characters")
-            val old = settings.ownerName()
-            settings.put(SettingKeys.OWNER_NAME, clean)
-            changeLog.add(clock.millis(), "Owner name", old, clean)
-        }
-    }
-}
-
 /**
  * The device code in new bill and receipt numbers (Doc 2 I-3). Only numbers made afterwards use it: the sequence goes on and
  * numbers already made are never touched.
@@ -497,5 +487,84 @@ class SetLockMinutes(
             settings.put(SettingKeys.LOCK_MINUTES, minutes.toString())
             changeLog.add(clock.millis(), "Lock time", "$old minutes", "$minutes minutes")
         }
+    }
+}
+
+/**
+ * Adds a product (Doc 1 s3: a simple Admin form, no code change). One transaction: the row and one change log entry. Every rule of
+ * [validateProductForm] is checked again here, because the screen is not the only guard. The new product has NO price, so it cannot
+ * be sold until the Admin sets one (Doc 1 s4.2), and B2's Finish setup card counts its missing prices. Returns the new product id.
+ */
+class AddProduct(
+    private val unitOfWork: UnitOfWork,
+    private val stock: StockRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(form: ProductForm): String = unitOfWork.run {
+        val existing = stock.products().map { ExistingProduct(it.id, it.name, it.code) }
+        validateProductForm(form, existing).firstOrNull()?.let { refuse(productProblemMessage(it)) }
+        val row = ProductEntity(
+            id = UUID.randomUUID().toString(),
+            code = cleanProductCode(form.code),
+            name = normalizeSpaces(form.name),
+            standardPacketSize = form.packetSize,
+            yieldPerKg = form.yieldPerKg,
+            isActive = form.active,
+        )
+        stock.insertProduct(row)
+        changeLog.add(
+            clock.millis(), "Add product ${row.name}", "none",
+            "code ${row.code}, ${row.standardPacketSize} chapathis a packet, ${row.yieldPerKg} per kg, ${if (row.isActive) "active" else "inactive"}",
+        )
+        row.id
+    }
+}
+
+/**
+ * Edits a product's name, code and active flag (Doc 1 s3). The packet size and the yield keep their own use cases
+ * ([SetStandardPacketSize], [SetYieldPerKg]). One change log entry with before and after. A product is never deleted: switching it
+ * off keeps it, its price history and every bill; it is only no longer offered on a new bill.
+ */
+class EditProduct(
+    private val unitOfWork: UnitOfWork,
+    private val stock: StockRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(productId: String, name: String, code: String, active: Boolean) {
+        unitOfWork.run {
+            val old = stock.product(productId) ?: refuse("Unknown product")
+            val existing = stock.products().map { ExistingProduct(it.id, it.name, it.code) }
+            val form = ProductForm(name, code, old.standardPacketSize, old.yieldPerKg, active)
+            validateProductForm(form, existing, selfId = productId).firstOrNull()?.let { refuse(productProblemMessage(it)) }
+            val newName = normalizeSpaces(name)
+            val newCode = cleanProductCode(code)
+            if (newName == old.name && newCode == old.code && active == old.isActive) refuse("Nothing was changed")
+            stock.editProduct(productId, newName, newCode, active)
+            fun describe(n: String, c: String, a: Boolean) = "$n, code $c, ${if (a) "active" else "inactive"}"
+            changeLog.add(clock.millis(), "Edit product ${old.name}", describe(old.name, old.code, old.isActive), describe(newName, newCode, active))
+        }
+    }
+}
+
+/**
+ * Adds an expense category (Doc 1 s10.2, A-18: add only). One transaction: the row and one change log entry. [validateCategoryName]
+ * is checked again here, because the screen is not the only guard. Every new category is INDIRECT: direct cost is the materials and
+ * packing from purchases (Doc 1 s10.1), so there is no kind to choose. Returns the new category id.
+ */
+class AddExpenseCategory(
+    private val unitOfWork: UnitOfWork,
+    private val expenses: ExpenseRepository,
+    private val changeLog: ChangeLogRepository,
+    private val clock: Clock = Clock.systemDefaultZone(),
+) {
+    suspend operator fun invoke(name: String): String = unitOfWork.run {
+        val problems = validateCategoryName(name, expenses.categories().map { it.name })
+        problems.firstOrNull()?.let { refuse(categoryProblemMessage(it)) }
+        val row = ExpenseCategoryEntity(UUID.randomUUID().toString(), cleanCategoryName(name), Stored.INDIRECT)
+        expenses.addCategory(row)
+        changeLog.add(clock.millis(), "Add expense category ${row.name}", "-", "indirect")
+        row.id
     }
 }

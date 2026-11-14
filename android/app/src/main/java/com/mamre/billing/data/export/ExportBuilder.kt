@@ -17,7 +17,7 @@ data class ExportFile(val name: String, val text: String)
 data class ExportBundle(val files: List<ExportFile>)
 
 /** The table files, by the name the Owner sees (a few differ from the SQL table name) and the stored-epoch columns to write as ISO times. */
-private class ExportTable(val file: String, val table: String, val timeColumns: Set<String> = emptySet())
+private class ExportTable(val file: String, val table: String, val timeColumns: Set<String> = emptySet(), val columns: String = "*")
 
 private val TABLES = listOf(
     ExportTable("customers", "customers"),
@@ -38,6 +38,8 @@ private val TABLES = listOf(
     ExportTable("recipe_items", "recipe_items"),
     ExportTable("settings", "settings"),
     ExportTable("change_log", "change_log", setOf("at")),
+    // B8 item i: accounts WITHOUT the password hash, salt, wrong-password count or lock time (the columns are listed, never "*").
+    ExportTable("users", "users", setOf("created_at"), columns = "id, username, display_name, role, active, created_at"),
 )
 
 object ExportTables {
@@ -47,8 +49,9 @@ object ExportTables {
 }
 
 /**
- * The settings that are never exported: the PIN hash and salt and the wrong-PIN count and lock time. Any key that starts with
- * "pin_" is left out too, so a PIN setting added later cannot reach a file by accident.
+ * The settings that are never exported. Version 1 keeps no secret in settings (passwords are in the users table, and users.csv leaves
+ * them out), so this is a safety net: any key that starts with
+ * "pin_" is left out, so a secret setting added later cannot reach a file by accident.
  */
 fun isNeverExported(settingKey: String): Boolean = settingKey.startsWith("pin_")
 
@@ -59,7 +62,7 @@ class ExportBuilder(private val db: MamreDatabase, private val clock: Clock = Cl
         val counts = LinkedHashMap<String, Int>()
         val files = ArrayList<ExportFile>()
         for (t in TABLES) {
-            sqlite.query("SELECT * FROM ${t.table} ORDER BY rowid").use { cursor ->
+            sqlite.query("SELECT ${t.columns} FROM ${t.table} ORDER BY rowid").use { cursor ->
                 val header = cursor.columnNames.toList()
                 val rows = ArrayList<List<String>>()
                 while (cursor.moveToNext()) {
@@ -89,6 +92,6 @@ class ExportBuilder(private val db: MamreDatabase, private val clock: Clock = Cl
         append("data_version: $version\r\n")
         append("exported_at: $at\r\n")
         counts.forEach { (file, n) -> append("rows.$file: $n\r\n") }
-        append("The PIN and its lockout state are not included.\r\n")
+        append("Passwords and their lockout state are not included.\r\n")
     }
 }

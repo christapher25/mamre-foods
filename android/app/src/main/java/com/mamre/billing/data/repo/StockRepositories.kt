@@ -24,6 +24,10 @@ class StockRepository(private val db: MamreDatabase) {
 
     suspend fun setYieldPerKg(productId: String, yieldPerKg: Int) = db.productDao().setYieldPerKg(productId, yieldPerKg)
 
+    suspend fun insertProduct(row: ProductEntity) = db.productDao().insert(row)
+
+    suspend fun editProduct(id: String, name: String, code: String, active: Boolean) = db.productDao().editIdentity(id, name, code, active)
+
     suspend fun materials(): List<MaterialEntity> = db.materialDao().getAll()
 
     suspend fun recipe(): List<RecipeItemEntity> = db.recipeDao().getAll()
@@ -55,6 +59,8 @@ class StockRepository(private val db: MamreDatabase) {
 /** Expense categories and expenses (Doc 2 s4.2). Expenses are add only, with reversing rows (I-14). */
 class ExpenseRepository(private val db: MamreDatabase) {
     suspend fun categories(): List<ExpenseCategoryEntity> = db.expenseCategoryDao().getAll()
+
+    suspend fun addCategory(row: ExpenseCategoryEntity) = db.expenseCategoryDao().insert(row)
 
     suspend fun expenses(): List<ExpenseEntity> = db.expenseDao().getAll()
 

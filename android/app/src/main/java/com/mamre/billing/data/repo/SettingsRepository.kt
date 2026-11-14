@@ -34,8 +34,6 @@ class SettingsRepository(private val settings: SettingDao) {
 
     suspend fun deviceCode(): String = settings.get(SettingKeys.DEVICE_CODE) ?: error("the first-run seed has not run: no device code")
 
-    /** The name printed after Salesman on bills and shown as the person who made a change (Doc 1 A-29). May be empty. */
-    suspend fun ownerName(): String = settings.get(SettingKeys.OWNER_NAME).orEmpty().trim()
 
     suspend fun wastageBp(): Int = settings.get(SettingKeys.WASTAGE_BP)?.toIntOrNull() ?: error("the first-run seed has not run: no wastage")
 

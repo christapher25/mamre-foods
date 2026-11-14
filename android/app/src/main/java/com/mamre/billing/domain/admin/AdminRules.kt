@@ -1,7 +1,10 @@
 package com.mamre.billing.domain.admin
 
-import com.mamre.billing.domain.model.normalizeSpaces
 import com.mamre.billing.domain.money.parseCents
+import com.mamre.billing.domain.model.identityKey
+import com.mamre.billing.domain.model.normalizeSpaces
+import com.mamre.billing.domain.worker.MAX_PACKET_SIZE
+import com.mamre.billing.domain.worker.isValidPacketSize
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -115,13 +118,6 @@ fun settingsProblemMessage(problem: SettingsProblem): String = when (problem) {
     SettingsProblem.FOOTER_TOO_LONG -> "The footer is at most $MAX_FOOTER characters"
 }
 
-/** The owner name printed after "Salesman:" (Doc 1 A-29, P-12): 2 to 40 characters, inner spaces collapsed. Null when it does not fit. */
-const val MIN_OWNER_NAME = 2
-const val MAX_OWNER_NAME = 40
-
-fun cleanOwnerName(text: String): String? =
-    normalizeSpaces(text).takeIf { it.length in MIN_OWNER_NAME..MAX_OWNER_NAME }
-
 /** The device code in bill numbers (Doc 2 I-3): capital letters A to Z and digits, 1 to 8; typed lowercase is made uppercase. Null when it does not fit. */
 const val MAX_DEVICE_CODE = 8
 
@@ -168,4 +164,75 @@ fun monthShort(month: YearMonth): String = month.month.getDisplayName(TextStyle.
 fun sharePercent(part: Long, total: Long): Int {
     if (total <= 0 || part <= 0) return 0
     return minOf(part * 100 / total, 100L).toInt()
+}
+
+// --- products (B5, Doc 1 s3): Add and Edit product ---
+
+enum class ProductProblem { NAME_LENGTH, NAME_TAKEN, CODE_INVALID, CODE_TAKEN, PACKET_SIZE, YIELD }
+
+const val MIN_PRODUCT_NAME = 2
+const val MAX_PRODUCT_NAME = 40
+const val MAX_PRODUCT_CODE = 12
+
+/** What the Add and Edit product screens collect. [code] is as typed: [cleanProductCode] trims and upper-cases it. */
+data class ProductForm(val name: String, val code: String, val packetSize: Int, val yieldPerKg: Int, val active: Boolean)
+
+/** One product that already exists, for the duplicate checks. */
+data class ExistingProduct(val id: String, val name: String, val code: String)
+
+/** The stored form of a code: trimmed and upper-cased. */
+fun cleanProductCode(raw: String): String = raw.trim().uppercase()
+
+private val PRODUCT_CODE_CHARS = Regex("[A-Z0-9]+")
+
+/**
+ * The product rules (Doc 1 s3), shared by the screen and the use cases (the screen is never the only guard): a name of 2 to 40
+ * characters that no other product has (ignoring case and extra spaces); a code of 1 to 12 letters or digits that no other
+ * product has (ignoring case); a packet size of 1 to 200; a yield of 1 to [MAX_YIELD_PER_KG] chapathis per kg of wheat.
+ * [selfId] is the product being edited, which may keep its own name and code.
+ */
+fun validateProductForm(form: ProductForm, existing: List<ExistingProduct>, selfId: String? = null): Set<ProductProblem> = buildSet {
+    val name = normalizeSpaces(form.name)
+    if (name.length !in MIN_PRODUCT_NAME..MAX_PRODUCT_NAME) add(ProductProblem.NAME_LENGTH)
+    else if (existing.any { it.id != selfId && identityKey(it.name) == identityKey(name) }) add(ProductProblem.NAME_TAKEN)
+    val code = cleanProductCode(form.code)
+    if (code.length !in 1..MAX_PRODUCT_CODE || !PRODUCT_CODE_CHARS.matches(code)) add(ProductProblem.CODE_INVALID)
+    else if (existing.any { it.id != selfId && cleanProductCode(it.code) == code }) add(ProductProblem.CODE_TAKEN)
+    if (!isValidPacketSize(form.packetSize)) add(ProductProblem.PACKET_SIZE)
+    if (form.yieldPerKg !in 1..MAX_YIELD_PER_KG) add(ProductProblem.YIELD)
+}
+
+fun productProblemMessage(problem: ProductProblem): String = when (problem) {
+    ProductProblem.NAME_LENGTH -> "The name is $MIN_PRODUCT_NAME to $MAX_PRODUCT_NAME characters"
+    ProductProblem.NAME_TAKEN -> "Another product already has that name"
+    ProductProblem.CODE_INVALID -> "The code is 1 to $MAX_PRODUCT_CODE letters or digits, no spaces"
+    ProductProblem.CODE_TAKEN -> "Another product already has that code"
+    ProductProblem.PACKET_SIZE -> "A packet holds 1 to $MAX_PACKET_SIZE chapathis"
+    ProductProblem.YIELD -> "The yield is 1 to $MAX_YIELD_PER_KG chapathis per kg of wheat"
+}
+
+// --- expense categories (B4, Doc 1 s10.2): the Admin can add a category ---
+
+enum class CategoryProblem { NAME_LENGTH, NAME_TAKEN }
+
+const val MIN_CATEGORY_NAME = 2
+const val MAX_CATEGORY_NAME = 30
+
+/** The stored form of a category name: trimmed, every run of spaces made one. */
+fun cleanCategoryName(raw: String): String = normalizeSpaces(raw)
+
+/**
+ * The Add category rule (Doc 1 s10.2), shared by the screen and the use case (the screen is never the only guard): 2 to 30
+ * characters after trimming and collapsing spaces, and not already used by another category, ignoring case and extra spaces.
+ * A name of the wrong length is reported only as that, never also as a duplicate.
+ */
+fun validateCategoryName(name: String, existingNames: List<String>): Set<CategoryProblem> = buildSet {
+    val clean = cleanCategoryName(name)
+    if (clean.length !in MIN_CATEGORY_NAME..MAX_CATEGORY_NAME) add(CategoryProblem.NAME_LENGTH)
+    else if (existingNames.any { identityKey(it) == identityKey(clean) }) add(CategoryProblem.NAME_TAKEN)
+}
+
+fun categoryProblemMessage(problem: CategoryProblem): String = when (problem) {
+    CategoryProblem.NAME_LENGTH -> "The name is $MIN_CATEGORY_NAME to $MAX_CATEGORY_NAME characters"
+    CategoryProblem.NAME_TAKEN -> "A category with this name already exists"
 }

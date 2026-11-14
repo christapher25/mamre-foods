@@ -10,13 +10,11 @@ import com.mamre.billing.domain.model.PaymentMode
  */
 class SmallWorld(val w: World, val spiceGardenId: String, val freshMartId: String) {
     companion object {
-        const val OWNER_NAME = "Rajesh"
         const val BUSINESS_NAME = "MAMRE FOODS"
 
-        /** Seeded reference data, the Owner's name, prices for all types, a Restaurant on credit and a corporate Shop on credit. */
+        /** Seeded reference data, prices for all types, a Restaurant on credit and a corporate Shop on credit. */
         suspend fun open(db: MamreDatabase = TestDatabase.inMemory(), clock: MutableClock = MutableClock("2026-10-02T14:00:00Z")): SmallWorld {
             val w = World(db, clock).also { it.seed() }
-            w.settings.put(SettingKeys.OWNER_NAME, OWNER_NAME)
             w.settings.put(SettingKeys.BUSINESS_NAME, BUSINESS_NAME)
             w.price(ReferenceIds.TYPE_RESTAURANT, 250, 240)
             w.price(ReferenceIds.TYPE_SHOP, 280, 270)

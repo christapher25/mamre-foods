@@ -109,6 +109,7 @@ fun MoreScreen(features: Features, onOpen: (String) -> Unit, onSalesArea: () -> 
                     AdminRoutes.EXPENSES -> MoreItem("Expenses", "Material purchases and other expenses", route, onOpen)
                     AdminRoutes.RETURNS -> MoreItem("Returns and damage", "Customer returns and production damage", route, onOpen)
                     AdminRoutes.BALANCES -> MoreItem("Balances", "Who owes what, with ageing", route, onOpen)
+                    AdminRoutes.PRODUCTS -> MoreItem("Products", "Add a product, change its name, code or active", route, onOpen)
                     AdminRoutes.SETTINGS -> MoreItem("Settings", "Business details and wastage", route, onOpen)
                 }
             }

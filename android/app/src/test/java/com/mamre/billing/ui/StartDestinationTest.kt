@@ -42,7 +42,7 @@ class StartDestinationTest {
     }
 
     @Test fun withoutAGateTheAppStartsAtTheSalesHomeAndIsOpen() {
-        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(MutableClock()))
+        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(MutableClock()), com.mamre.billing.domain.security.CurrentUser())
         assertNull(vm.gate)
         assertTrue(vm.gateOpen.value)
         assertEquals(AppScreen.PIN, screenFor(vm.gate != null, vm.gateOpen.value, vm.locked.value)) // the PIN screen comes before the Sales Home
@@ -51,7 +51,7 @@ class StartDestinationTest {
 
     @Test fun withAGateTheAppStartsAtTheGateAndStaysClosedUntilItOpens() {
         val gate = FakeGate()
-        val vm = AppViewModel(AreaState(), Optional.of(gate), Features(showAnalytics = false), Ready, AppLock(MutableClock()))
+        val vm = AppViewModel(AreaState(), Optional.of(gate), Features(showAnalytics = false), Ready, AppLock(MutableClock()), com.mamre.billing.domain.security.CurrentUser())
         assertEquals(AppScreen.GATE, screenFor(vm.gate != null, vm.gateOpen.value, vm.locked.value))
         assertFalse(vm.gateOpen.value)
         gate.let()
@@ -63,7 +63,7 @@ class StartDestinationTest {
 
     @Test fun theGateNeverChangesWhichAreaOpensByItself() {
         val areas = AreaState()
-        val vm = AppViewModel(areas, Optional.of(FakeGate()), Features(showAnalytics = false), Ready, AppLock(MutableClock()))
+        val vm = AppViewModel(areas, Optional.of(FakeGate()), Features(showAnalytics = false), Ready, AppLock(MutableClock()), com.mamre.billing.domain.security.CurrentUser())
         assertEquals(Area.SALES, vm.area.value)
         vm.openArea(Area.ADMIN)
         assertEquals(Area.ADMIN, vm.area.value)
@@ -73,14 +73,14 @@ class StartDestinationTest {
         val flag = MutableStateFlow(false)
         val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), object : AppReadiness {
             override val ready: StateFlow<Boolean> = flag
-        }, AppLock(MutableClock()))
+        }, AppLock(MutableClock()), com.mamre.billing.domain.security.CurrentUser())
         assertFalse(vm.ready.value)
         flag.value = true
         assertTrue(vm.ready.value)
     }
 
     @Test fun theAppViewModelStartsLockedSoARestartedProcessAsksForThePin() {
-        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(MutableClock()))
+        val vm = AppViewModel(AreaState(), Optional.empty(), Features(showAnalytics = false), Ready, AppLock(MutableClock()), com.mamre.billing.domain.security.CurrentUser())
         assertTrue(vm.locked.value)
     }
 }

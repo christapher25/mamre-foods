@@ -2,7 +2,7 @@ MAMRE FOODS BILLING SYSTEM - DOCUMENT 4
 # Finish Plan and Parallel Team
 How version 1 gets finished fast with several Claude Code agents working at the same time
 
-Version: 1.0 (2 November 2026)
+Version: 1.1 (6 November 2026: F2 and O2 changed for accounts, owner decision)
 Owner: Christapher. Approved by the owner on 2 November 2026.
 Status: For finishing version 1, this document replaces Doc 3 sections 3, 4, 5.3 and 6 wherever they conflict. Doc 1 still decides behaviour and Doc 2 still decides technology. Doc 3 section 7 (hard rules) still applies in full.
 
@@ -17,7 +17,7 @@ Version 1 is finished when all of these are true:
 | # | Finished when |
 |---|---|
 | F1 | A signed APK is available at one download link. On the handheld, the Owner opens the link, allows the install once, and opens the app. |
-| F2 | First run: choose a PIN, then one Set up your business screen (name, owner name, address, phone, footer). A Finish setup card on the Sales Home lists anything still missing (a price for each product and customer type) and opens the right screen. |
+| F2 | First run: Create the admin account (display name, username, password twice; owner decision 6 November 2026), then one Set up your business screen (name, address, phone, footer). A Finish setup card on the Sales Home lists anything still missing (a price for each product and customer type) and opens the right screen. |
 | F3 | The first bill prints with no printer setup. The app finds the built-in printer by itself and remembers it. At most it asks once for the Android "nearby devices" (Bluetooth) permission, with a plain sentence saying why. |
 | F4 | If printing fails, the bill is still saved, and the message says "Printer not ready. The bill is saved. Tap Reprint." (AT-11). |
 | F5 | A newer APK installs over the old one and keeps every bill, payment and setting (same signing key, higher version code, tested migrations). |
@@ -116,7 +116,7 @@ Six sessions use the plan's limits about six times faster than one. Idle cycles 
 | O1 | OWNER | Run the keystore script once; keep the key file in two safe places | C1 merged |
 | C3 | DEV-C | Freeze schema version 1 (hash test) and remove the legacy lock-state branch. The last code change before RC1 | A3, B2, C2 merged |
 | RC1 | LEAD + TESTER | Release candidate: signed APK, full proof, upgrade test, upload to the download link | C3, O1 |
-| O2 | OWNER | Install RC1 on the handheld; the father sets PIN, business details and prices; first real bill printed | RC1 |
+| O2 | OWNER | Install RC1 on the handheld; the father creates the admin account, sets business details and prices, adds salesman accounts; first real bill printed | RC1 |
 | L7 | OWNER | Trial for 1 to 2 months. Bugs go to OWNER.md via LEAD | O2 |
 
 Wave 1 (parallel, no device): T0, V1, then B1, A1, C1, L1.

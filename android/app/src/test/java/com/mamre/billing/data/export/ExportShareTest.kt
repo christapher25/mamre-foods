@@ -1,5 +1,6 @@
 package com.mamre.billing.data.export
 
+import com.mamre.billing.ui.ViewModelScopes
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -42,7 +43,10 @@ class ExportShareTest {
         cache = File(context.cacheDir, "test-" + System.nanoTime()).also { it.mkdirs() }
     }
 
+    private val scopes = ViewModelScopes()
+
     @After fun tearDown() {
+        scopes.endAll() // before resetMain: see ViewModelScopes
         Dispatchers.resetMain()
         cache.deleteRecursively()
         File(context.cacheDir, ExportWriter.DIR).deleteRecursively()
@@ -126,7 +130,7 @@ class ExportShareTest {
 
     @Test fun theViewModelWritesTheRealDatabaseToTheCacheAndOffersTheFilesToShare() = runBlocking {
         val w = World(TestDatabase.inMemory()).also { it.seed() }
-        val vm = ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache), w.recordExport, w.settings)
+        val vm = scopes.track(ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache), w.recordExport, w.settings))
         assertTrue(vm.ui.value is ExportState.Idle)
         vm.export().join()
         val ready = vm.ui.value as ExportState.Ready
@@ -140,7 +144,7 @@ class ExportShareTest {
     @Test fun aFailedExportShowsAMessageAndSharesNothing() = runBlocking {
         val w = World(TestDatabase.inMemory()).also { it.seed() }
         w.db.close() // reading a closed database fails
-        val vm = ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache), w.recordExport, w.settings)
+        val vm = scopes.track(ExportViewModel(ExportBuilder(w.db, w.clock), ExportWriter(cache), w.recordExport, w.settings))
         vm.export().join()
         val failed = vm.ui.value as ExportState.Failed
         assertTrue(failed.message.isNotBlank())

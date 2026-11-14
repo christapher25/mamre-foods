@@ -97,6 +97,7 @@ class PaymentFlowViewModel @Inject constructor(
     sales: SalesRepository,
     private val settings: SettingsRepository,
     private val recordPayment: RecordPayment,
+    private val currentUser: com.mamre.billing.domain.security.CurrentUser,
 ) : ViewModel() {
     private val draftId = UUID.randomUUID().toString()
     private val deviceCode = MutableStateFlow<String?>(null)
@@ -154,7 +155,7 @@ class PaymentFlowViewModel @Inject constructor(
         if (!u.canRecord) return
         viewModelScope.launch {
             try {
-                val record = recordPayment(PaymentDraft(draftId, customer.id, ok.amountCents, u.method, u.note))
+                val record = recordPayment(PaymentDraft(draftId, customer.id, ok.amountCents, u.method, u.note, currentUser.require()))
                 _error.value = null
                 onSaved(record)
             } catch (e: RuleException) {

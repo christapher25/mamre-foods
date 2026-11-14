@@ -29,13 +29,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mamre.billing.domain.export.ExportDue
 import com.mamre.billing.domain.export.exportReminderText
 import com.mamre.billing.ui.DataLabelChip
+import com.mamre.billing.ui.SessionViewModel
+import com.mamre.billing.domain.auth.Role
+import androidx.compose.foundation.layout.Spacer
 import com.mamre.billing.ui.components.AppCard
 import com.mamre.billing.ui.components.AppTopBar
 import com.mamre.billing.ui.components.SecondaryButton
+import com.mamre.billing.ui.admin.AdminRoutes
+import com.mamre.billing.domain.setup.SetupGaps
 import com.mamre.billing.ui.theme.Spacing
 
 /** One Home tile (Doc 2 s10, W1). */
@@ -52,19 +59,26 @@ fun HomeScreen(
     onTile: (HomeTile) -> Unit,
     onAdminArea: () -> Unit,
     onOpenExport: () -> Unit = {},
+    onOpenSetup: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
+    session: SessionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val onLockNow = viewModel::lockNow
+    val account by session.account.collectAsStateWithLifecycle()
+    // B8 e: a salesman sees the Sales area only: no Admin tile, no Export card, no Finish setup card (its items open Admin screens).
+    val isAdmin = account?.role == Role.ADMIN
+    val onLockNow = session::logOut
+    // A product added in Admin has no flow to the Home: ask again whenever the Home is back in front.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshSetup() }
     Column(Modifier.fillMaxSize()) {
         AppTopBar(
             // The business name is a Settings value, never a string in the code (Doc 1 A-31).
             title = state.businessName.ifBlank { "Billing" },
             showLogo = true,
-            subtitle = "${state.ownerName.ifBlank { "Owner" }} - device ${state.deviceCode}",
+            subtitle = "${account?.displayName.orEmpty().ifBlank { "Not logged in" }} - device ${state.deviceCode}",
             actions = {
                 DataLabelChip()
-                LockNowButton(onClick = onLockNow)
+                LogOutButton(onClick = onLockNow)
             },
         )
         Column(
@@ -80,7 +94,8 @@ fun HomeScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = Spacing.xs),
             )
-            state.exportDue?.let { ExportReminderCard(it, onOpenExport) }
+            if (isAdmin && state.setup.any) FinishSetupCard(state.setup, onOpenSetup)
+            if (isAdmin) state.exportDue?.let { ExportReminderCard(it, onOpenExport) }
             // Each row is as tall as its taller tile, so all four tiles are the same size.
             Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
                 GridTile("Record payment", Icons.Default.Payments, Modifier.weight(1f).fillMaxHeight()) {
@@ -94,7 +109,11 @@ fun HomeScreen(
                 GridTile("Today's invoices", Icons.Default.Today, Modifier.weight(1f).fillMaxHeight()) {
                     onTile(HomeTile.TODAYS_INVOICES)
                 }
-                GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
+                if (isAdmin) {
+                    GridTile("Admin area", Icons.Default.AdminPanelSettings, Modifier.weight(1f).fillMaxHeight()) { onAdminArea() }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
             }
         }
     }
@@ -113,13 +132,13 @@ private fun ExportReminderCard(due: ExportDue, onOpenExport: () -> Unit) {
 }
 
 /**
- * The top bar's "Lock now": locks the app at once. Only the lock icon, named "Lock now" for screen readers: a text label took the
+ * The top bar's Log out: locks the app at once and shows the login. Only the lock icon, named Log out for screen readers: a text label took the
  * title's width at font scale 1.3 and 360 dp and squeezed the business name into a column.
  */
 @Composable
-private fun LockNowButton(onClick: () -> Unit) {
+private fun LogOutButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {
-        Icon(Icons.Default.Lock, contentDescription = "Lock now")
+        Icon(Icons.Default.Lock, contentDescription = "Log out")
     }
 }
 
@@ -178,5 +197,22 @@ private fun GridTile(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * The Finish setup card (Doc 1 s2.1 FR-3): shown while anything needed for billing is missing; each line opens the Admin screen that
+ * fixes it. It blocks nothing and carries no money. A missing price is a count, never an amount.
+ */
+@Composable
+private fun FinishSetupCard(gaps: SetupGaps, onOpen: (String) -> Unit) {
+    AppCard(containerColor = MaterialTheme.colorScheme.surfaceVariant) {
+        Text("Finish setup", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (gaps.businessDetails) {
+            SecondaryButton("Business details", onClick = { onOpen(AdminRoutes.SETTINGS) }, modifier = Modifier.padding(top = Spacing.sm))
+        }
+        if (gaps.missingPrices > 0) {
+            SecondaryButton("Prices: ${gaps.missingPrices} missing", onClick = { onOpen(AdminRoutes.PRICES) }, modifier = Modifier.padding(top = Spacing.sm))
+        }
     }
 }
