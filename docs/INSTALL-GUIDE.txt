@@ -96,11 +96,12 @@ To go back to selling from the Admin area: tap "More", then "Sales area".
    customer. For a person who is not a customer, tap "Walk-in sale".
 3. Enter the number of packets for each product.
 4. Tap "Continue".
-5. On the payment screen, type the money you received in
+5. On "Payment", type the money you received in
    "Amount received now", or tap "Full".
 6. Tap "Continue".
 7. Tap "Confirm invoice". The box "Confirm invoice?" appears. Tap "Confirm".
-The bill prints by itself on the handheld's printer.
+The bill opens on the screen. Tap "Print" to print it on the handheld's
+printer.
 If the screen says "Printer not ready. The bill is saved. Tap Reprint." then
 tap "Reprint".
 When you are finished, tap "Done".

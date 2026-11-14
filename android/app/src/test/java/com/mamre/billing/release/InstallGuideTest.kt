@@ -35,7 +35,7 @@ class InstallGuideTest {
         "Customers", "Add customer", "Save customer",
         "More", "Settings", "Users", "Add salesman", "Name (printed on bills)", "Sales area",
         "Walk-in sale", "Continue", "Amount received now", "Full", "Confirm invoice", "Confirm invoice?", "Confirm",
-        "Printer not ready. The bill is saved. Tap Reprint.", "Reprint", "Done",
+        "Printer not ready. The bill is saved. Tap Reprint.", "Print", "Reprint", "Done", "Payment",
         "A confirmed invoice cannot be edited.",
         "Log out", "Export data", "Export and share",
     )
@@ -65,9 +65,14 @@ class InstallGuideTest {
     fun `every quoted phrase is in the guide and in the app source, and no other phrase is quoted`() {
         val source = File(repoRoot, "android/app/src/main/java").walkTopDown()
             .filter { it.isFile && it.extension == "kt" }.joinToString("\n") { it.readText() }
-        val missingFromGuide = QUOTED_PHRASES.filter { "\"$it\"" !in guideFlat && it !in guideFlat }
-        assertTrue("not in the guide: $missingFromGuide", missingFromGuide.isEmpty())
-        val missingFromSource = QUOTED_PHRASES.filter { it !in source }
+        val missingFromGuide = QUOTED_PHRASES.filter { "\"$it\"" !in guideFlat }
+        assertTrue("not quoted in the guide: $missingFromGuide", missingFromGuide.isEmpty())
+        // A phrase must be a whole string literal in the app; only these are part of a longer literal (a template or a second sentence).
+        val partOfLiteral = setOf("Prices:", "missing", "A confirmed invoice cannot be edited.")
+        val missingFromSource = QUOTED_PHRASES.filter { p ->
+            if (p in partOfLiteral) !Regex("\"[^\"\\n]*" + Regex.escape(p) + "[^\"\\n]*\"").containsMatchIn(source)
+            else "\"$p\"" !in source
+        }
         assertTrue("not a string literal in the app: $missingFromSource", missingFromSource.isEmpty())
         // The guide quotes each phrase exactly: the quotes are paired and every quoted phrase is known.
         val quoted = Regex("\"([^\"]+)\"").findAll(guideFlat).map { it.groupValues[1] }.toSet()
