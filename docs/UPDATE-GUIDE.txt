@@ -18,7 +18,8 @@ BEFORE YOU UPDATE (as a precaution)
    you can tap that instead.)
 3. Tap "Export and share". Send the files to your own email or Google Drive,
    or copy them to the laptop with the cable.
-   The screen shows "Last export prepared" with today's date when it worked.
+   Then go back. "Settings" shows "Last export prepared" with today's date
+   when it worked.
 This is only a safety copy. The update itself keeps your data.
 
 THE UPDATE
@@ -26,8 +27,9 @@ THE UPDATE
 1. Open the new link that you were sent, on the phone that has Mamre Foods.
 2. Download the file. When the phone says it can download, tap OK / Download.
 3. Open the downloaded file.
-   If the phone asks "Allow from this source?", turn it on once. You did this
-   when you first installed the app.
+   If the phone asks to allow installs from this source, turn it on once. You
+   did this when you first installed the app. The words can differ a little
+   on each phone.
 4. The phone shows the app name "Mamre Foods" and a button "Update"
    (on some phones it says "Install"; it is the same thing).
    Tap "Update".
@@ -39,7 +41,8 @@ THE UPDATE
 
 IF SOMETHING LOOKS WRONG
 ------------------------
-- The phone says "App not installed" or "Newer version already installed":
+- The phone says the app was not installed, or that a newer version is
+  already there (the words differ on each phone):
   you are trying to put an older version over a newer one. Do nothing,
   keep the app you have, and ask for the newest link.
 - The app shows "Create the admin account", or your data is missing: STOP.

@@ -9,7 +9,7 @@ import org.junit.Test
 class ReleaseScriptsAndGuideTest {
     private val root = File(listOf(File(".."), File(".")).first { File(it, "app/src/main").isDirectory }.canonicalFile, "..").canonicalFile
     private fun text(path: String) = File(root, path).readText()
-    private val pinWord = Regex("\bPIN\b")
+    private val pinWord = Regex("\\bPIN\\b")
 
     /** Doc 1 s2.1 FR-1: the seed creates the admin account; B2 then shows "Set up your business", which the test skips; then Home. */
     @Test fun theUpgradeTestCreatesTheAdminAccountThenSkipsTheFirstRunSetupScreen() {
